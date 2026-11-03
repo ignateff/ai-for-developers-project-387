@@ -1,0 +1,118 @@
+.events {
+  padding-bottom: 48px;
+}
+
+.events-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.events-refresh {
+  flex-shrink: 0;
+  min-height: 38px;
+}
+
+.events-state {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.event-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.event-badge {
+  width: 88px;
+  height: 86px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding-left: 29px;
+  background: var(--bg-info);
+  border-radius: 10px;
+}
+
+.event-badge-month {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.event-badge-day {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.event-body {
+  min-width: 0;
+}
+
+.event-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.event-email {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.event-meta {
+  margin: 20px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.event-meta svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.event-status {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 8px 22px;
+  border-radius: 16px;
+  background: var(--bg-info);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .event-card {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .event-status {
+    margin-left: 0;
+  }
+
+  .event-badge {
+    padding-left: 0;
+    align-items: center;
+  }
+}

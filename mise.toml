@@ -1,0 +1,155 @@
+[settings]
+experimental = true
+
+[tools]
+node = "24.22.2"
+pnpm = "10.19.0"
+hk = "2.9.0"
+pkl = "0.32.2"
+pitchfork = "2.32.3"
+jactionlint = "2.3.0"
+shellcheck = "0.11.0"
+
+[env]
+NODE_ENV = "development"
+
+[tasks.install]
+description = "Install project dependencies"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.add]
+description = "Add a dependency to a workspace project (default @calendar/web)"
+usage = '''
+arg "<packages>" var=#true
+flag "--filter <project>" default="@calendar/web"
+'''
+run = '''
+#!/usr/bin/env bash
+eval "packages=(${usage_packages?})"
+pnpm --filter "${usage_filter?}" add "${packages[@]}"
+'''
+
+[tasks."add:dev"]
+description = "Add a root development dependency"
+usage = '''
+arg "<packages>" var=#true
+'''
+run = '''
+#!/usr/bin/env bash
+eval "packages=(${usage_packages?})"
+pnpm add -Dw "${packages[@]}"
+'''
+
+[tasks.dev]
+description = "Start API and web dev servers (pitchfork daemons)"
+run = "node scripts/dev-start.mjs"
+
+[tasks.install-hooks]
+description = "Install shared Git hooks"
+run = "hk install --mise"
+
+[tasks.dev-api]
+run = "pnpm --filter @calendar/api dev"
+
+[tasks.dev-web]
+run = "pnpm --filter @calendar/web dev"
+
+[tasks.format]
+run = "pnpm run format"
+
+[tasks."format:check"]
+run = "pnpm run format:check"
+
+[tasks.lint]
+run = "pnpm run lint"
+
+[tasks.typecheck]
+run = "pnpm run typecheck"
+
+[tasks."check:quick"]
+description = "Run fast local checks without starting development daemons"
+run = "pnpm run check:quick"
+
+[tasks.test]
+run = "pnpm run test"
+
+[tasks."test:e2e"]
+run = "pnpm run test:e2e"
+
+[tasks."test:e2e:install"]
+run = "pnpm run test:e2e:install"
+
+[tasks."test:e2e:visual:update"]
+description = "Update visual regression baselines for the current platform"
+run = "pnpm run test:e2e:visual:update"
+
+[tasks."test:e2e:visual:update:linux"]
+description = "Update Linux (CI) visual regression baselines in the Playwright container"
+run = "pnpm run test:e2e:visual:update:linux"
+
+[tasks.build]
+run = "pnpm run build"
+
+[tasks."build:docker"]
+description = "Build the Docker image with the current source revision"
+run = "pnpm run build:docker"
+
+[tasks."test:docker-smoke"]
+description = "Smoke-test the working-copy production container and frontend"
+run = "pnpm run test:docker-smoke"
+
+[tasks."deploy:prepare"]
+description = "Prepare a verified local deployment image (does not publish)"
+run = "pnpm run deploy:prepare"
+
+[tasks."deploy:fly"]
+description = "Deploy the verified image to Fly.io (explicit run; local lock only)"
+run = "pnpm run deploy:fly"
+
+[tasks.start]
+description = "Run the built API server (serves the built frontend when present)"
+run = "pnpm --filter @calendar/api start"
+
+[tasks.generate]
+description = "Regenerate OpenAPI spec and SDK from TypeSpec contract"
+run = "pnpm run generate"
+
+[tasks."check:contract-http"]
+run = "pnpm run check:contract-http"
+
+[tasks."check:generated"]
+run = "pnpm run check:generated"
+
+[tasks."db:generate"]
+description = "Generate database migrations"
+run = "pnpm run db:generate"
+
+[tasks."db:migrate"]
+description = "Apply database migrations"
+run = "pnpm run db:migrate"
+
+[tasks.check]
+description = "Run the same checks locally and in CI"
+run = [
+  "pnpm run lint",
+  "pnpm run format:check",
+  "pnpm run typecheck",
+  "pnpm run test",
+  "pnpm run test:e2e",
+  "pnpm run check:contract-http",
+  "pnpm run check:generated",
+  "pnpm run build",
+  "pnpm run test:docker-smoke",
+  "jactionlint .github/workflows/ci.yml .github/workflows/release-please.yml",
+]
+
+[daemons.api]
+run = "exec pnpm --filter @calendar/api dev"
+port = { expect = [3000], bump = true }
+ready_cmd = "curl -fsS http://127.0.0.1:$PORT/api/health > /dev/null"
+
+[daemons.web]
+run = '''target=$(node scripts/dev-target.mjs); API_PROXY_TARGET=${target:-http://127.0.0.1:{{ daemons.api.port }}} exec pnpm --filter @calendar/web dev --port $PORT --strictPort'''
+port = { expect = [5173], bump = true }
+depends = ["api"]
+ready_cmd = "curl -fsS http://127.0.0.1:$PORT/ > /dev/null"

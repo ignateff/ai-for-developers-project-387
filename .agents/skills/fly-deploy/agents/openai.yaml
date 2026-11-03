@@ -1,0 +1,3 @@
+interface:
+  display_name: "Fly Deploy"
+  short_description: "Deploy to Fly.io Machines with flyctl"

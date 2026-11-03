@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "overrides": [
+    {
+      "files": ["apps/web/src/**/*.{js,jsx,ts,tsx}"],
+      "excludeFiles": ["**/*.{test,spec}.{js,jsx,ts,tsx}"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "checkGlobalObject": true,
+            "globals": [
+              { "name": "fetch", "message": "Use the generated SDK for frontend API requests." },
+              {
+                "name": "XMLHttpRequest",
+                "message": "Use the generated SDK for frontend API requests."
+              },
+              {
+                "name": "WebSocket",
+                "message": "Use the generated SDK for frontend API requests."
+              },
+              {
+                "name": "EventSource",
+                "message": "Use the generated SDK for frontend API requests."
+              }
+            ]
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          {
+            "property": "sendBeacon",
+            "message": "Use the generated SDK for frontend API requests."
+          }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(axios|ky|ofetch|node-fetch|cross-fetch|undici|superagent)(/|$)",
+                "message": "Use the generated SDK for frontend API requests."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

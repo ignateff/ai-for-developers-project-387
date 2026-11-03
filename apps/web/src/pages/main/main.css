@@ -1,0 +1,105 @@
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 544px;
+  gap: 32px;
+  align-items: start;
+  padding-top: 86px;
+  padding-bottom: 48px;
+}
+
+.hero-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.hero-title {
+  margin: 20px 0 0;
+  max-width: 530px;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.hero-subtitle {
+  margin: 20px 0 0;
+  max-width: 490px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.hero-cta {
+  margin-top: 32px;
+  min-height: 48px;
+  padding-inline: 28px;
+  text-decoration: none;
+}
+
+.hero-how {
+  padding: 28px;
+}
+
+.hero-how-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.hero-steps {
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 31px;
+}
+
+.hero-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.hero-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--bg-info);
+  color: var(--accent);
+}
+
+.hero-step-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hero-step-description {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 1000px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding-top: 48px;
+  }
+
+  .hero-title {
+    font-size: clamp(30px, 7vw, 42px);
+  }
+}
