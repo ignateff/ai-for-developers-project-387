@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.mise.local.toml
+.DS_Store
+coverage/
+.vitest/
+
+playwright-report/
+.playwright-mcp/
+test-results/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

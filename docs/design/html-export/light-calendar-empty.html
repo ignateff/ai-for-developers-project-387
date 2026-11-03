@@ -1,0 +1,2895 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter%3Awght%40100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      *,
+      ::before,
+      ::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body style="background-color: #f5faf8">
+    <div
+      data-pencil-name="Светлая — Календарь без выбранной даты"
+      style="
+        background-color: #f5faf8;
+        box-sizing: border-box;
+        height: 900px;
+        overflow: hidden;
+        position: relative;
+        width: 1400px;
+      "
+    >
+      <div
+        data-pencil-name="Верхняя панель"
+        style="
+          background-color: #ffffff;
+          box-sizing: border-box;
+          height: 64px;
+          left: 0px;
+          outline-offset: -0.5px;
+          outline: 1px solid #e2e8f0;
+          position: absolute;
+          top: 0px;
+          width: 1400px;
+          z-index: 0;
+        "
+      ></div>
+      <svg
+        data-pencil-name="Значок календаря"
+        data-icon-name="calendar-clock"
+        data-icon-set="lucide"
+        viewBox="0 0 13.99993896484375 14"
+        preserveAspectRatio="xMidYMid meet"
+        xmlns="http://www.w3.org/2000/svg"
+        style="
+          box-sizing: border-box;
+          height: 20px;
+          left: 140px;
+          position: absolute;
+          top: 22px;
+          width: 20px;
+          z-index: 1;
+        "
+      >
+        <path
+          d="M4.57666 0.60156q-0.12305 0.01367-0.24268 0.09912-0.11963 0.08203-0.1914 0.19483-0.04102 0.08545-0.05469 0.20508-0.01367 0.11621-0.01367 0.35546l0 0.29395-1.32959 0.01367q-0.14014 0.01367-0.23926 0.02735-0.50244 0.14014-0.85449 0.50586-0.34863 0.3623-0.44776 0.88183-0.02734 0.0957-0.02734 0.81006l0 7.99463 0.05469 0.15381q0.15723 0.51953 0.56055 0.86133 0.40674 0.3418 0.93994 0.3999 0.14014 0.02734 1.18945 0.02734 1.04932 0 1.13477-0.02734 0.23584-0.04102 0.37597-0.23584 0.14014-0.19824 0.09912-0.4375-0.01367-0.0957-0.05127-0.16406-0.03418-0.07178-0.11963-0.14014-0.08203-0.07178-0.16406-0.11621l-0.09912-0.04102-2.32422-0.02734-0.09912-0.04102q-0.28027-0.12646-0.32129-0.43408-0.02734-0.11279-0.02734-2.73096l0-2.60449 1.17578 0q0.89551 0 1.11768-0.01367 0.22559-0.01367 0.30761-0.05469 0.08545-0.04443 0.15381-0.11963 0.07178-0.07861 0.11621-0.16064 0.0957-0.22559 0.01026-0.44776-0.08203-0.22559-0.31787-0.33837l-0.08545-0.02735-2.47803-0.01367 0-0.86816q0-0.65625 0.01367-0.85108 0.01367-0.19824 0.05469-0.28027 0.04443-0.08545 0.11963-0.16065 0.07861-0.07861 0.16064-0.12304l0.08545-0.04102 1.31592 0 0 0.34863q0.01367 0.25293 0.02051 0.31788 0.00684 0.06152 0.03418 0.14697 0.05811 0.0957 0.14013 0.18115 0.21191 0.19482 0.50586 0.14697 0.29395-0.04785 0.42041-0.31445 0.02734-0.08545 0.03418-0.14014 0.00684-0.05811 0.02051-0.32129l0-0.36572 3.5 0 0 0.36572q0.01367 0.26318 0.02051 0.32129 0.00684 0.05469 0.03418 0.14014 0.12646 0.2666 0.42041 0.31445 0.29395 0.04785 0.50586-0.14697 0.08203-0.08545 0.14013-0.18115 0.02734-0.08545 0.03418-0.14697 0.00684-0.06494 0.02051-0.31788l0-0.34863 0.62891 0q0.5332 0 0.64599 0.01367 0.11279 0.01367 0.22217 0.09912 0.08545 0.05469 0.12647 0.12647 0.08545 0.10938 0.09912 0.22217 0.01367 0.11279 0.02734 0.57422 0 0.43408 0.00684 0.51953 0.00684 0.08203 0.04101 0.15381 0.0376 0.06836 0.11963 0.14697 0.08545 0.0752 0.16065 0.11963 0.07861 0.04102 0.24609 0.04101 0.16748 0 0.24268-0.04101 0.07861-0.04443 0.16064-0.11963 0.08545-0.07861 0.11963-0.14697 0.0376-0.07178 0.04443-0.16065 0.00684-0.09229 0.00684-0.54004 0-0.61523-0.02735-0.75537-0.09912-0.51953-0.45117-0.88183-0.34863-0.36572-0.85107-0.50586-0.09912-0.01367-0.23926-0.02735l-1.32959-0.01367 0-0.29395q0-0.32129-0.03418-0.45459-0.03418-0.1333-0.14697-0.24609-0.14014-0.14014-0.35889-0.16064-0.21533-0.02051-0.37597 0.09228-0.16064 0.10938-0.21875 0.29395-0.02734 0.05469-0.03418 0.1333-0.00684 0.0752-0.00684 0.30078l0 0.33496-3.5 0 0-0.34863q0-0.23926-0.00684-0.30762-0.00684-0.07178-0.03418-0.12646-0.08545-0.21191-0.25293-0.30762-0.16748-0.09912-0.37939-0.05811z m4.46729 4.66211q-0.02734 0-0.22559 0.02735-0.38965 0.04443-0.80322 0.18457-0.41357 0.14014-0.76221 0.34863-0.96729 0.57422-1.50049 1.55517-0.52979 0.97754-0.50244 2.08497 0.02734 0.4751 0.12646 0.8955 0.28027 1.03564 1.02198 1.80469 0.28027 0.28027 0.53662 0.47168 0.25977 0.18799 0.59814 0.35547 0.44775 0.22559 0.875 0.32471 0.42725 0.0957 0.92969 0.0957 0.29395 0 0.50244-0.02734 0.21191-0.02734 0.49219-0.09912 1.09033-0.2666 1.88672-1.06299 0.7998-0.7998 1.06641-1.89014 0.07178-0.28027 0.09912-0.48877 0.02734-0.21191 0.02734-0.50586 0-0.93652-0.40674-1.76367-0.28027-0.58789-0.7417-1.06299-0.98096-1.02197-2.33789-1.22021-0.14014-0.01367-0.46142-0.02735-0.32129-0.01367-0.42041 0z m0.68701 1.18945q0.96387 0.12646 1.65088 0.80665 0.68701 0.67676 0.84082 1.64404 0.01367 0.14014 0.01367 0.42724 0 0.28711-0.01367 0.42725-0.12647 0.81006-0.65284 1.43555-0.52295 0.62207-1.29541 0.90234-0.96387 0.33496-1.94482-0.02734-0.58789-0.21191-1.04248-0.65967-0.45459-0.44775-0.68018-1.03564-0.18115-0.4751-0.18115-1.02198 0-0.54688 0.16748-1.02197 0.28027-0.75537 0.90235-1.25781 0.62549-0.50586 1.42187-0.61865 0.15381-0.02734 0.3999-0.02735 0.24609 0 0.41358 0.02735z m-0.50586 1.14844q-0.12646 0.01367-0.2461 0.10596-0.11621 0.08887-0.17431 0.21533l-0.04102 0.09912 0 1.58252 0.04102 0.09912q0.05811 0.0957 0.1333 0.17432 0.07861 0.0752 0.58789 0.38281 0.5127 0.30762 0.59472 0.33838 0.19824 0.05469 0.38624-0.03418 0.18799-0.09228 0.28027-0.28711 0.09229-0.19824 0.03418-0.39306-0.04102-0.16748-0.1333-0.25293-0.08887-0.08545-0.46826-0.30762l-0.29395-0.19483 0-0.47851q0-0.48877-0.02734-0.58789-0.04102-0.23584-0.23242-0.36914-0.18799-0.1333-0.44092-0.09229z"
+          fill="#087F7A"
+        ></path>
+      </svg>
+      <div
+        data-pencil-name="Название сервиса"
+        style="
+          box-sizing: border-box;
+          color: #102039;
+          font-family: Inter, system-ui, sans-serif;
+          font-size: 16px;
+          font-style: normal;
+          font-weight: 700;
+          left: 168px;
+          letter-spacing: 0px;
+          line-height: normal;
+          position: absolute;
+          text-align: left;
+          top: 22px;
+          white-space: nowrap;
+          z-index: 2;
+        "
+      >
+        Calendar
+      </div>
+      <div
+        data-pencil-name="Активный раздел"
+        style="
+          background-color: #e5f2ee;
+          border-radius: 8px;
+          box-sizing: border-box;
+          height: 38px;
+          left: 981px;
+          outline-offset: -0.5px;
+          outline: 1px solid #e5f2ee;
+          position: absolute;
+          top: 13px;
+          width: 108px;
+          z-index: 3;
+        "
+      ></div>
+      <div
+        data-pencil-name="Записаться"
+        style="
+          box-sizing: border-box;
+          color: #102039;
+          font-family: Inter, system-ui, sans-serif;
+          font-size: 14px;
+          font-style: normal;
+          font-weight: 500;
+          left: 994.5px;
+          letter-spacing: 0px;
+          line-height: normal;
+          position: absolute;
+          text-align: left;
+          top: 23.5px;
+          white-space: nowrap;
+          z-index: 4;
+        "
+      >
+        Записаться
+      </div>
+      <div
+        data-pencil-name="Предстоящие события"
+        style="
+          box-sizing: border-box;
+          color: #617994;
+          font-family: Inter, system-ui, sans-serif;
+          font-size: 14px;
+          font-style: normal;
+          font-weight: 400;
+          left: 1110px;
+          letter-spacing: 0px;
+          line-height: normal;
+          position: absolute;
+          text-align: left;
+          top: 25px;
+          white-space: nowrap;
+          z-index: 5;
+        "
+      >
+        Предстоящие события
+      </div>
+      <div
+        data-pencil-name="Заголовок"
+        style="
+          box-sizing: border-box;
+          color: #102039;
+          font-family: Inter, system-ui, sans-serif;
+          font-size: 28px;
+          font-style: normal;
+          font-weight: 700;
+          left: 140px;
+          letter-spacing: 0px;
+          line-height: normal;
+          position: absolute;
+          text-align: left;
+          top: 105px;
+          white-space: nowrap;
+          z-index: 6;
+        "
+      >
+        Запись на звонок
+      </div>
+      <div
+        data-pencil-name="Подзаголовок"
+        style="
+          box-sizing: border-box;
+          color: #617994;
+          font-family: Inter, system-ui, sans-serif;
+          font-size: 15px;
+          font-style: normal;
+          font-weight: 400;
+          left: 140px;
+          letter-spacing: 0px;
+          line-height: normal;
+          position: absolute;
+          text-align: left;
+          top: 146px;
+          white-space: nowrap;
+          z-index: 7;
+        "
+      >
+        Выберите удобную дату и время для звонка
+      </div>
+      <div
+        data-pencil-name="Информация о записи"
+        style="
+          background-color: #ffffff;
+          border-radius: 14px;
+          box-sizing: border-box;
+          height: 580px;
+          left: 140px;
+          outline-offset: -0.5px;
+          outline: 1px solid #d9e2ec;
+          position: absolute;
+          top: 195px;
+          width: 268px;
+          z-index: 8;
+        "
+      >
+        <div
+          data-pencil-name="Заголовок информации"
+          style="
+            box-sizing: border-box;
+            color: #102039;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 18px;
+            font-style: normal;
+            font-weight: 700;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 25px;
+            white-space: nowrap;
+            z-index: 0;
+          "
+        >
+          Информация
+        </div>
+        <div
+          data-pencil-name="Описание информации"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 400;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 59px;
+            white-space: nowrap;
+            z-index: 1;
+          "
+        >
+          Ваш выбор
+        </div>
+        <div
+          data-pencil-name="Выбранная дата"
+          style="
+            background-color: #edf5f2;
+            border-radius: 10px;
+            box-sizing: border-box;
+            height: 70px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #edf5f2;
+            position: absolute;
+            top: 92px;
+            width: 220px;
+            z-index: 2;
+          "
+        >
+          <div
+            data-pencil-name="Подпись"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 13px;
+              font-style: normal;
+              font-weight: 400;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 13px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            Выбранная дата
+          </div>
+          <div
+            data-pencil-name="Значение"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 600;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 38px;
+              white-space: nowrap;
+              z-index: 1;
+            "
+          >
+            Дата не выбрана
+          </div>
+        </div>
+        <div
+          data-pencil-name="Выбранное время"
+          style="
+            background-color: #edf5f2;
+            border-radius: 10px;
+            box-sizing: border-box;
+            height: 70px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #edf5f2;
+            position: absolute;
+            top: 174px;
+            width: 220px;
+            z-index: 3;
+          "
+        >
+          <div
+            data-pencil-name="Подпись"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 13px;
+              font-style: normal;
+              font-weight: 400;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 13px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            Выбранное время
+          </div>
+          <div
+            data-pencil-name="Значение"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 600;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 38px;
+              white-space: nowrap;
+              z-index: 1;
+            "
+          >
+            Время не выбрано
+          </div>
+        </div>
+        <div
+          data-pencil-name="Свободно"
+          style="
+            background-color: #edf5f2;
+            border-radius: 10px;
+            box-sizing: border-box;
+            height: 70px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #edf5f2;
+            position: absolute;
+            top: 256px;
+            width: 220px;
+            z-index: 4;
+          "
+        >
+          <div
+            data-pencil-name="Подпись"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 13px;
+              font-style: normal;
+              font-weight: 400;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 13px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            Свободно
+          </div>
+          <div
+            data-pencil-name="Значение"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 600;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 38px;
+              white-space: nowrap;
+              z-index: 1;
+            "
+          >
+            —
+          </div>
+        </div>
+        <div
+          data-pencil-name="Длительность"
+          style="
+            background-color: #edf5f2;
+            border-radius: 10px;
+            box-sizing: border-box;
+            height: 70px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #edf5f2;
+            position: absolute;
+            top: 338px;
+            width: 220px;
+            z-index: 5;
+          "
+        >
+          <div
+            data-pencil-name="Подпись"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 13px;
+              font-style: normal;
+              font-weight: 400;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 13px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            Длительность
+          </div>
+          <div
+            data-pencil-name="Значение"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 600;
+              left: 12px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 38px;
+              white-space: nowrap;
+              z-index: 1;
+            "
+          >
+            —
+          </div>
+        </div>
+        <svg
+          data-pencil-name="Часы"
+          data-icon-name="clock-3"
+          data-icon-set="lucide"
+          viewBox="0 0 13.99993896484375 14"
+          preserveAspectRatio="xMidYMid meet"
+          xmlns="http://www.w3.org/2000/svg"
+          style="
+            box-sizing: border-box;
+            height: 17px;
+            left: 24px;
+            position: absolute;
+            top: 476px;
+            width: 17px;
+            z-index: 6;
+          "
+        >
+          <path
+            d="M6.69238 0.60156q-1.16211 0.04102-2.22851 0.50586-1.06299 0.46143-1.90381 1.26807-0.8374 0.80322-1.34326 1.85254-0.48877 1.0083-0.60157 2.15674-0.02734 0.19482-0.02734 0.61523 0 0.42041 0.02734 0.61523 0.11279 1.14844 0.60157 2.15674 0.65967 1.40137 1.89697 2.33789 1.24072 0.93652 2.75146 1.20313 0.5332 0.09912 1.13477 0.09912 0.75537 0 1.43213-0.15381 0.68018-0.15381 1.35351-0.4751 1.26123-0.61865 2.16358-1.70215 0.90234-1.0835 1.25439-2.44384 0.29395-1.11768 0.18116-2.25244-0.11279-1.13477-0.60157-2.17041-0.58789-1.20313-1.62011-2.08497-1.02881-0.88184-2.31397-1.2749-1.0083-0.30762-2.15674-0.25293z m0.96729 1.18946q1.07666 0.14014 1.99267 0.68017 0.91602 0.54004 1.56201 1.4082 0.82715 1.104 1.00831 2.54639 0.01367 0.16748 0.01367 0.57422 0 0.40674-0.01367 0.57422-0.14014 1.16211-0.7212 2.12939-0.58105 0.96387-1.53466 1.62354-0.4751 0.33496-1.04932 0.56055-0.57422 0.22217-1.18945 0.30761-0.25293 0.04102-0.72803 0.04102-0.4751 0-0.72803-0.04102-1.07666-0.15381-1.95849-0.68701-0.88184-0.5332-1.52784-1.3877-0.82715-1.104-1.0083-2.54638-0.01367-0.16748-0.01367-0.57422 0-0.40674 0.01367-0.57422 0.14014-1.12109 0.66993-2.05078 0.5332-0.92969 1.43212-1.58936 0.54346-0.40674 1.20655-0.66992 0.6665-0.2666 1.32617-0.3247l0.25293-0.02735q0.0957-0.01367 0.4751 0 0.37939 0.01367 0.51953 0.02735z m-0.81348 1.14843q-0.25293 0.08545-0.37939 0.30762l-0.04102 0.08545 0 3.83496 0.04102 0.08545q0.04443 0.06836 0.12646 0.15381 0.08545 0.08203 0.15381 0.12646l0.08545 0.04102 2.46435 0q0.18115 0 0.26319-0.03418 0.08545-0.0376 0.16748-0.11963 0.08545-0.08545 0.1333-0.18799 0.05127-0.10596 0.05127-0.23242 0-0.12646-0.04102-0.23926-0.09912-0.19482-0.29394-0.29394l-0.08545-0.04102-1.91748 0 0-3.09326-0.04102-0.08545q-0.09912-0.18115-0.28027-0.2666-0.08545-0.04102-0.22559-0.04785-0.14014-0.00684-0.18115 0.00683z"
+            fill="#617994"
+          ></path>
+        </svg>
+        <div
+          data-pencil-name="Часовой пояс"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 400;
+            left: 50px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 477px;
+            white-space: nowrap;
+            z-index: 7;
+          "
+        >
+          Время указано по Москве
+        </div>
+        <div
+          data-pencil-name="Часовой пояс UTC"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 400;
+            left: 50px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 498px;
+            white-space: nowrap;
+            z-index: 8;
+          "
+        >
+          UTC+3
+        </div>
+      </div>
+      <div
+        data-pencil-name="Календарь"
+        style="
+          background-color: #ffffff;
+          border-radius: 14px;
+          box-sizing: border-box;
+          height: 580px;
+          left: 432px;
+          outline-offset: -0.5px;
+          outline: 1px solid #d9e2ec;
+          position: absolute;
+          top: 195px;
+          width: 435px;
+          z-index: 9;
+        "
+      >
+        <div
+          data-pencil-name="Заголовок календаря"
+          style="
+            box-sizing: border-box;
+            color: #102039;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 18px;
+            font-style: normal;
+            font-weight: 700;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 25px;
+            white-space: nowrap;
+            z-index: 0;
+          "
+        >
+          Календарь
+        </div>
+        <div
+          data-pencil-name="Подсказка календаря"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 400;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 59px;
+            white-space: nowrap;
+            z-index: 1;
+          "
+        >
+          Выберите день
+        </div>
+        <div
+          data-pencil-name="Месяц"
+          style="
+            box-sizing: border-box;
+            color: #102039;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 15px;
+            font-style: normal;
+            font-weight: 600;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 106px;
+            white-space: nowrap;
+            z-index: 2;
+          "
+        >
+          март 2026
+        </div>
+        <div
+          data-pencil-name="Предыдущий месяц"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 36px;
+            left: 327px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 96px;
+            width: 36px;
+            z-index: 3;
+          "
+        >
+          <svg
+            data-pencil-name="Стрелка назад"
+            data-icon-name="chevron-left"
+            data-icon-set="lucide"
+            viewBox="0 0 13.99993896484375 14"
+            preserveAspectRatio="xMidYMid meet"
+            xmlns="http://www.w3.org/2000/svg"
+            style="
+              box-sizing: border-box;
+              height: 16px;
+              left: 10px;
+              position: absolute;
+              top: 10px;
+              width: 16px;
+              z-index: 0;
+            "
+          >
+            <path
+              d="M8.59619 2.93945q-0.08545 0.02734-0.19482 0.1128-0.14014 0.12646-0.53321 0.51611l-1.28857 1.2749q-1.81836 1.82178-1.86279 1.90723-0.04102 0.08203-0.04102 0.24951 0 0.16748 0.04785 0.25977 0.05127 0.08887 1.8628 1.9038 1.81494 1.81152 1.9038 1.8628 0.09229 0.04785 0.2461 0.04785 0.15381 0 0.23584-0.03418 0.08545-0.0376 0.18115-0.1333 0.09912-0.09912 0.1333-0.18115 0.0376-0.08545 0.0376-0.23926 0-0.15381-0.04443-0.23584-0.04102-0.08545-1.62012-1.66797l-1.58252-1.58252 1.58252-1.58252q1.5791-1.58252 1.62012-1.66455 0.04443-0.08545 0.04443-0.23926 0-0.15381-0.0376-0.23584-0.03418-0.08545-0.11621-0.18457-0.16748-0.15381-0.39307-0.16748-0.14014 0-0.18115 0.01367z"
+              fill="#102039"
+            ></path>
+          </svg>
+        </div>
+        <div
+          data-pencil-name="Следующий месяц"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 36px;
+            left: 371px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 96px;
+            width: 36px;
+            z-index: 4;
+          "
+        >
+          <svg
+            data-pencil-name="Стрелка вперёд"
+            data-icon-name="chevron-right"
+            data-icon-set="lucide"
+            viewBox="0 0 13.99993896484375 14"
+            preserveAspectRatio="xMidYMid meet"
+            xmlns="http://www.w3.org/2000/svg"
+            style="
+              box-sizing: border-box;
+              height: 16px;
+              left: 10px;
+              position: absolute;
+              top: 10px;
+              width: 16px;
+              z-index: 0;
+            "
+          >
+            <path
+              d="M5.09619 2.93945q-0.25293 0.08545-0.37939 0.30762-0.04102 0.08545-0.04102 0.25293 0 0.16748 0.04102 0.25293 0.04443 0.08203 1.62353 1.66455l1.58252 1.58252-1.58252 1.58252q-1.5791 1.58252-1.62353 1.66797-0.04102 0.08203-0.04102 0.23584 0 0.15381 0.03418 0.23926 0.0376 0.08203 0.1333 0.18115 0.09912 0.0957 0.18115 0.1333 0.08545 0.03418 0.23926 0.03418 0.15381 0 0.24268-0.04785 0.09229-0.05127 1.90381-1.8628 1.81494-1.81494 1.86279-1.9038 0.05127-0.09229 0.05127-0.25977 0-0.16748-0.04443-0.24951-0.04102-0.08545-1.85938-1.90723l-1.44238-1.42871q-0.33496-0.33496-0.46143-0.41699-0.09912-0.07178-0.19824-0.07178l-0.04102 0q-0.14014 0-0.18115 0.01367z"
+              fill="#102039"
+            ></path>
+          </svg>
+        </div>
+        <div
+          data-pencil-name="День недели Пн"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 37px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 5;
+          "
+        >
+          Пн
+        </div>
+        <div
+          data-pencil-name="День недели Вт"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 92px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 6;
+          "
+        >
+          Вт
+        </div>
+        <div
+          data-pencil-name="День недели Ср"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 147px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 7;
+          "
+        >
+          Ср
+        </div>
+        <div
+          data-pencil-name="День недели Чт"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 202px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 8;
+          "
+        >
+          Чт
+        </div>
+        <div
+          data-pencil-name="День недели Пт"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 257px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 9;
+          "
+        >
+          Пт
+        </div>
+        <div
+          data-pencil-name="День недели Сб"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 312px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 10;
+          "
+        >
+          Сб
+        </div>
+        <div
+          data-pencil-name="День недели Вс"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 600;
+            left: 367px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 153px;
+            white-space: nowrap;
+            z-index: 11;
+          "
+        >
+          Вс
+        </div>
+        <div
+          data-pencil-name="День 0 23"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 12;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            23
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 0 24"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 79px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 13;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            24
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 0 25"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 134px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 14;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            25
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 0 26"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 189px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 15;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            26
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 0 27"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 244px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 16;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            27
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 0 28"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 299px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 17;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            28
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 0 1"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 354px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 178px;
+            width: 50px;
+            z-index: 18;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            1
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 2"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 19;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            2
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 3"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 79px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 20;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            3
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 4"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 134px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 21;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            4
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 5"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 189px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 22;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            5
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 6"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 244px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 23;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            6
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 7"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 299px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 24;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            7
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 1 8"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 354px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 233px;
+            width: 50px;
+            z-index: 25;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            8
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 9"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 26;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            9
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 10"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 79px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 27;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            10
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 11"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 134px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 28;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            11
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 12"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 189px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 29;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            12
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 13"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 244px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 30;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            13
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 14"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 299px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 31;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            14
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 2 15"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 354px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 288px;
+            width: 50px;
+            z-index: 32;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            15
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 16"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 33;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            16
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 17"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 79px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 34;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            17
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 18"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 134px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 35;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            18
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 19"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 189px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 36;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            19
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 20"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 244px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 37;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            20
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 21"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 299px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 38;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            21
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 3 22"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 354px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 343px;
+            width: 50px;
+            z-index: 39;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            22
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 23"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 40;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            23
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 24"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 79px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 41;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            24
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 25"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 134px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 42;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            25
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 26"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 189px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 43;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            26
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 27"
+          style="
+            background-color: #f2f5f8;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 244px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 44;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 17px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            27
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 28"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 299px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 45;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            28
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #087f7a;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            17 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 4 29"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 354px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 398px;
+            width: 50px;
+            z-index: 46;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            29
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 30"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 47;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            30
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 31"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 79px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 48;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 17px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            31
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 1"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 134px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 49;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            1
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 2"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 189px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 50;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            2
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 3"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 244px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 51;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            3
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 4"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 299px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 52;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            4
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="День 5 5"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 50px;
+            left: 354px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 453px;
+            width: 50px;
+            z-index: 53;
+          "
+        >
+          <div
+            data-pencil-name="Число"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              left: 21px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 8px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            5
+          </div>
+          <div
+            data-pencil-name="Доступность"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 10px;
+              font-style: normal;
+              font-weight: 400;
+              left: 0px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: center;
+              top: 31px;
+              width: 50px;
+              z-index: 1;
+            "
+          >
+            18 св.
+          </div>
+        </div>
+        <div
+          data-pencil-name="Легенда"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: 400;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 530px;
+            white-space: nowrap;
+            z-index: 54;
+          "
+        >
+          Доступные дни отмечены количеством слотов
+        </div>
+      </div>
+      <div
+        data-pencil-name="Доступное время"
+        style="
+          background-color: #ffffff;
+          border-radius: 14px;
+          box-sizing: border-box;
+          height: 580px;
+          left: 891px;
+          outline-offset: -0.5px;
+          outline: 1px solid #d9e2ec;
+          position: absolute;
+          top: 195px;
+          width: 369px;
+          z-index: 10;
+        "
+      >
+        <div
+          data-pencil-name="Заголовок слотов"
+          style="
+            box-sizing: border-box;
+            color: #102039;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 18px;
+            font-style: normal;
+            font-weight: 700;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 25px;
+            white-space: nowrap;
+            z-index: 0;
+          "
+        >
+          Доступное время
+        </div>
+        <div
+          data-pencil-name="Выбранный день"
+          style="
+            box-sizing: border-box;
+            color: #617994;
+            font-family: Inter, system-ui, sans-serif;
+            font-size: 13px;
+            font-style: normal;
+            font-weight: 400;
+            left: 24px;
+            letter-spacing: 0px;
+            line-height: normal;
+            position: absolute;
+            text-align: left;
+            top: 59px;
+            white-space: nowrap;
+            z-index: 1;
+          "
+        >
+          Выберите дату в календаре
+        </div>
+        <div
+          data-pencil-name="Разделитель"
+          style="
+            background-color: #e9eef4;
+            box-sizing: border-box;
+            height: 1px;
+            left: 24px;
+            position: absolute;
+            top: 493px;
+            width: 321px;
+            z-index: 2;
+          "
+        ></div>
+        <div
+          data-pencil-name="Кнопка назад"
+          style="
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 42px;
+            left: 24px;
+            outline-offset: -0.5px;
+            outline: 1px solid #d9e2ec;
+            position: absolute;
+            top: 515px;
+            width: 126px;
+            z-index: 3;
+          "
+        >
+          <div
+            data-pencil-name="Назад"
+            style="
+              box-sizing: border-box;
+              color: #102039;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 600;
+              left: 40px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 13px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            Назад
+          </div>
+        </div>
+        <div
+          data-pencil-name="Кнопка продолжить"
+          style="
+            background-color: #e8eef4;
+            border-radius: 8px;
+            box-sizing: border-box;
+            height: 42px;
+            left: 162px;
+            outline-offset: -0.5px;
+            outline: 1px solid #e8eef4;
+            position: absolute;
+            top: 515px;
+            width: 183px;
+            z-index: 4;
+          "
+        >
+          <div
+            data-pencil-name="Продолжить"
+            style="
+              box-sizing: border-box;
+              color: #90a3b8;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 700;
+              left: 40px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 13px;
+              white-space: nowrap;
+              z-index: 0;
+            "
+          >
+            Продолжить
+          </div>
+          <svg
+            data-pencil-name="Стрелка продолжить"
+            data-icon-name="arrow-right"
+            data-icon-set="lucide"
+            viewBox="0 0 13.99993896484375 14"
+            preserveAspectRatio="xMidYMid meet"
+            xmlns="http://www.w3.org/2000/svg"
+            style="
+              box-sizing: border-box;
+              height: 16px;
+              left: 150px;
+              position: absolute;
+              top: 13px;
+              width: 16px;
+              z-index: 1;
+            "
+          >
+            <path
+              d="M6.90088 2.35156q-0.18115 0.02734-0.32129 0.16748-0.11279 0.11279-0.14697 0.28028-0.03418 0.16748 0.02051 0.32129 0.02734 0.08545 0.25976 0.3247 0.23242 0.23584 1.36377 1.37061 1.58252 1.58252 1.58252 1.59619 0 0.01367-3.45557 0.01367l-3.44531 0-0.08545 0.04102q-0.22217 0.11279-0.30078 0.33838-0.0752 0.22217 0.00684 0.43408 0.05811 0.0957 0.14013 0.18115 0.08545 0.08203 0.16748 0.11963 0.08545 0.03418 0.53321 0.03418l3.01123 0q3.42822 0 3.42822 0.01367 0 0.01367-1.58252 1.59619-1.13135 1.13477-1.36377 1.37402-0.23242 0.23584-0.25976 0.3213-0.05469 0.15381-0.02051 0.32128 0.03418 0.16748 0.14697 0.28028 0.18115 0.18115 0.42041 0.18115l0.04102 0q0.11279 0 0.19824-0.05469 0.14014-0.09912 0.51611-0.46484l1.68164-1.67822q2.1123-2.10205 2.15332-2.18409 0.07178-0.12646 0.07178-0.28027 0-0.15381-0.07178-0.28027-0.04102-0.08203-2.1499-2.18067-2.10547-2.10205-2.17725-2.13623-0.06836-0.0376-0.23584-0.06494-0.04102 0-0.12646 0.01367z"
+              fill="#90A3B8"
+            ></path>
+          </svg>
+        </div>
+        <div
+          data-pencil-name="Подсказка выбора даты"
+          style="
+            background-color: #edf5f2;
+            border-radius: 10px;
+            box-sizing: border-box;
+            height: 94px;
+            left: 24px;
+            position: absolute;
+            top: 96px;
+            width: 321px;
+            z-index: 5;
+          "
+        >
+          <svg
+            data-pencil-name="Календарь"
+            data-icon-name="calendar-days"
+            data-icon-set="lucide"
+            viewBox="0 0 13.99993896484375 14"
+            preserveAspectRatio="xMidYMid meet"
+            xmlns="http://www.w3.org/2000/svg"
+            style="
+              box-sizing: border-box;
+              height: 20px;
+              left: 16px;
+              position: absolute;
+              top: 17px;
+              width: 20px;
+              z-index: 0;
+            "
+          >
+            <path
+              d="M4.57666 0.60156q-0.12305 0.01367-0.24268 0.09912-0.11963 0.08203-0.1914 0.19483-0.04102 0.08545-0.05469 0.20508-0.01367 0.11621-0.01367 0.35546l0 0.29395-1.32959 0.01367q-0.14014 0.01367-0.23926 0.02735-0.50244 0.14014-0.85449 0.50586-0.34863 0.3623-0.44776 0.88183-0.02734 0.0957-0.02734 0.81006l0 7.99463 0.05469 0.15381q0.15723 0.51953 0.56055 0.86133 0.40674 0.3418 0.93994 0.3999 0.15381 0.02734 4.26904 0.02734 4.11523 0 4.26904-0.02734 0.30762-0.02734 0.58789-0.16748 0.32471-0.15381 0.56055-0.44092 0.23926-0.28711 0.35205-0.65283l0.05469-0.15381 0-7.99463q0-0.71436-0.02735-0.81006-0.09912-0.51953-0.45117-0.88183-0.34863-0.36572-0.85107-0.50586-0.09912-0.01367-0.23926-0.02735l-1.32959-0.01367 0-0.29395q0-0.32129-0.03418-0.45459-0.03418-0.1333-0.14697-0.24609-0.14014-0.14014-0.35889-0.16064-0.21533-0.02051-0.37597 0.09228-0.16064 0.10938-0.21875 0.29395-0.02734 0.05469-0.03418 0.1333-0.00684 0.0752-0.00684 0.30078l0 0.33496-3.5 0 0-0.34863q0-0.23926-0.00684-0.30762-0.00684-0.07178-0.03418-0.12646-0.08545-0.21191-0.25293-0.30762-0.16748-0.09912-0.37939-0.05811z m-0.50244 2.67285q0.01367 0.25293 0.02051 0.31788 0.00684 0.06152 0.03418 0.14697 0.05811 0.0957 0.14013 0.18115 0.21191 0.19482 0.50586 0.14697 0.29395-0.04785 0.42041-0.31445 0.02734-0.08545 0.03418-0.14014 0.00684-0.05811 0.02051-0.32129l0-0.36572 3.5 0 0 0.36572q0.01367 0.26318 0.02051 0.32129 0.00684 0.05469 0.03418 0.14014 0.12646 0.2666 0.42041 0.31445 0.29395 0.04785 0.50586-0.14697 0.08203-0.08545 0.14013-0.18115 0.02734-0.08545 0.03418-0.14697 0.00684-0.06494 0.02051-0.31788l0-0.34863 1.31592 0 0.08545 0.04102q0.08203 0.04443 0.15722 0.12304 0.07861 0.0752 0.11963 0.16065 0.04443 0.08203 0.05811 0.28027 0.01367 0.19482 0.01367 0.85108l0 0.86816-9.35156 0 0.01367-1.72266q0.01367-0.16748 0.02734-0.20849 0.09912-0.2666 0.35206-0.36572 0.05469-0.01367 0.16748-0.02735l1.18945 0 0 0.34863z m7.58789 5.82422q0 1.89014-0.00684 2.30371-0.00683 0.41357-0.0205 0.45459-0.09912 0.25293-0.35206 0.35205l-0.0957 0.04102-8.37402 0-0.0957-0.04102q-0.15381-0.0581-0.26661-0.19824l-0.02734-0.02734q-0.04443-0.05469-0.05811-0.15381-0.02734-0.14014-0.02734-0.60156l-0.01367-4.80225 9.35156 0-0.01367 2.67285z m-7.08545-1.49707q-0.23584 0.02734-0.38281 0.23242-0.14697 0.20166-0.09229 0.44092 0.02734 0.18115 0.15381 0.29395 0.16748 0.16748 0.42041 0.16748 0.14014 0 0.23926-0.04102 0.2085-0.09912 0.28369-0.29394 0.07861-0.19824 0.03076-0.39991-0.04785-0.20508-0.23242-0.32128-0.18115-0.11963-0.42041-0.07862z m2.32422 0q-0.18115 0.02734-0.32129 0.16748-0.2085 0.21191-0.15381 0.50586 0.05469 0.29395 0.32129 0.42041 0.09912 0.04102 0.25293 0.04102 0.25293 0 0.42041-0.16748 0.12646-0.12646 0.15381-0.30762 0.05469-0.29395-0.15723-0.50244-0.2085-0.21191-0.51611-0.15723z m2.32422 0q-0.18115 0.02734-0.32129 0.18115-0.14014 0.15381-0.15381 0.35206-0.01367 0.23584 0.16064 0.42724 0.17432 0.18799 0.42725 0.18799 0.19482 0 0.34863-0.11963 0.15381-0.11963 0.2085-0.30762 0.05811-0.18799-0.02051-0.37597-0.0752-0.19141-0.24951-0.28711-0.17432-0.09912-0.3999-0.05811z m-4.74414 2.35156q-0.18457 0.0581-0.29053 0.21192-0.10254 0.15381-0.10254 0.33496 0 0.23926 0.17432 0.41357 0.17432 0.17432 0.42041 0.16065 0.24609-0.01367 0.3999-0.16748 0.09912-0.09912 0.12646-0.18115 0.02734-0.08545 0.02735-0.23926 0-0.15381-0.04102-0.23926-0.08545-0.18115-0.2666-0.2666-0.08545-0.04102-0.23242-0.05469-0.14697-0.01367-0.21533 0.02734z m2.36523-0.01367q-0.25293 0.08545-0.37939 0.30762-0.04102 0.08545-0.04102 0.23926 0 0.15381 0.03418 0.23926 0.0376 0.08203 0.1333 0.18115 0.15381 0.15381 0.3999 0.16748 0.24609 0.01367 0.42041-0.16065 0.17432-0.17432 0.17432-0.41357 0-0.23926-0.16748-0.3999-0.16748-0.16064-0.39307-0.17432-0.14014 0-0.18115 0.01367z m2.2832 0.01367q-0.09912 0.04443-0.1914 0.12989-0.08887 0.08203-0.12647 0.16064-0.03418 0.0752-0.04101 0.11621-0.00684 0.04102-0.00684 0.14014 0 0.15381 0.04102 0.25293 0.07178 0.15381 0.21875 0.23926 0.14697 0.08203 0.31445 0.08203 0.16748 0 0.30762-0.08203 0.14014-0.08545 0.22558-0.23926 0.04102-0.09912 0.04102-0.25293 0-0.09912-0.00684-0.14014-0.00684-0.04102-0.03418-0.11279-0.05811-0.08203-0.14355-0.16406-0.08203-0.08545-0.18115-0.11963-0.0957-0.0376-0.21534-0.0376-0.11963 0-0.20166 0.02734z"
+              fill="#087F7A"
+            ></path>
+          </svg>
+          <div
+            data-pencil-name="Подсказка"
+            style="
+              box-sizing: border-box;
+              color: #617994;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 13px;
+              font-style: normal;
+              font-weight: 400;
+              left: 48px;
+              letter-spacing: 0px;
+              line-height: normal;
+              position: absolute;
+              text-align: left;
+              top: 16px;
+              width: 252px;
+              z-index: 1;
+            "
+          >
+            Выберите дату, чтобы увидеть доступное время.
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

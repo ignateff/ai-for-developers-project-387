@@ -1,0 +1,52 @@
+{
+  "name": "call-calendar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:quick": "pnpm run lint && pnpm run format:check && pnpm run typecheck",
+    "lint": "oxlint --deny-warnings apps",
+    "format:check": "oxfmt --check .",
+    "format": "oxfmt .",
+    "typecheck": "pnpm -r --if-present typecheck && tsc -p scripts/tsconfig.json",
+    "test": "vitest run",
+    "build": "pnpm -r --if-present build",
+    "build:docker": "node scripts/build-docker.mjs",
+    "test:docker-smoke": "node scripts/docker-smoke.ts",
+    "deploy:prepare": "node scripts/deploy-prepare.mjs",
+    "deploy:fly": "node scripts/deploy-fly.mjs",
+    "generate": "tsp compile contract/main.tsp && orval --config contract/orval.config.ts",
+    "check:generated": "node scripts/check-generated.mjs",
+    "db:generate": "pnpm --filter @calendar/api db:generate",
+    "db:migrate": "pnpm --filter @calendar/api db:migrate",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:visual:update": "playwright test e2e/00-visual.spec.ts --update-snapshots",
+    "test:e2e:visual:update:linux": "bash scripts/update-visual-snapshots-linux.sh",
+    "check:contract-http": "node scripts/check-contract-http.mjs"
+  },
+  "devDependencies": {
+    "@babel/parser": "^8.0.10",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "24.19.2",
+    "@typespec/compiler": "1.17.0",
+    "@typespec/http": "1.17.0",
+    "@typespec/openapi3": "1.17.0",
+    "openapi-backend": "5.23.0",
+    "orval": "8.45.0",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5",
+    "yaml": "2.9.1"
+  },
+  "packageManager": "pnpm@10.19.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
+}

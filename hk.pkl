@@ -1,0 +1,18 @@
+amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
+
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["check"] {
+        check = "mise run check:quick"
+      }
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["check"] {
+        check = "mise run check:quick"
+      }
+    }
+  }
+}

@@ -1,0 +1,3 @@
+# Favicon verification
+
+Issue #53: on 2026-11-02, built the production application with `mise run build` and served it with `DATABASE_PATH=:memory: PORT=3344 mise run start`. Chromium loaded `/favicon.svg` with HTTP 200 and `image/svg+xml`, and decoded it as a 24×24 image. On a white background, visually compared the favicon at 16×16 and 32×32 CSS pixels with the calendar-clock mark in the header: the calendar and clock remain recognizable and use the same teal. The browser automation screenshot does not include browser tab chrome, so the 16×16 image was rendered in the page as a proxy for the tab icon.
