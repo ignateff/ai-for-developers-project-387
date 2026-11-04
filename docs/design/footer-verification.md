@@ -17,4 +17,4 @@ Verified on 2026-11-04 for [#6](https://github.com/ignateff/ai-for-developers-pr
 - Also captured and reviewed `/book` loading, empty and failed-list states in Chromium at both viewport sizes using controlled API responses; the footer remains readable and outside the content without horizontal overflow.
 - Browser `Date` and API time use the shared 2026-03-27T08:00:00Z test clock; browser timers continue running.
 - `mise run check` passed: 186 unit/integration tests, 39 e2e tests (including visual comparisons), lint, formatting, types, contract/generated checks, build, production Docker smoke and workflow lint.
-- Independent Standards and Spec reviews reported no findings. CI is verified on the published PR rather than inferred from local checks.
+- Independent Standards and Spec reviews reported no findings. [CI passed for commit `deac8e0`](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/41828951169). This is evidence for that commit only; later commits require their own successful CI run.

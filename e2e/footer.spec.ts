@@ -1,4 +1,7 @@
 import { expect, test } from "./fixtures";
+import { FIXED_NOW } from "./fixed-now";
+
+const copyright = `© ${new Date(FIXED_NOW).getUTCFullYear()} Календарь звонков`;
 
 for (const viewport of [
   { width: 1400, height: 900 },
@@ -10,12 +13,25 @@ for (const viewport of [
     for (const path of ["/", "/book", "/admin", "/admin/events"]) {
       test(`shows the copyright after the content on ${path}`, async ({ page }) => {
         await page.goto(path);
-        // Wait for data-driven pages to finish loading before measuring layout.
-        await expect(page.getByText(/^Загрузка/)).toBeHidden();
+        if (path === "/") {
+          await expect(
+            page.getByRole("heading", { name: "Время для важных разговоров" }),
+          ).toBeVisible();
+        } else {
+          // Neither a card nor the empty state exists until the list has loaded.
+          const emptyState =
+            path === "/admin/events" ? "Предстоящих событий пока нет" : "Пока нет типов встреч";
+          await expect(
+            page
+              .getByRole("article")
+              .first()
+              .or(page.getByText(emptyState, { exact: true })),
+          ).toBeVisible();
+        }
         await page.evaluate(() => document.fonts.ready);
 
         const footer = page.getByRole("contentinfo");
-        await expect(footer).toHaveText("© 2026 Календарь звонков");
+        await expect(footer).toHaveText(copyright);
         await expect(footer).toHaveJSProperty("tagName", "FOOTER");
         const mainBox = await page.getByRole("main").boundingBox();
         const footerBox = await footer.boundingBox();
@@ -32,7 +48,7 @@ for (const viewport of [
           .toBe(true);
         await footer.scrollIntoViewIfNeeded();
         await expect(footer).toBeInViewport();
-        await expect(footer.getByText("© 2026 Календарь звонков")).toBeInViewport({ ratio: 1 });
+        await expect(footer.getByText(copyright)).toBeInViewport({ ratio: 1 });
       });
     }
 
@@ -67,7 +83,9 @@ for (const viewport of [
       const lastCardBox = await lastCard.boundingBox();
       expect(footerBox).not.toBeNull();
       expect(lastCardBox).not.toBeNull();
-      expect(footerBox!.y).toBeGreaterThan(viewport.height);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight),
+      ).toBe(true);
       expect(footerBox!.y).toBeGreaterThanOrEqual(lastCardBox!.y + lastCardBox!.height);
       await footer.scrollIntoViewIfNeeded();
       await expect(footer).toBeInViewport();
