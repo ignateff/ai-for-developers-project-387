@@ -27,7 +27,7 @@ afterEach(() => {
 
 describe("Layout footer", () => {
   it("renders the copyright landmark with the current year", () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-03-27T08:00:00Z"));
     render(
       <BrowserRouter>
@@ -41,7 +41,7 @@ describe("Layout footer", () => {
   });
 
   it("updates the year on the next render after New Year", () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 11, 31, 23, 59, 59));
     const layout = () => (
       <BrowserRouter>

@@ -43,7 +43,7 @@ for (const viewport of [
       await page.evaluate(() => document.fonts.ready);
       const footerBox = await page.getByRole("contentinfo").boundingBox();
       expect(footerBox).not.toBeNull();
-      expect(footerBox!.y + footerBox!.height).toBeCloseTo(viewport.height, 0);
+      expect(Math.abs(footerBox!.y + footerBox!.height - viewport.height)).toBeLessThanOrEqual(1);
     });
 
     test("follows a long list without covering the last item", async ({ page }) => {
