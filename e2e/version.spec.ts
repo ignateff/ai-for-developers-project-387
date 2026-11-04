@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { readBuildInfo } from "../apps/web/build-info.ts";
 
 test("logs the frontend version once per page load, not on SPA navigation", async ({ page }) => {

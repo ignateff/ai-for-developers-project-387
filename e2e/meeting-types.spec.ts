@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("owner creates a meeting type that guests can see", async ({ page }) => {
   await page.goto("/admin");

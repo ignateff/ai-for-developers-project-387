@@ -79,6 +79,14 @@
   flex: 1;
 }
 
+.layout-footer {
+  padding-block: 24px;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 @media (max-width: 560px) {
   .layout-header-content {
     height: auto;

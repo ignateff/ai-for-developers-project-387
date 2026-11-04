@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("the browser can load the calendar favicon", async ({ page, request }) => {
   await page.goto("/");
