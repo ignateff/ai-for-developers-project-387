@@ -44,6 +44,13 @@ Preparation runs without provider credentials. Only the final agent step receive
 the provider key. Never print full resolved configuration, environment variables,
 Git credential configuration, or raw authorization/API error payloads.
 
+Upstream stdout/stderr are not forwarded verbatim: its dynamically exchanged App
+token is unknown to the parent and may occur in encoded Git-error arguments.
+Only an exact allowlist of fixed phase messages is relayed; all other output is
+discarded, including error annotations and model text. The handler still publishes
+its normal response on the issue/PR. A cancellation remains a failure even if the
+child exits with code zero after receiving the signal.
+
 HOME, XDG state and TMPDIR/TMP/TEMP are dedicated to the run. Mise's installed
 tool directory is retained explicitly, without copying developer configuration
 or credentials. The short run-directory name leaves room for the homedir-based

@@ -1,9 +1,10 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
 import { assertSafeProject, assertSafePullRequest } from "./opencode-discovery.ts";
+import { runGitHubHandler } from "./opencode-handler.ts";
 
 const execute = promisify(execFile);
 
@@ -290,42 +291,7 @@ async function runCommand(base: NodeJS.ProcessEnv) {
   const env = createCommandEnvironment({ ...paths, base });
   await inspectAgent(state.binary, env, paths);
   if (!env.DEEPSEEK_API_KEY) throw new Error("OpenCode provider credentials are missing");
-  await new Promise<void>((accept, reject) => {
-    const child = spawn(state.binary, ["github", "run"], {
-      cwd: paths.workspace,
-      env,
-      stdio: "inherit",
-      detached: true,
-    });
-    const forward = (signal: NodeJS.Signals) => {
-      if (child.pid) {
-        try {
-          process.kill(-child.pid, signal);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ESRCH")
-            reject(new Error("OpenCode signal forwarding failed"));
-        }
-      }
-    };
-    const terminate = () => forward("SIGTERM");
-    const interrupt = () => forward("SIGINT");
-    process.on("SIGTERM", terminate);
-    process.on("SIGINT", interrupt);
-    const cleanup = () => {
-      process.off("SIGTERM", terminate);
-      process.off("SIGINT", interrupt);
-    };
-    child.once("error", () => {
-      cleanup();
-      reject(new Error("OpenCode GitHub handler could not start"));
-    });
-    child.once("close", (code, signal) => {
-      cleanup();
-      if (code === 0 && !signal) accept();
-      else
-        reject(new Error("OpenCode GitHub handler failed or was cancelled; fix is not confirmed"));
-    });
-  });
+  await runGitHubHandler({ binary: state.binary, workspace: paths.workspace, env });
 }
 
 if (import.meta.main) {

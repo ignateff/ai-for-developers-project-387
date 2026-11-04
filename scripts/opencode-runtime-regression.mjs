@@ -297,32 +297,38 @@ async function probe(binary, scenario) {
     console.log(`PASS: ${scenario} (${tools[0].state.status}, no unresolved permissions)`);
   } finally {
     eventsController.abort();
-    if (eventReader) await bounded(eventReader, "event stream shutdown", 5000);
-    if (
-      runtimeProcess.exitCode === null &&
-      runtimeProcess.signalCode === null &&
-      runtimeProcess.pid
-    ) {
-      try {
-        process.kill(-runtimeProcess.pid, "SIGTERM");
-      } catch (error) {
-        if (error.code !== "ESRCH") throw error;
-      }
-    }
     try {
-      await bounded(exited, "runtime shutdown", 5000);
-    } catch {
+      if (eventReader) await bounded(eventReader, "event stream shutdown", 5000);
+    } finally {
       try {
-        process.kill(-runtimeProcess.pid, "SIGKILL");
-      } catch (error) {
-        if (error.code !== "ESRCH") throw error;
+        if (
+          runtimeProcess.exitCode === null &&
+          runtimeProcess.signalCode === null &&
+          runtimeProcess.pid
+        ) {
+          try {
+            process.kill(-runtimeProcess.pid, "SIGTERM");
+          } catch (error) {
+            if (error.code !== "ESRCH") throw error;
+          }
+        }
+        try {
+          await bounded(exited, "runtime shutdown", 5000);
+        } catch {
+          try {
+            process.kill(-runtimeProcess.pid, "SIGKILL");
+          } catch (error) {
+            if (error.code !== "ESRCH") throw error;
+          }
+          await bounded(exited, "runtime forced shutdown", 5000);
+        }
+      } finally {
+        llm.closeAllConnections();
+        await new Promise((resolve, reject) =>
+          llm.close((error) => (error ? reject(error) : resolve())),
+        );
       }
-      await bounded(exited, "runtime forced shutdown", 5000);
     }
-    llm.closeAllConnections();
-    await new Promise((resolve, reject) =>
-      llm.close((error) => (error ? reject(error) : resolve())),
-    );
   }
 }
 
