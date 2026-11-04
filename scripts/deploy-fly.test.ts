@@ -124,6 +124,9 @@ if (args[0] === 'releases') {
   process.exit(0);
 }
 if (args[0] === 'deploy') {
+  // Test-only latency injection: no Fly API or real deployment is involved.
+  const delay = Math.min(10000, Math.max(0, Number(config.deployDelayMs) || 0));
+  if (delay) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
   if (config.deployFails) { process.stderr.write('Error: EOF'); process.exit(1); }
   state.deployed = args[args.indexOf('--image') + 1].split('@')[1];
   fs.writeFileSync(statePath, JSON.stringify(state));
@@ -152,7 +155,13 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
   ].map((path, index) => ({ path, object: (index + 1).toString(16).padStart(40, "0") }));
   writeFileSync(
     join(dir, "config.json"),
-    JSON.stringify({ revision, localImageId, entries, ...configOverrides }),
+    JSON.stringify({
+      revision,
+      localImageId,
+      entries,
+      deployDelayMs: Number(process.env.CALENDAR_DEPLOY_FIXTURE_DELAY_MS ?? 0),
+      ...configOverrides,
+    }),
   );
   writeFileSync(join(dir, "git"), fakeGit, { mode: 0o755 });
   writeFileSync(join(dir, "docker"), fakeDocker, { mode: 0o755 });
@@ -186,7 +195,7 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
     });
   // Async spawn: the fixture HTTP server lives in this process, so a blocking
   // spawnSync call would deadlock the child's health and page requests.
-  const run = (port?: number) =>
+  const run = (port?: number, timeout = 120_000) =>
     new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
       const child = spawn(process.execPath, [join(dir, "scripts", "deploy-fly.mjs")], {
         cwd: dir,
@@ -204,7 +213,7 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
       child.stderr.on("data", (data: Buffer) => {
         stderr += data.toString();
       });
-      const timer = setTimeout(() => child.kill("SIGKILL"), 120_000);
+      const timer = setTimeout(() => child.kill("SIGKILL"), timeout);
       child.on("error", reject);
       child.on("close", (status) => {
         clearTimeout(timer);
@@ -284,7 +293,9 @@ it("publishes and rolls out to the app selected by the fast-forwarded configurat
   const f = fixture({ mergeApp: "calendar-updated-app" });
   try {
     const port = await f.start();
-    const result = await f.run(port);
+    // The complete flow includes repeated CLI guards and browser verification.
+    // Let the child finish or hit its own deadline before Vitest tears down the fixture.
+    const result = await f.run(port, 20_000);
     expect(result.status, result.stderr).toBe(0);
     expect(f.log("docker").find((args) => args[0] === "push")?.[1]).toMatch(
       /^registry\.fly\.io\/calendar-updated-app:/,
@@ -295,7 +306,7 @@ it("publishes and rolls out to the app selected by the fast-forwarded configurat
   } finally {
     f.cleanup();
   }
-});
+}, 30_000);
 
 it("stops without pushing when the source revision advanced after preparation", async () => {
   const f = fixture({
