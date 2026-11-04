@@ -20,6 +20,8 @@ import type { AddressInfo } from "node:net";
 import { expect, it } from "vitest";
 
 const repo = fileURLToPath(new URL("../", import.meta.url));
+const scenarioTimeoutMs = 30_000;
+const scenarioTestTimeoutMs = scenarioTimeoutMs + 5_000;
 const revision = "a".repeat(40);
 const localImageId = `sha256:${"b".repeat(64)}`;
 const digest = `sha256:${"c".repeat(64)}`;
@@ -204,8 +206,18 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
       child.stderr.on("data", (data: Buffer) => {
         stderr += data.toString();
       });
-      const timer = setTimeout(() => child.kill("SIGKILL"), 120_000);
-      child.on("error", reject);
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(
+          new Error(
+            `deploy-fly.mjs exceeded the ${scenarioTimeoutMs} ms test deadline\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+          ),
+        );
+      }, scenarioTimeoutMs);
+      child.on("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
       child.on("close", (status) => {
         clearTimeout(timer);
         resolve({ status, stdout, stderr });
@@ -280,22 +292,26 @@ it("reports an unresolved push after inspecting the registry manifest", async ()
   }
 });
 
-it("publishes and rolls out to the app selected by the fast-forwarded configuration", async () => {
-  const f = fixture({ mergeApp: "calendar-updated-app" });
-  try {
-    const port = await f.start();
-    const result = await f.run(port);
-    expect(result.status, result.stderr).toBe(0);
-    expect(f.log("docker").find((args) => args[0] === "push")?.[1]).toMatch(
-      /^registry\.fly\.io\/calendar-updated-app:/,
-    );
-    const deploy = f.log("fly").find((args) => args[0] === "deploy");
-    expect(deploy?.[deploy.indexOf("--app") + 1]).toBe("calendar-updated-app");
-    expect(deploy).toContain(`registry.fly.io/calendar-updated-app@${digest}`);
-  } finally {
-    f.cleanup();
-  }
-});
+it(
+  "publishes and rolls out to the app selected by the fast-forwarded configuration",
+  { timeout: scenarioTestTimeoutMs },
+  async () => {
+    const f = fixture({ mergeApp: "calendar-updated-app" });
+    try {
+      const port = await f.start();
+      const result = await f.run(port);
+      expect(result.status, result.stderr).toBe(0);
+      expect(f.log("docker").find((args) => args[0] === "push")?.[1]).toMatch(
+        /^registry\.fly\.io\/calendar-updated-app:/,
+      );
+      const deploy = f.log("fly").find((args) => args[0] === "deploy");
+      expect(deploy?.[deploy.indexOf("--app") + 1]).toBe("calendar-updated-app");
+      expect(deploy).toContain(`registry.fly.io/calendar-updated-app@${digest}`);
+    } finally {
+      f.cleanup();
+    }
+  },
+);
 
 it("stops without pushing when the source revision advanced after preparation", async () => {
   const f = fixture({
@@ -382,22 +398,26 @@ it("reports an unresolved rollout instead of retrying", async () => {
   }
 });
 
-it("fails verification when the deployed frontend reports another revision", async () => {
-  // The bundle carries the expected marker as a comment (pre-push smoke passes)
-  // but the browser console reports a different revision.
-  const f = fixture(
-    {},
-    `/* Calendar v0.0.0 (${revision.slice(0, 7)}) */ console.info('Calendar v0.0.0 (fffffff)');`,
-  );
-  try {
-    const port = await f.start();
-    const result = await f.run(port);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("deployed frontend reports");
-  } finally {
-    f.cleanup();
-  }
-});
+it(
+  "fails verification when the deployed frontend reports another revision",
+  { timeout: scenarioTestTimeoutMs },
+  async () => {
+    // The bundle carries the expected marker as a comment (pre-push smoke passes)
+    // but the browser console reports a different revision.
+    const f = fixture(
+      {},
+      `/* Calendar v0.0.0 (${revision.slice(0, 7)}) */ console.info('Calendar v0.0.0 (fffffff)');`,
+    );
+    try {
+      const port = await f.start();
+      const result = await f.run(port);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("deployed frontend reports");
+    } finally {
+      f.cleanup();
+    }
+  },
+);
 
 it.each([
   { label: "missing", checks: undefined },
@@ -666,37 +686,41 @@ it.each([
   }
 });
 
-it("publishes the verified image by digest and confirms the public frontend version", async () => {
-  const f = fixture();
-  try {
-    const port = await f.start();
-    const result = await f.run(port);
-    expect(result.status, result.stderr).toBe(0);
-    const docker = f.log("docker");
-    const push = docker.find((args) => args[0] === "push");
-    expect(push?.[1]).toMatch(/^registry\.fly\.io\/calendar-test-app:deploy-a{7}-\d+$/);
-    const fly = f.log("fly");
-    const deploy = fly.find((args) => args[0] === "deploy");
-    expect(deploy).toContain(`registry.fly.io/calendar-test-app@${digest}`);
-    expect(deploy).toContain("--strategy");
-    const provenanceDirs = readdirSync(f.dir).filter((name) =>
-      name.startsWith("calendar-deploy-provenance-"),
-    );
-    expect(provenanceDirs).toHaveLength(1);
-    const provenance = JSON.parse(
-      readFileSync(join(f.dir, provenanceDirs[0], "provenance.json"), "utf8"),
-    );
-    expect(provenance).toMatchObject({
-      sourceRevision: revision,
-      localImageId,
-      registryDigest: digest,
-      releaseId: "release-1",
-      releaseVersion: 1,
-    });
-    expect(readdirSync(f.dir).some((name) => name.endsWith(".lock"))).toBe(false);
-    expect(result.stdout).toContain("Deployed registry.fly.io/");
-    expect(result.stderr).toContain(`Deployment verified: http://127.0.0.1:${port}`);
-  } finally {
-    f.cleanup();
-  }
-});
+it(
+  "publishes the verified image by digest and confirms the public frontend version",
+  { timeout: scenarioTestTimeoutMs },
+  async () => {
+    const f = fixture();
+    try {
+      const port = await f.start();
+      const result = await f.run(port);
+      expect(result.status, result.stderr).toBe(0);
+      const docker = f.log("docker");
+      const push = docker.find((args) => args[0] === "push");
+      expect(push?.[1]).toMatch(/^registry\.fly\.io\/calendar-test-app:deploy-a{7}-\d+$/);
+      const fly = f.log("fly");
+      const deploy = fly.find((args) => args[0] === "deploy");
+      expect(deploy).toContain(`registry.fly.io/calendar-test-app@${digest}`);
+      expect(deploy).toContain("--strategy");
+      const provenanceDirs = readdirSync(f.dir).filter((name) =>
+        name.startsWith("calendar-deploy-provenance-"),
+      );
+      expect(provenanceDirs).toHaveLength(1);
+      const provenance = JSON.parse(
+        readFileSync(join(f.dir, provenanceDirs[0], "provenance.json"), "utf8"),
+      );
+      expect(provenance).toMatchObject({
+        sourceRevision: revision,
+        localImageId,
+        registryDigest: digest,
+        releaseId: "release-1",
+        releaseVersion: 1,
+      });
+      expect(readdirSync(f.dir).some((name) => name.endsWith(".lock"))).toBe(false);
+      expect(result.stdout).toContain("Deployed registry.fly.io/");
+      expect(result.stderr).toContain(`Deployment verified: http://127.0.0.1:${port}`);
+    } finally {
+      f.cleanup();
+    }
+  },
+);
