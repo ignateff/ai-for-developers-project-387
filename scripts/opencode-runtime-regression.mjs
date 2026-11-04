@@ -183,7 +183,13 @@ async function probe(binary, scenario) {
   let eventReader;
   try {
     const url = await bounded(listening, "server startup");
-    const headers = { "x-opencode-directory": project, "content-type": "application/json" };
+    // Every scenario replaces the server on the same port. Do not carry pooled
+    // keep-alive sockets across those process lifetimes (ECONNRESET on Linux).
+    const headers = {
+      "x-opencode-directory": project,
+      "content-type": "application/json",
+      connection: "close",
+    };
     const request = async (path, method = "GET", body) => {
       const response = await fetch(`${url}${path}`, {
         method,
