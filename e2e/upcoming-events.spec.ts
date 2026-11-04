@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("owner sees a newly created booking in upcoming events", async ({ page, request }) => {
   const typeResponse = await request.post("/api/meeting-types", {

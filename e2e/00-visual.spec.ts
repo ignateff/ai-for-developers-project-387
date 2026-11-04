@@ -1,9 +1,9 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./fixtures";
 
 // Визуальные регрессионные проверки по docs/design/calendar-booking.pen.
 // Файл должен запускаться первым (префикс 00-): эталоны сняты на пустой базе,
 // а Playwright исполняет файлы по алфавиту с одним общим сервером.
-// Время сервера зафиксировано (CALENDAR_FIXED_NOW в playwright.config.ts),
+// Время сервера и браузера зафиксировано (e2e/fixed-now.ts и fixtures.ts),
 // поэтому календарь всегда показывает окно с 27 марта 2026, как в макете.
 
 const DESKTOP = { width: 1400, height: 900 };

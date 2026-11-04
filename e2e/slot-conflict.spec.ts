@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("a same-date request started before a conflict cannot unlock its slots", async ({ page }) => {
   await page.goto("/admin");

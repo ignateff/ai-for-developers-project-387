@@ -48,6 +48,9 @@ export function Layout() {
       <main className="layout-main">
         <Outlet />
       </main>
+      <footer className="layout-footer">
+        <div className="container">© {new Date().getFullYear()} Календарь звонков</div>
+      </footer>
     </div>
   );
 }

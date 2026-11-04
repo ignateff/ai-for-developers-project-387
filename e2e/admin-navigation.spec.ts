@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("guest and owner navigate between direct links and preserve booking context", async ({
   page,
