@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
 
       - name: Debug APP_URL
-        run: echo "APP_URL is ${{ vars.APP_URL }}"
+        run: echo "APP_URL is ${{ inputs.app_url }}"
 
       - name: Install Node.js
         uses: actions/setup-node@3e942d355b3f9e2d13e729c25b7cd05d840f29b7 # v4
