@@ -47,6 +47,10 @@ async function probeSkills(binary) {
   const clean = { ...env };
   delete clean.OPENCODE_DISABLE_EXTERNAL_SKILLS;
   delete clean.OPENCODE_DISABLE_CLAUDE_CODE;
+  const cleanConfig = JSON.parse(clean.OPENCODE_CONFIG_CONTENT);
+  cleanConfig.permission.skill = "allow";
+  cleanConfig.agent.build.permission.skill = "allow";
+  clean.OPENCODE_CONFIG_CONTENT = JSON.stringify(cleanConfig);
   const found = await discover(clean);
   for (const name of skills) {
     const entry = found.find((item) => item.name === name);
