@@ -69,6 +69,18 @@
   font-weight: 500;
 }
 
+.layout-nav-link-cta {
+  box-sizing: border-box;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.layout-nav-link-cta:hover {
+  color: var(--accent);
+  background: var(--bg-selected);
+}
+
 .layout-main {
   flex: 1;
   display: flex;
