@@ -126,6 +126,9 @@ if (args[0] === 'releases') {
   process.exit(0);
 }
 if (args[0] === 'deploy') {
+  // Test-only latency injection: no Fly API or real deployment is involved.
+  const delay = Math.min(10000, Math.max(0, Number(config.deployDelayMs) || 0));
+  if (delay) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
   if (config.deployFails) { process.stderr.write('Error: EOF'); process.exit(1); }
   state.deployed = args[args.indexOf('--image') + 1].split('@')[1];
   fs.writeFileSync(statePath, JSON.stringify(state));
@@ -154,7 +157,13 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
   ].map((path, index) => ({ path, object: (index + 1).toString(16).padStart(40, "0") }));
   writeFileSync(
     join(dir, "config.json"),
-    JSON.stringify({ revision, localImageId, entries, ...configOverrides }),
+    JSON.stringify({
+      revision,
+      localImageId,
+      entries,
+      deployDelayMs: Number(process.env.CALENDAR_DEPLOY_FIXTURE_DELAY_MS ?? 0),
+      ...configOverrides,
+    }),
   );
   writeFileSync(join(dir, "git"), fakeGit, { mode: 0o755 });
   writeFileSync(join(dir, "docker"), fakeDocker, { mode: 0o755 });
@@ -188,7 +197,7 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
     });
   // Async spawn: the fixture HTTP server lives in this process, so a blocking
   // spawnSync call would deadlock the child's health and page requests.
-  const run = (port?: number) =>
+  const run = (port?: number, timeout = 120_000) =>
     new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
       const child = spawn(process.execPath, [join(dir, "scripts", "deploy-fly.mjs")], {
         cwd: dir,
@@ -210,10 +219,10 @@ function fixture(configOverrides: Record<string, unknown> = {}, bundleJs?: strin
         child.kill("SIGKILL");
         reject(
           new Error(
-            `deploy-fly.mjs exceeded the ${scenarioTimeoutMs} ms test deadline\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+            `deploy-fly.mjs exceeded the ${timeout} ms test deadline\nstdout:\n${stdout}\nstderr:\n${stderr}`,
           ),
         );
-      }, scenarioTimeoutMs);
+      }, timeout);
       child.on("error", (error) => {
         clearTimeout(timer);
         reject(error);
@@ -299,7 +308,7 @@ it(
     const f = fixture({ mergeApp: "calendar-updated-app" });
     try {
       const port = await f.start();
-      const result = await f.run(port);
+      const result = await f.run(port, scenarioTimeoutMs);
       expect(result.status, result.stderr).toBe(0);
       expect(f.log("docker").find((args) => args[0] === "push")?.[1]).toMatch(
         /^registry\.fly\.io\/calendar-updated-app:/,
@@ -410,7 +419,7 @@ it(
     );
     try {
       const port = await f.start();
-      const result = await f.run(port);
+      const result = await f.run(port, scenarioTimeoutMs);
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain("deployed frontend reports");
     } finally {
@@ -693,7 +702,7 @@ it(
     const f = fixture();
     try {
       const port = await f.start();
-      const result = await f.run(port);
+      const result = await f.run(port, scenarioTimeoutMs);
       expect(result.status, result.stderr).toBe(0);
       const docker = f.log("docker");
       const push = docker.find((args) => args[0] === "push");
