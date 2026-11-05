@@ -34,7 +34,12 @@ it("configures one application release with a versioned changelog", () => {
   });
   const version = readFileSync("version.txt", "utf8").trim();
   expect(version).toMatch(/^\d+\.\d+\.\d+$/);
-  if (manifest["."]) expect(manifest["."]).toBe(version);
+  expect(manifest["."]).toBe(version);
+});
+
+it("starts the first new-repository release after the application import", () => {
+  const config = JSON.parse(readFileSync("release-please-config.json", "utf8"));
+  expect(config["bootstrap-sha"]).toBe("10d74ac276471854c174b136fb70908901e5a143");
 });
 
 it("runs the same checks for push and pull requests", () => {
