@@ -1,0 +1,66 @@
+name: Performance Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: Application URL to audit
+        required: true
+        default: ${{ vars.APP_URL }}
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@3e942d355b3f9e2d13e729c25b7cd05d840f29b7 # v4
+        with:
+          node-version: '20'
+
+      - name: Install Lighthouse
+        run: npm install --no-save lighthouse
+
+      - name: Run Lighthouse
+        env:
+          APP_URL: ${{ inputs.app_url }}
+        run: |
+          test -n "$APP_URL"
+          mkdir -p .audit
+          npx lighthouse "$APP_URL" \
+            --output=json \
+            --output-path=.audit/lighthouse-report.json \
+            --chrome-flags="--headless"
+
+      - name: Save report
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-report
+          path: .audit/lighthouse-report.json
+          include-hidden-files: true
+          if-no-files-found: error
+
+      - name: Analyze with OpenCode
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/free
+          share: false
+          prompt: |
+            Read .audit/lighthouse-report.json.
+            Compare LCP, CLS, INP with the values in
+            docs/performance-baseline.md.
+            For metrics that degraded by more than 10%,
+            identify likely culprits in recent commits and
+            search existing issues, then create a task only for a new finding.
+            Include the evidence, proposed action and a link to this run.
+            Do not repeat unchanged comments or commit the report.
