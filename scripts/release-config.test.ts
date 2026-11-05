@@ -34,7 +34,7 @@ it("configures one application release with a versioned changelog", () => {
   });
   const version = readFileSync("version.txt", "utf8").trim();
   expect(version).toMatch(/^\d+\.\d+\.\d+$/);
-  if (manifest["."]) expect(manifest["."]).toBe(version);
+  expect(manifest["."]).toBe(version);
 });
 
 it("runs the same checks for push and pull requests", () => {

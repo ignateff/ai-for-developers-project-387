@@ -2,7 +2,9 @@
 
 ## Continuation in project 387
 
-The release files and application version were preserved from project 386; old changelog links still refer to that repository. Its GitHub releases and tags were not imported. Review the first release PR in this repository against this boundary rather than treating historical changelog entries as newly published releases.
+The release files and application version were preserved from project 386; old changelog links still refer to that repository. Its GitHub releases and tags were not imported. Version `0.5.0` was the inherited baseline, not a release in project 387. The first release published here is [v0.6.0](https://github.com/ignateff/ai-for-developers-project-387/releases/tag/v0.6.0).
+
+The v0.6.0 release notes include the application import and contain a comparison link against `v0.5.0`, a tag not published in this repository. Do not create a historical tag or change a published release to fill the gap without a separate decision. A bootstrap boundary cannot change this already-published release and is not configured retroactively.
 
 GitHub App installations, Actions variables and secrets are repository settings, not files. Configure them for **ignateff/ai-for-developers-project-387** using the steps below. The release job is skipped while `RELEASE_PLEASE_APP_ID` is unset; this does not skip CI or Hexlet checks. Configure the private key and App access before setting that variable; once the variable is set, missing or invalid credentials fail the workflow normally. No new deployment is part of the migration.
 
@@ -11,11 +13,10 @@ GitHub App installations, Actions variables and secrets are repository settings,
 Release Please maintains a single release PR for the application. It updates
 `version.txt`, `CHANGELOG.md`, and `.release-please-manifest.json`. Merging that
 PR creates a `v`-prefixed tag and a GitHub Release; it does not publish packages,
-images, or deployments. `version.txt` starts at the intended first version,
-`0.1.0`; the initial empty manifest does not claim a release already exists.
+images, or deployments. The manifest is the baseline for the next version,
+not proof that the baseline version was published in this repository.
 
-The first PR includes eligible conventional commits from the existing history.
-Review its notes and version before merging. Thereafter, fixes increment patch,
+Review each release PR's notes and version before merging. Fixes increment patch,
 features minor, and breaking changes major. A maintainer decides when to merge
 each release PR; CI runs `mise run check` on the PR.
 
@@ -32,16 +33,17 @@ Set the repository Actions variable `RELEASE_PLEASE_APP_ID` to the App ID and
 the Actions secret `RELEASE_PLEASE_APP_PRIVATE_KEY` to the complete PEM private
 key. Treat the key as a secret; do not paste it into issues, logs, or chat.
 The workflow runs on pushes to `main` and can also be started manually on
-`main` after credentials are configured. Do not merge the setup PR before the
-App is installed and its credentials are configured.
+`main` after credentials are configured. A manually disabled workflow must be
+enabled separately, with owner agreement, before it can run.
 
 ## Verification
 
-After the setup PR is merged, inspect the **Release Please** workflow run and
-the generated release PR. Confirm version `0.1.0`, relevant existing history,
-and a green **CI** run on that PR. Report any missing history or permission
-failure rather than merging it. Merging the release PR is a separate decision;
-after it is merged, check that the `v0.1.0` tag and GitHub Release were created.
+Inspect the **Release Please** run on the latest `main`. If a release PR is
+created, review its proposed version against the latest published release, its
+notes and links against the relevant history, and its CI status. Report
+discrepancies rather than merging the PR. If no PR is created, explain whether
+there are no releasable changes or whether the run failed. Merging a release PR
+and creating a GitHub Release require a separate human decision.
 
 Reference: [Release Please Action](https://github.com/googleapis/release-please-action)
 and [manifest configuration](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md).
