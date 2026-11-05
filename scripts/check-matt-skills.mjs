@@ -6,7 +6,17 @@ import { fileURLToPath } from "node:url";
 const project = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(process.argv[2] ?? project);
 const hashes = JSON.parse(await readFile(join(project, "scripts/matt-skills-sha256.json"), "utf8"));
-const skills = ["to-spec", "to-tickets", "implement-spec", "tdd", "code-review", "codebase-design"];
+const skills = [
+  "to-spec",
+  "to-tickets",
+  "implement-spec",
+  "tdd",
+  "code-review",
+  "codebase-design",
+  "triage",
+  "grilling",
+  "domain-modeling",
+];
 const actual = new Set();
 let failed = false;
 
