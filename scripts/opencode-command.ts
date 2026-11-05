@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
 import { assertSafeProject, assertSafePullRequest } from "./opencode-discovery.ts";
 import { runGitHubHandler } from "./opencode-handler.ts";
+import { commandSkills, verifyCommandSkills } from "./opencode-skills.ts";
 
 const execute = promisify(execFile);
 
@@ -58,6 +59,7 @@ export function createCommandEnvironment({
     todowrite: "allow",
     webfetch: "allow",
     websearch: "allow",
+    skill: { "*": "deny", ...Object.fromEntries(commandSkills.map((name) => [name, "allow"])) },
     external_directory: { "*": "deny", [`${workspace}/*`]: "allow", [`${directory}/*`]: "allow" },
     question: "deny",
     task: "deny",
@@ -97,6 +99,7 @@ export function createCommandEnvironment({
       formatter: false,
       lsp: false,
       snapshot: false,
+      skills: { paths: [join(directory, "skills")] },
       permission,
       instructions: [join(workspace, "AGENTS.md"), join(directory, "instructions.md")],
       agent: { build: { permission } },
@@ -241,6 +244,8 @@ async function prepareCommand(base: NodeJS.ProcessEnv) {
   const env = createCommandEnvironment({ ...paths, base });
   await mkdir(env.HOME!, { recursive: true, mode: 0o700 });
   await mkdir(env.TMPDIR!, { recursive: true, mode: 0o700 });
+  await verifyCommandSkills(paths.workspace, paths.directory, true);
+  await verifyCommandSkills(paths.workspace, paths.directory, false);
   await writeFile(
     join(paths.directory, "instructions.md"),
     [
@@ -288,6 +293,7 @@ async function runCommand(base: NodeJS.ProcessEnv) {
     throw new Error("OpenCode prepared runtime state is invalid");
   await inspectSource(base, paths.workspace);
   await verifyInstalledRuntime(state.binary);
+  await verifyCommandSkills(paths.workspace, paths.directory, false);
   const env = createCommandEnvironment({ ...paths, base });
   await inspectAgent(state.binary, env, paths);
   if (!env.DEEPSEEK_API_KEY) throw new Error("OpenCode provider credentials are missing");

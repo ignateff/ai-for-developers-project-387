@@ -9,22 +9,35 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createCommandEnvironment, assertCommandAgent } from "./opencode-command.ts";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
 import { assertSafeProject } from "./opencode-discovery.ts";
+import { commandSkills, verifyCommandSkills } from "./opencode-skills.ts";
 
 const execute = promisify(execFile);
 const root = await realpath(await mkdtemp(join(tmpdir(), "calendar-oc-regression-")));
 const sentinel = "REAL_PERMISSION_SERVICE_SENTINEL";
-const skills = ["to-spec", "to-tickets", "implement-spec", "tdd", "code-review", "codebase-design"];
+const skills = commandSkills;
+
+async function skillFixture(project, runtime, prepare = true) {
+  await mkdir(join(project, "scripts"), { recursive: true });
+  await cp(
+    join(import.meta.dirname, "matt-skills-sha256.json"),
+    join(project, "scripts/matt-skills-sha256.json"),
+  );
+  for (const name of skills)
+    await cp(
+      join(import.meta.dirname, "..", ".agents/skills", name),
+      join(project, ".agents/skills", name),
+      { recursive: true },
+    );
+  if (prepare) {
+    await verifyCommandSkills(project, runtime, true);
+    await verifyCommandSkills(project, runtime, false);
+  }
+}
 
 async function probeSkills(binary) {
   const project = join(root, "skills-project");
   const runtime = join(root, "skills-runtime");
-  await mkdir(join(project, ".agents", "skills"), { recursive: true });
-  for (const name of skills)
-    await cp(
-      join(import.meta.dirname, "..", ".agents", "skills", name),
-      join(project, ".agents", "skills", name),
-      { recursive: true },
-    );
+  await skillFixture(project, runtime);
   await execute("git", ["init", "-q", project]);
   const env = createCommandEnvironment({
     workspace: project,
@@ -48,6 +61,7 @@ async function probeSkills(binary) {
   delete clean.OPENCODE_DISABLE_EXTERNAL_SKILLS;
   delete clean.OPENCODE_DISABLE_CLAUDE_CODE;
   const cleanConfig = JSON.parse(clean.OPENCODE_CONFIG_CONTENT);
+  delete cleanConfig.skills;
   cleanConfig.permission.skill = "allow";
   cleanConfig.agent.build.permission.skill = "allow";
   clean.OPENCODE_CONFIG_CONTENT = JSON.stringify(cleanConfig);
@@ -61,14 +75,11 @@ async function probeSkills(binary) {
     );
   }
   const restricted = await discover(env);
-  for (const name of skills)
-    assert.ok(
-      !restricted.some((item) => item.name === name),
-      `restricted command runtime: ${name}`,
-    );
-  console.log(
-    "PASS: clean OpenCode skill discovery; command runtime intentionally disables external skills",
-  );
+  for (const name of skills) {
+    const entry = restricted.find((item) => item.name === name);
+    assert.equal(entry?.location, join(runtime, "skills", name, "SKILL.md"));
+  }
+  console.log("PASS: clean discovery and isolated command skill discovery");
 }
 
 async function bounded(promise, label, milliseconds = 20000) {
@@ -112,6 +123,8 @@ async function probe(binary, scenario) {
   );
   await writeFile(join(project, "AGENTS.md"), "# Fixture\nUse the agreed permission policy.\n");
   await writeFile(join(runtime, "instructions.md"), "No external credentials or real model.\n");
+  if (scenario === "allowed-skill" || scenario === "denied-skill")
+    await skillFixture(project, runtime);
   let target = join(outside, "fixture.txt");
   if (scenario === "allowed-temp" || scenario === "write-temp")
     target = join(env.TMPDIR, "fixture.txt");
@@ -120,21 +133,25 @@ async function probe(binary, scenario) {
   await writeFile(target, `${sentinel}\n`);
   const marker = join(outside, "shell-ran");
   const toolName =
-    scenario === "blocked-task"
-      ? "task"
-      : scenario === "write-temp"
-        ? "write"
-        : scenario === "external-shell"
-          ? "bash"
-          : "read";
+    scenario === "allowed-skill" || scenario === "denied-skill"
+      ? "skill"
+      : scenario === "blocked-task"
+        ? "task"
+        : scenario === "write-temp"
+          ? "write"
+          : scenario === "external-shell"
+            ? "bash"
+            : "read";
   const input =
-    toolName === "write"
-      ? { filePath: target, content: "verified write\n" }
-      : toolName === "bash"
-        ? { command: "touch shell-ran", workdir: outside, description: "Fixture must be denied" }
-        : toolName === "task"
-          ? { description: "Must not delegate", prompt: "Do not run", subagent_type: "explore" }
-          : { filePath: target };
+    toolName === "skill"
+      ? { name: scenario === "allowed-skill" ? "to-spec" : "customize-opencode" }
+      : toolName === "write"
+        ? { filePath: target, content: "verified write\n" }
+        : toolName === "bash"
+          ? { command: "touch shell-ran", workdir: outside, description: "Fixture must be denied" }
+          : toolName === "task"
+            ? { description: "Must not delegate", prompt: "Do not run", subagent_type: "explore" }
+            : { filePath: target };
   let requests = 0;
   let instructionsSeen = false;
   const llm = createServer(async (request, response) => {
@@ -331,19 +348,25 @@ async function probe(binary, scenario) {
       .filter((part) => part.type === "tool");
     assert.equal(tools.length, 1);
     if (scenario !== "blocked-task") assert.equal(tools[0].tool, toolName);
-    const denied = ["denied-external", "secret-read", "external-shell", "blocked-task"].includes(
-      scenario,
-    );
+    const denied = [
+      "denied-external",
+      "secret-read",
+      "external-shell",
+      "blocked-task",
+      "denied-skill",
+    ].includes(scenario);
     assert.equal(tools[0].state.status, denied ? "error" : "completed");
     if (denied) {
       assert.match(
         tools[0].state.error,
-        scenario === "blocked-task"
+        scenario === "blocked-task" || scenario === "denied-skill"
           ? /denied|invalid|not found|prevents/i
           : /specified a rule which prevents/,
       );
       assert.ok(!JSON.stringify(messages).includes(sentinel));
     } else if (toolName === "read") assert.ok(tools[0].state.output.includes(sentinel));
+    if (scenario === "allowed-skill")
+      assert.match(tools[0].state.output, /<skill_content name="to-spec">/);
     if (scenario === "write-temp") assert.equal(await readFile(target, "utf8"), "verified write\n");
     if (scenario === "external-shell") await assert.rejects(access(marker));
     if (scenario === "blocked-task")
@@ -399,6 +422,7 @@ async function probeAdapter(archivePath) {
   const project = join(root, "adapter-project");
   const directory = join(root, "adapter-state");
   await mkdir(project);
+  await skillFixture(project, directory, false);
   await writeFile(
     join(project, "AGENTS.md"),
     "# Adapter fixture\nNo real model or GitHub credentials.\n",
@@ -501,6 +525,8 @@ try {
     "write-temp",
     "external-shell",
     "blocked-task",
+    "allowed-skill",
+    "denied-skill",
   ])
     await probe(binary, scenario);
   await probeAdapter(archivePath);

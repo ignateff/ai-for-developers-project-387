@@ -31,6 +31,9 @@ it("builds a dedicated command environment instead of inheriting developer confi
   const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
   expect(config.default_agent).toBe("build");
   expect(config.permission["*"]).toBe("deny");
+  expect(config.permission.skill["*"]).toBe("deny");
+  expect(config.permission.skill["to-spec"]).toBe("allow");
+  expect(config.skills.paths).toEqual(["/runner/command-9/skills"]);
   expect(config.permission.external_directory).toEqual({
     "*": "deny",
     "/trusted/checkout/*": "allow",
