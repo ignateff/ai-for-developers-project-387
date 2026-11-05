@@ -73,6 +73,10 @@ run = "pnpm run check:quick"
 [tasks.test]
 run = "pnpm run test"
 
+[tasks."test:skills-integrity"]
+description = "Verify pinned Matt Pocock skill files and integrity checks"
+run = "pnpm run test:skills-integrity"
+
 [tasks."test:opencode-runtime"]
 description = "Exercise the pinned OpenCode permission service without credentials or a real model"
 run = "pnpm run test:opencode-runtime"
@@ -158,6 +162,7 @@ run = [
   "pnpm run format:check",
   "pnpm run typecheck",
   "pnpm run test",
+  "pnpm run test:skills-integrity",
   "pnpm run test:opencode-runtime",
   "pnpm run test:e2e",
   "pnpm run check:contract-http",

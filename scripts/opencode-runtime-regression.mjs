@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -13,6 +13,63 @@ import { assertSafeProject } from "./opencode-discovery.ts";
 const execute = promisify(execFile);
 const root = await realpath(await mkdtemp(join(tmpdir(), "calendar-oc-regression-")));
 const sentinel = "REAL_PERMISSION_SERVICE_SENTINEL";
+const skills = ["to-spec", "to-tickets", "implement-spec", "tdd", "code-review", "codebase-design"];
+
+async function probeSkills(binary) {
+  const project = join(root, "skills-project");
+  const runtime = join(root, "skills-runtime");
+  await mkdir(join(project, ".agents", "skills"), { recursive: true });
+  for (const name of skills)
+    await cp(
+      join(import.meta.dirname, "..", ".agents", "skills", name),
+      join(project, ".agents", "skills", name),
+      { recursive: true },
+    );
+  await execute("git", ["init", "-q", project]);
+  const env = createCommandEnvironment({
+    workspace: project,
+    directory: runtime,
+    base: { PATH: process.env.PATH },
+  });
+  await mkdir(env.TMPDIR, { recursive: true });
+  env.OPENCODE_DISABLE_MODELS_FETCH = "1";
+  const discover = async (environment) =>
+    JSON.parse(
+      (
+        await execute(binary, ["debug", "skill"], {
+          cwd: project,
+          env: environment,
+          timeout: 30000,
+          maxBuffer: 2 * 1024 * 1024,
+        })
+      ).stdout,
+    );
+  const clean = { ...env };
+  delete clean.OPENCODE_DISABLE_EXTERNAL_SKILLS;
+  delete clean.OPENCODE_DISABLE_CLAUDE_CODE;
+  const cleanConfig = JSON.parse(clean.OPENCODE_CONFIG_CONTENT);
+  cleanConfig.permission.skill = "allow";
+  cleanConfig.agent.build.permission.skill = "allow";
+  clean.OPENCODE_CONFIG_CONTENT = JSON.stringify(cleanConfig);
+  const found = await discover(clean);
+  for (const name of skills) {
+    const entry = found.find((item) => item.name === name);
+    assert.equal(
+      entry?.location,
+      join(project, ".agents", "skills", name, "SKILL.md"),
+      `clean discovery: ${name}`,
+    );
+  }
+  const restricted = await discover(env);
+  for (const name of skills)
+    assert.ok(
+      !restricted.some((item) => item.name === name),
+      `restricted command runtime: ${name}`,
+    );
+  console.log(
+    "PASS: clean OpenCode skill discovery; command runtime intentionally disables external skills",
+  );
+}
 
 async function bounded(promise, label, milliseconds = 20000) {
   let timer;
@@ -434,6 +491,7 @@ try {
     },
   });
   await verifyInstalledRuntime(binary);
+  await probeSkills(binary);
   for (const scenario of [
     "baseline-ask",
     "denied-external",
