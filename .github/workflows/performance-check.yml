@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   lighthouse:
@@ -54,10 +55,12 @@ jobs:
       - name: Analyze with OpenCode
         uses: anomalyco/opencode/github@latest
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: opencode/free
           share: false
+          use_github_token: true
           prompt: |
             Read .audit/lighthouse-report.json.
             Compare LCP, CLS, INP with the values in
