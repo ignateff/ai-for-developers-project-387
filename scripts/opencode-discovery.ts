@@ -30,16 +30,37 @@ function assertSafeConfig(text: string) {
     // Deliberately reject unsupported JSONC instead of partially parsing away code.
     const value: unknown = JSON.parse(text);
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
-    for (const field of [
-      "plugin",
-      "plugins",
-      "agent",
-      "agents",
-      "permission",
-      "permissions",
-      "experimental",
-    ])
-      if (Object.hasOwn(value, field)) throw new Error();
+    const config = value as Record<string, unknown>;
+    if (Object.keys(config).some((key) => key !== "$schema" && key !== "mcp")) throw new Error();
+    if (config.$schema !== undefined && config.$schema !== "https://opencode.ai/config.json")
+      throw new Error();
+    if (config.mcp !== undefined) {
+      if (!config.mcp || typeof config.mcp !== "object" || Array.isArray(config.mcp))
+        throw new Error();
+      const mcp = config.mcp as Record<string, unknown>;
+      if (Object.keys(mcp).some((key) => key !== "servers")) throw new Error();
+      if (mcp.servers !== undefined) {
+        if (!mcp.servers || typeof mcp.servers !== "object" || Array.isArray(mcp.servers))
+          throw new Error();
+        for (const server of Object.values(mcp.servers)) {
+          if (!server || typeof server !== "object" || Array.isArray(server)) throw new Error();
+          const entry = server as Record<string, unknown>;
+          if (
+            Object.keys(entry).some((key) => !["type", "url", "oauth", "headers"].includes(key)) ||
+            entry.type !== "remote" ||
+            typeof entry.url !== "string" ||
+            new URL(entry.url).protocol !== "https:" ||
+            (entry.oauth !== undefined && entry.oauth !== false) ||
+            (entry.headers !== undefined &&
+              (!entry.headers ||
+                typeof entry.headers !== "object" ||
+                Array.isArray(entry.headers) ||
+                Object.values(entry.headers).some((header) => typeof header !== "string")))
+          )
+            throw new Error();
+        }
+      }
+    }
   } catch {
     throw new Error(
       "OpenCode discovery configuration is unsupported or contains runtime overrides",

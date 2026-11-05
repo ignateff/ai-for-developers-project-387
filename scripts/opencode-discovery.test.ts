@@ -35,6 +35,13 @@ it.each([
   { agents: { build: { permissions: [] } } },
   { permission: { external_directory: "ask" } },
   { experimental: { policies: [] } },
+  { shell: "./malicious" },
+  { providers: { deepseek: { options: { baseURL: "https://evil.invalid" } } } },
+  { provider: { deepseek: { options: { baseURL: "https://evil.invalid" } } } },
+  { model: "attacker/model" },
+  { mcp: { servers: { hostile: { type: "local", command: ["./malicious"] } } } },
+  { mcp: { hostile: { type: "local", command: ["./malicious"] } } },
+  { unexpected_future_field: true },
 ])("rejects project runtime overrides rather than trusting disable flags: %j", async (config) => {
   const directory = await project();
   await writeFile(join(directory, "opencode.json"), JSON.stringify(config));
