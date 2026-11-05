@@ -52,7 +52,7 @@ it("gates preparation and provider credentials on the trusted-comment preflight"
     "id-token": "write",
     contents: "read",
     "pull-requests": "read",
-    issues: "read",
+    issues: "write",
   });
   for (const step of steps.filter((step) => step.uses)) {
     expect(step.uses).toMatch(/@[a-f0-9]{40}$/);
