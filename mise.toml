@@ -100,6 +100,9 @@ run = "pnpm run opencode:run"
 [tasks."lint:opencode-workflow"]
 run = "pnpm run lint:opencode-workflow"
 
+[tasks."lint:triage-workflow"]
+run = "pnpm run lint:triage-workflow"
+
 [tasks."test:e2e"]
 run = "pnpm run test:e2e"
 
@@ -171,6 +174,7 @@ run = [
   "pnpm run test:docker-smoke",
   "jactionlint .github/workflows/ci.yml .github/workflows/release-please.yml",
   "pnpm run lint:opencode-workflow",
+  "pnpm run lint:triage-workflow",
 ]
 
 [daemons.api]
