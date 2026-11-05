@@ -73,6 +73,29 @@ run = "pnpm run check:quick"
 [tasks.test]
 run = "pnpm run test"
 
+[tasks."test:opencode-runtime"]
+description = "Exercise the pinned OpenCode permission service without credentials or a real model"
+run = "pnpm run test:opencode-runtime"
+
+[tasks."opencode:install"]
+description = "Install and verify the pinned OpenCode runtime in the supplied directory"
+run = "pnpm run opencode:install"
+
+[tasks."opencode:trust"]
+description = "Authorize the original command author and reject fork PRs before agent startup"
+run = "pnpm run opencode:trust"
+
+[tasks."opencode:prepare"]
+description = "Prepare and validate the isolated noninteractive GitHub command runtime"
+run = "pnpm run opencode:prepare"
+
+[tasks."opencode:run"]
+description = "Run the prepared upstream GitHub handler with its pinned runtime"
+run = "pnpm run opencode:run"
+
+[tasks."lint:opencode-workflow"]
+run = "pnpm run lint:opencode-workflow"
+
 [tasks."test:e2e"]
 run = "pnpm run test:e2e"
 
@@ -135,12 +158,14 @@ run = [
   "pnpm run format:check",
   "pnpm run typecheck",
   "pnpm run test",
+  "pnpm run test:opencode-runtime",
   "pnpm run test:e2e",
   "pnpm run check:contract-http",
   "pnpm run check:generated",
   "pnpm run build",
   "pnpm run test:docker-smoke",
   "jactionlint .github/workflows/ci.yml .github/workflows/release-please.yml",
+  "pnpm run lint:opencode-workflow",
 ]
 
 [daemons.api]
