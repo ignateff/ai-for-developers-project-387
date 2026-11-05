@@ -38,7 +38,7 @@ export function Layout() {
                 Админка
               </Link>
             ) : (
-              <Link to="/book" className="layout-nav-link">
+              <Link to="/book" className="layout-nav-link layout-nav-link-cta">
                 Записаться
               </Link>
             )}

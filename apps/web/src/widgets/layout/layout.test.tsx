@@ -76,5 +76,6 @@ describe("Layout navigation", () => {
       .getAllByRole("link", { name: "Записаться" })
       .find((link) => nav.contains(link));
     expect(bookLink).toHaveAttribute("href", "/book");
+    expect(bookLink).toHaveClass("layout-nav-link-cta");
   });
 });
