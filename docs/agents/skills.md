@@ -22,6 +22,8 @@ Run `mise run test:skills-integrity` to check all files in these six directories
 
 To update, review a specific upstream revision and its license, replace all six directories and the license with their complete unmodified upstream versions, regenerate the manifest from that revision, and run the integrity test and project checks. Review changes to dependencies and project configuration before adopting them.
 
-The GitHub command runtime is deliberately noninteractive: its default-deny policy does not allow the `skill`, `question` or `task` tools. In particular, the upstream workflows that require skill invocation or subagents cannot be assumed to run there merely because the files exist. This is separate from local skill availability and from CI's file-integrity check.
+`mise run test:opencode-runtime` installs the checksum-verified OpenCode 1.19.5 binary and checks discovery of all six directories in a temporary Git project with isolated HOME and XDG directories, without global skills. It also verifies that the restricted GitHub command environment does not discover them. This is a local simulation of the runner, not an actual Actions execution or an end-to-end test of the workflows.
+
+The GitHub command runtime deliberately disables external skill discovery and its default-deny policy does not allow the `skill`, `question` or `task` tools. The upstream workflows cannot run there merely because the files exist. Enabling them requires a separate security and automation design; the existing policy is unchanged.
 
 [`opencode.json`](../../opencode.json) and [`opencode.example.json`](../../opencode.example.json) preserve the Render MCP configuration. Authentication uses `{env:RENDER_API_KEY}`, not a literal credential. No `.env`, local mise settings or credentials were migrated. For Render MCP setup, follow [the deployment guide](../deploy/render.md).
