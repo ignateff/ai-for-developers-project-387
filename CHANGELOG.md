@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.6.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.5.0...v0.6.0) (2026-11-05)
+
+
+### Features
+
+* add debug step for APP_URL ([aa9015b](https://github.com/ignateff/ai-for-developers-project-387/commit/aa9015b43834d71879befe30af6087c4a290d7d9))
+* add issue triage workflow for automated issue handling ([1936f34](https://github.com/ignateff/ai-for-developers-project-387/commit/1936f348681ecbd577e34bf86c0a97341a906226))
+* add Lighthouse performance check workflow ([e3347ad](https://github.com/ignateff/ai-for-developers-project-387/commit/e3347ad3b6e3799beed16441c8d1f88f58631dfb))
+* add Lighthouse performance check workflow ([be78d10](https://github.com/ignateff/ai-for-developers-project-387/commit/be78d10bf0a6afae07aaa5b2e134f5c6c7ee016f))
+* add opencode GitHub Action workflow ([99fcec3](https://github.com/ignateff/ai-for-developers-project-387/commit/99fcec3240a2aaa17b11aa54fb2daa5f7ccf477f))
+* add opencode review workflow for automated pull request analysis ([d6cbfd0](https://github.com/ignateff/ai-for-developers-project-387/commit/d6cbfd03034311470c7087f9099b223b118d4b8f))
+* **agents:** vendor pinned Matt Pocock skills ([5e05260](https://github.com/ignateff/ai-for-developers-project-387/commit/5e052607f32b045093f60f4fcdf1097f45823e43)), closes [#20](https://github.com/ignateff/ai-for-developers-project-387/issues/20)
+* fix performance check workflow ([0451885](https://github.com/ignateff/ai-for-developers-project-387/commit/04518855a26f659725415f2929a29c1fc0cc6439))
+* migrate call calendar from the first project ([10d74ac](https://github.com/ignateff/ai-for-developers-project-387/commit/10d74ac276471854c174b136fb70908901e5a143)), closes [#1](https://github.com/ignateff/ai-for-developers-project-387/issues/1)
+* update pull request permissions to allow write access ([05c46e7](https://github.com/ignateff/ai-for-developers-project-387/commit/05c46e7ecbe3ff0fd454cc4ea18ad8c6bd56bd78))
+* **web:** add shared footer with current-year copyright ([6cff6bc](https://github.com/ignateff/ai-for-developers-project-387/commit/6cff6bc55f2ccd32c983f34e4c547633efc5560c))
+* **web:** add shared footer with current-year copyright ([6fba4c3](https://github.com/ignateff/ai-for-developers-project-387/commit/6fba4c383d41c63c7b29fd69a27b1fbdf1906d32)), closes [#6](https://github.com/ignateff/ai-for-developers-project-387/issues/6)
+* **web:** emphasize header booking button ([023991a](https://github.com/ignateff/ai-for-developers-project-387/commit/023991a7ca75f49886331884ea5b372282b66b8c)), closes [#13](https://github.com/ignateff/ai-for-developers-project-387/issues/13)
+* перенести календарь звонков из проекта 386 ([21deb9a](https://github.com/ignateff/ai-for-developers-project-387/commit/21deb9ab9f89cfb50e4e4974867d4641b728a873))
+
+
+### Bug Fixes
+
+* align OpenCode action config with existing opencode workflows ([08b5370](https://github.com/ignateff/ai-for-developers-project-387/commit/08b537025721478f9dabf0eef875108cceb19ffa))
+* **ci:** capture OpenCode executable path ([2dcf6e6](https://github.com/ignateff/ai-for-developers-project-387/commit/2dcf6e6400c2aeed032f78e874206155fef2cc32)), closes [#16](https://github.com/ignateff/ai-for-developers-project-387/issues/16)
+* **ci:** prevent unattended OpenCode permission hangs ([c99e1f8](https://github.com/ignateff/ai-for-developers-project-387/commit/c99e1f8f6a373f471665135178cb33ef7e4a69f3))
+* **ci:** prevent unattended OpenCode permission hangs ([39d501c](https://github.com/ignateff/ai-for-developers-project-387/commit/39d501c774b97e0a572ed9100e1ea6dcf91c68d5)), closes [#9](https://github.com/ignateff/ai-for-developers-project-387/issues/9)
+* **ci:** protect upstream credentials in command diagnostics ([ed06aab](https://github.com/ignateff/ai-for-developers-project-387/commit/ed06aab8cc8acb354a02c75b880f82fecade8a70)), closes [#9](https://github.com/ignateff/ai-for-developers-project-387/issues/9)
+* **ci:** reject unsafe project configuration overrides ([ae92a0c](https://github.com/ignateff/ai-for-developers-project-387/commit/ae92a0c61b0a3ab5ffcb13b5816b62a97c3e0310)), closes [#9](https://github.com/ignateff/ai-for-developers-project-387/issues/9)
+* **ci:** repair manual performance audit ([821c809](https://github.com/ignateff/ai-for-developers-project-387/commit/821c8090c0e3b0fef5a84520c53c9771beaf0615)), closes [#16](https://github.com/ignateff/ai-for-developers-project-387/issues/16)
+* format workflow and baseline files ([ac590f0](https://github.com/ignateff/ai-for-developers-project-387/commit/ac590f0892beb5eebd9fc0e8f5386971ac8ebda4))
+* remove invalid default value referencing vars context ([ffbfc98](https://github.com/ignateff/ai-for-developers-project-387/commit/ffbfc988d2d7eb2c1be86b7cd904ff7ecf425570))
+* use inputs context for debug step ([eb5a246](https://github.com/ignateff/ai-for-developers-project-387/commit/eb5a246f5bc0ce084cc026e4217e643ba677b057))
+
 ## [0.5.0](https://github.com/ignateff/ai-for-developers-project-386/compare/v0.4.1...v0.5.0) (2026-11-03)
 
 
