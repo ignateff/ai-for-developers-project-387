@@ -6,7 +6,6 @@ on:
       app_url:
         description: Application URL to audit
         required: true
-        default: ${{ vars.APP_URL }}
 
 permissions:
   contents: read
