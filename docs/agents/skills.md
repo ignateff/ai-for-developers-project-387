@@ -26,4 +26,32 @@ To update, review a specific upstream revision and its license, replace all six 
 
 The GitHub command runtime deliberately disables external skill discovery and its default-deny policy does not allow the `skill`, `question` or `task` tools. The upstream workflows cannot run there merely because the files exist. Enabling them requires a separate security and automation design; the existing policy is unchanged.
 
+### Agreed scope for issue #22
+
+The proposed allowlist is limited to the six pinned Matt Pocock skills listed above;
+other repository, user-global, remote and built-in skills are not approved for the
+command runtime. `question` and `task` must remain denied. If an instruction
+requires a user answer or delegation and cannot safely proceed without it, the
+agent must report a blocker and hand the decision to a human. Silence is neither
+consent nor successful completion. In particular, `implement-spec` requires
+subagents, so allowing the skill does not make that workflow runnable under this
+policy. The unchanged skills remain authoritative and must not be rewritten to
+hide incompatible requirements.
+
+This is an agreed target, **not an implemented or validated integration**. The
+pinned runtime's explicit `skills.paths` is a candidate for loading a verified,
+isolated copy while retaining external discovery disablement. Before enabling it,
+the implementation must establish the trusted source and integrity of every
+loaded file, exclude unexpected files and skill names, and verify the actual
+resolved permissions and runtime behavior. The upstream GitHub handler publishes
+its own response; a denied tool call or model instruction alone does not prove a
+blocked workflow cannot be presented as a successful fix. That delivery behavior
+also needs verification or a fail-closed control.
+
+The agreed test boundaries are isolated skill discovery and real permissions on
+the pinned runtime, with positive and negative cases and no unresolved requests.
+These checks do not establish model reliability or GitHub Actions behavior. A
+specific controlled Actions run remains necessary for the issue's acceptance;
+local simulation must not be reported as an Actions run.
+
 [`opencode.json`](../../opencode.json) and [`opencode.example.json`](../../opencode.example.json) preserve the Render MCP configuration. Authentication uses `{env:RENDER_API_KEY}`, not a literal credential. No `.env`, local mise settings or credentials were migrated. For Render MCP setup, follow [the deployment guide](../deploy/render.md).
