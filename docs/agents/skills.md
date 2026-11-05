@@ -18,7 +18,9 @@ The six complete directories `to-spec`, `to-tickets`, `implement-spec`, `tdd`, `
 
 The upstream [MIT license and copyright notice](../../.agents/mattpocock-LICENSE) accompany the copies. The issue tracker, triage labels and domain context required by these skills are supplied by the project documentation linked from [AGENTS.md](../../AGENTS.md); the upstream setup skill itself is not included.
 
-Run `mise run test:skills-integrity` to check all files in these six directories and the license against the committed [SHA-256 manifest](../../scripts/matt-skills-sha256.json), including detection of missing and extra files. It also tests the checker. This command is included in `mise run check` and CI. The manifest records the pinned upstream contents, not an independently authenticated signature.
+The complete upstream `triage`, `grilling` and `domain-modeling` directories are also pinned at the same revision and included in the integrity check. `triage` invokes the other two when clarification is needed; `grilling` requires subagents for fact-finding. These skills are not integrated into the restricted GitHub command runtime; simply reading their files is not proof that they ran.
+
+Run `mise run test:skills-integrity` to check all files in these nine directories and the license against the committed [SHA-256 manifest](../../scripts/matt-skills-sha256.json), including detection of missing and extra files. It also tests the checker. This command is included in `mise run check` and CI. The manifest records the pinned upstream contents, not an independently authenticated signature.
 
 To update, review a specific upstream revision and its license, replace all six directories and the license with their complete unmodified upstream versions, regenerate the manifest from that revision, and run the integrity test and project checks. Review changes to dependencies and project configuration before adopting them.
 

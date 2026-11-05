@@ -13,6 +13,9 @@ const directories = [
   "tdd",
   "code-review",
   "codebase-design",
+  "triage",
+  "grilling",
+  "domain-modeling",
 ];
 const temporary: string[] = [];
 
@@ -45,9 +48,11 @@ test("rejects changed or missing files and extra files", () => {
   writeFileSync(join(dir, ".agents/skills/tdd/SKILL.md"), "changed");
   unlinkSync(join(dir, ".agents/skills/to-spec/SKILL.md"));
   writeFileSync(join(dir, ".agents/skills/code-review/extra.md"), "extra");
+  writeFileSync(join(dir, ".agents/skills/triage/SKILL.md"), "changed");
   const result = check(dir);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain(".agents/skills/tdd/SKILL.md");
   expect(result.stderr).toContain(".agents/skills/to-spec/SKILL.md");
   expect(result.stderr).toContain(".agents/skills/code-review/extra.md");
+  expect(result.stderr).toContain(".agents/skills/triage/SKILL.md");
 });
