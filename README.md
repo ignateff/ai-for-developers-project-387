@@ -96,8 +96,6 @@ mise run test:e2e         # Playwright, включая визуальные пр
 
 Настройка Release Please: [docs/release.md](docs/release.md). GitHub App и его секреты не копируются между репозиториями; до настройки App workflow выпуска пропускается, CI и Hexlet продолжают работать.
 
-Безопасный пример Render MCP — `opencode.example.json`, ключ передаётся через `RENDER_API_KEY`, а не сохраняется в Git. Подробнее: [docs/deploy/render.md](docs/deploy/render.md).
-
 ---
 
 <details>

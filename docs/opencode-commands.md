@@ -19,8 +19,8 @@ discovery path which ignores its V1 disable flags. Consequently repository
 `.opencode` directories and configuration containing plugins, agent/permission
 overrides or experimental configuration fail closed before runtime startup.
 Configuration inspection accepts strict JSON only; commented JSONC fails closed
-instead of being partially parsed. The existing remote-MCP declaration remains
-in the checkout; V1 project configuration is disabled for the command process.
+instead of being partially parsed. V1 project configuration is disabled for the
+command process.
 This gate checks the source snapshot at startup, not future edits by trusted code.
 
 Trusted same-repository code and its checks run with credentials available. This

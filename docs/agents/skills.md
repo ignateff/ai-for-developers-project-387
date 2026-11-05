@@ -54,4 +54,4 @@ These checks do not establish model reliability or GitHub Actions behavior. A
 specific controlled Actions run remains necessary for the issue's acceptance;
 local simulation must not be reported as an Actions run.
 
-[`opencode.json`](../../opencode.json) and [`opencode.example.json`](../../opencode.example.json) preserve the Render MCP configuration. Authentication uses `{env:RENDER_API_KEY}`, not a literal credential. No `.env`, local mise settings or credentials were migrated. For Render MCP setup, follow [the deployment guide](../deploy/render.md).
+[`opencode.json`](../../opencode.json) and [`opencode.example.json`](../../opencode.example.json) do not configure an MCP server. No `.env`, local mise settings or credentials were migrated. For optional Render MCP setup, follow [the deployment guide](../deploy/render.md).
