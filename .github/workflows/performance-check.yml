@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24.22.2"
 
@@ -58,8 +58,10 @@ jobs:
 
       - name: Install OpenCode
         id: opencode
+        shell: bash
         run: |
-          executable=$(mise run opencode:install "$RUNNER_TEMP/opencode")
+          executable=$(mise run opencode:install "$RUNNER_TEMP/opencode" | tail -n 1)
+          test -x "$executable"
           echo "executable=$executable" >> "$GITHUB_OUTPUT"
 
       - name: Analyze with OpenCode
