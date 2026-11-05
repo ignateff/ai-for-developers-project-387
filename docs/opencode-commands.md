@@ -28,6 +28,14 @@ is intentionally **not an OS or filesystem sandbox**. OpenCode permission checks
 do not inspect all filesystem accesses made inside shell commands, Node, mise,
 or tests. Do not use this workflow to execute untrusted code.
 
+The job's `GITHUB_TOKEN` has `issues: write` so authorized commands can publish
+specifications and tickets with `gh`. This permission covers all repository
+issues, including edits, labels and closure; it is not restricted to creation or
+to the triggering issue. All steps in the job can access the job token, and the
+agent receives it after the trusted-comment preflight. Issue text and comments
+remain untrusted input even when a trusted user invokes the command. Review the
+agent's published results; a successful run is not proof of an authorized action.
+
 ## Runtime and delivery
 
 The local adapter retains upstream `opencode github run`, App/OIDC token exchange,
@@ -107,3 +115,8 @@ that a real issue-to-PR run succeeds. Publishing changes and running a controlle
 GitHub test require separate authorization. Until that test is performed, keep
 the end-to-end acceptance criterion open; do not close issue #9 merely because
 local checks pass. Do not merge into the default branch merely to obtain a test.
+
+Likewise, workflow configuration tests cannot prove that GitHub granted the
+requested issue permission or that issue creation succeeded. Verify a controlled
+`/oc` publication on the default branch separately, and check the created issue
+and its links rather than relying on the Actions job's success status.
