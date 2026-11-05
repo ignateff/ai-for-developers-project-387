@@ -28,7 +28,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@3e942d355b3f9e2d13e729c25b7cd05d840f29b7 # v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install Lighthouse
         run: npm install --no-save lighthouse
