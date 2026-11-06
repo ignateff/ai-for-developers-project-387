@@ -77,6 +77,13 @@ run = "pnpm run test"
 description = "Run the read-only admission inspector and fail-closed GitHub metadata tests"
 run = "pnpm run test:actions-experiment"
 
+[tasks."format:actions-harness"]
+run = "pnpm run format:actions-harness"
+
+[tasks."actions:harness"]
+description = "Run the fixture-only metadata admission harness from standard input"
+run = "pnpm run actions:harness"
+
 [tasks."actions:candidate"]
 description = "Inspect explicitly supplied event and GitHub Actions history without authorization"
 run = "pnpm run actions:candidate"
