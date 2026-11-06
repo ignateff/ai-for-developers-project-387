@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { createProductionWorkflow } from "./opencode-production-workflow";
 
 test("production review adapter spends before preparing and reruns never reuse admission", async () => {
@@ -130,4 +130,76 @@ test("production review adapter spends before preparing and reruns never reuse a
   expect((await timeout(options)).status).toBe("infra");
   expect(comments[0].body).toContain('"review":2');
   expect(modelCalls).toBe(2);
+});
+
+test("lost lock-create response fails closed and reports human recovery without leaking diagnostics", async () => {
+  const comments: { id: number; user: { id: number }; body: string }[] = [];
+  let id = 1;
+  let lose = true;
+  let calls = 0;
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const api: typeof fetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/pulls/"))
+        return Response.json({
+          number: 7,
+          state: "open",
+          draft: false,
+          user: { type: "User", login: "owner" },
+          base: { repo: { id: 1, full_name: "owner/repo" } },
+          head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+        });
+      if (init?.method === "POST") {
+        const c = { id: id++, user: { id: 42 }, body: JSON.parse(String(init.body)).body };
+        comments.push(c);
+        if (lose) {
+          lose = false;
+          throw Error("secret-token");
+        }
+        return Response.json(c, { status: 201 });
+      }
+      const index = comments.findIndex((c) => c.id === Number(url.match(/comments\/(\d+)/)?.[1]));
+      if (init?.method === "DELETE") {
+        comments.splice(index, 1);
+        return new Response(null, { status: 204 });
+      }
+      if (init?.method === "PATCH") {
+        comments[index].body = JSON.parse(String(init.body)).body;
+        return Response.json(comments[index]);
+      }
+      return Response.json(comments);
+    };
+    const run = createProductionWorkflow({
+      fetch: api,
+      prepare: async () => {},
+      model: async () => {
+        calls++;
+      },
+    });
+    const options = {
+      kind: "review" as const,
+      eventName: "pull_request",
+      event: {
+        action: "opened",
+        repository: { full_name: "owner/repo" },
+        pull_request: { number: 7 },
+      },
+      repository: "owner/repo",
+      owner: "owner",
+      token: "secret-token",
+      authorId: 42,
+      actionsUrl: "",
+    };
+    expect((await run(options)).status).toBe("infra");
+    expect(comments[0].body).toContain("opencode-pr-budget-lock:v1");
+    expect(calls).toBe(0);
+    expect(JSON.stringify(log.mock.calls)).toContain("human");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret-token");
+    comments.splice(0); // maintainer removes the orphan only after confirming its run stopped
+    expect((await run(options)).status).toBe("completed");
+    expect(calls).toBe(1);
+  } finally {
+    log.mockRestore();
+  }
 });

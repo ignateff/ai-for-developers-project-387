@@ -14,6 +14,10 @@ export async function reviewWorkflow(mode: string, env: NodeJS.ProcessEnv) {
     !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? "")
   )
     throw new Error();
+  if (mode === "run") {
+    console.error("OpenCode review: source snapshots unavailable; no review was produced");
+    throw new Error("OpenCode review source snapshots unavailable");
+  }
   if (mode === "prepare") {
     if (env.DEEPSEEK_API_KEY) throw new Error();
     await mkdir(root, { mode: 0o700 });

@@ -34,6 +34,7 @@ test("publication-only rerun publishes a saved review without budget or model ca
   await publish();
   expect(comments).toHaveLength(1);
   expect(comments[0]).toContain("No confirmed defects");
+  expect(comments[0]).toContain("Full base/head source snapshots were unavailable");
   expect(comments[0]).toContain("a".repeat(40));
 });
 

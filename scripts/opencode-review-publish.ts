@@ -96,6 +96,8 @@ export async function publishReview(options: {
     `## OpenCode review`,
     `Head: \`${sha}\``,
     "",
+    "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
+    "",
     safe(report.summary),
     "",
     ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),

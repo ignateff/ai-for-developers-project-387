@@ -1,4 +1,7 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { expect, it } from "vitest";
 import { parse } from "yaml";
 
@@ -6,15 +9,38 @@ function workflow() {
   return parse(readFileSync(".github/workflows/opencode.yml", "utf8"));
 }
 
+it.each([
+  ["ordinary /ocelot", "false"],
+  ["hello\n/oc fix", "true"],
+  ["/opencode", "true"],
+  ["ordinary", "false"],
+])("classifies %s before entering command queue", (body, expected) => {
+  const dir = mkdtempSync(join(tmpdir(), "oc-classify-"));
+  try {
+    const output = join(dir, "output");
+    const result = spawnSync("bash", ["-c", workflow().jobs.classify.steps[0].run], {
+      env: { ...process.env, COMMENT_BODY: body, GITHUB_OUTPUT: output },
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(0);
+    expect(readFileSync(output, "utf8")).toBe(`command=${expected}\n`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 it("bounds command execution to thirty minutes without cancelling an active fix", () => {
   const job = workflow().jobs.opencode;
   expect(job["timeout-minutes"]).toBe(30);
-  expect(workflow().concurrency).toEqual({
+  expect(job.needs).toBe("classify");
+  expect(job.if).toBe("needs.classify.outputs.command == 'true'");
+  expect(workflow().jobs.classify.concurrency).toBeUndefined();
+  expect(workflow().concurrency).toBeUndefined();
+  expect(job.concurrency).toEqual({
     group: "opencode-command-${{ github.event.issue.number || github.event.pull_request.number }}",
     "cancel-in-progress": false,
     queue: "max",
   });
-  expect(job.concurrency).toBeUndefined();
 });
 
 it("bootstraps only the trusted default branch with credentials disabled", () => {

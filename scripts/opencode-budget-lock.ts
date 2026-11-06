@@ -42,14 +42,22 @@ export function createCommentBudgetLock(options: {
       return response.status === 204 ? null : response.json();
     };
     const body = `${marker}\n${randomUUID()}`;
-    const claim = await request(`issues/${number}/comments`, "POST", body);
-    if (
-      !Number.isSafeInteger(claim?.id) ||
-      claim.id < 1 ||
-      claim.user?.id !== options.authorId ||
-      claim.body !== body
-    )
+    let claim;
+    try {
+      claim = await request(`issues/${number}/comments`, "POST", body);
+      if (
+        !Number.isSafeInteger(claim?.id) ||
+        claim.id < 1 ||
+        claim.user?.id !== options.authorId ||
+        claim.body !== body
+      )
+        throw new Error();
+    } catch {
+      console.error(
+        `OpenCode budget lock: PR #${number} creation outcome unknown; human must inspect orphaned locks`,
+      );
       throw new Error();
+    }
     try {
       for (let attempt = 0; attempt < 30; attempt++) {
         let seen = false;
