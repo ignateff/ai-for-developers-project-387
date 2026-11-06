@@ -16,6 +16,7 @@
     "opencode:prepare": "node scripts/opencode-command.ts prepare",
     "opencode:run": "node scripts/opencode-command.ts run",
     "lint:opencode-workflow": "jactionlint .github/workflows/opencode.yml",
+    "lint:triage-workflow": "jactionlint .github/workflows/opencode-triage.yml",
     "build": "pnpm -r --if-present build",
     "build:docker": "node scripts/build-docker.mjs",
     "test:docker-smoke": "node scripts/docker-smoke.ts",
