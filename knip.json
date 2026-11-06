@@ -12,6 +12,7 @@
         "jactionlint",
         "shellcheck",
         "hadolint",
+        "betterleaks",
         "osv-scanner"
       ],
       "ignoreDependencies": ["@typespec/http", "@typespec/openapi3"],

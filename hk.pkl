@@ -1,17 +1,54 @@
 amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
 
+import "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Builtins.pkl"
+
+// Shared fast checks: staged paths at commit time, every path in CI.
+steps {
+  ["format"] = (Builtins.oxfmt) {
+    check = new Command {
+      argv = List("mise", "exec", "--", "pnpm", "exec", "oxfmt", "--check", "--no-error-on-unmatched-pattern", "{{files}}")
+    }
+    fix = null
+    check_diff = null
+  }
+  ["lint"] {
+    glob = "apps/**/*.{js,jsx,ts,tsx}"
+    check = new Command {
+      argv = List("mise", "exec", "--", "pnpm", "exec", "oxlint", "--deny-warnings", "{{files}}")
+    }
+  }
+  ["shell"] {
+    glob = "scripts/**/*.sh"
+    check = new Command { argv = List("mise", "exec", "--", "shellcheck", "{{files}}") }
+  }
+  ["docker"] {
+    glob = "Dockerfile"
+    check = new Command { argv = List("mise", "exec", "--", "hadolint", "--failure-threshold", "style", "{{files}}") }
+  }
+}
+
 hooks {
   ["pre-commit"] {
+    fix = false
+    stage = false
+    stash = "none"
     steps {
-      ["check"] {
-        check = "mise run check:quick"
+      ["secrets"] {
+        check = "mise run check:secrets -- --staged"
+      }
+    }
+  }
+  ["commit-msg"] {
+    steps {
+      ["message"] {
+        check = new Command { argv = List("mise", "run", "lint:commit-message", "--", "{{commit_msg_file}}") }
       }
     }
   }
   ["pre-push"] {
     steps {
       ["check"] {
-        check = "mise run check:quick"
+        check = "mise run check:push"
       }
     }
   }

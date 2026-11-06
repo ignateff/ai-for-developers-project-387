@@ -73,10 +73,12 @@ The user approved these non-security configuration exceptions for issue #49;
 they do not require expiry dates.
 
 1. Root-workspace `ignoreBinaries` names only `mise`, `hk`, `pitchfork`, `jactionlint`,
-   `shellcheck`, `hadolint`, and `osv-scanner`. `mise` is the required environment
+   `shellcheck`, `hadolint`, `betterleaks`, and `osv-scanner`. `mise` is the required environment
    manager; the other binaries are pinned in `mise.toml`, not npm dependencies.
    This models their external installation, without disabling binary checks for
    any other command.
+   `betterleaks` became discoverable after its scanner wrapper was added; it uses
+   the same pinned external-tool exception rather than an additional finding baseline.
 2. Root-workspace `ignoreDependencies` names only `@typespec/http` and
    `@typespec/openapi3`. Both are imported in `contract/main.tsp`; the latter is
    also the emitter in `tspconfig.yaml`. They are required but not understood by
