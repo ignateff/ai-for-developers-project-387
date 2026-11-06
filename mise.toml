@@ -81,6 +81,10 @@ run = "pnpm run test:skills-integrity"
 description = "Exercise the pinned OpenCode permission service without credentials or a real model"
 run = "pnpm run test:opencode-runtime"
 
+[tasks."test:opencode-review-runtime"]
+description = "Exercise the isolated reviewer with the pinned CLI and fixture provider"
+run = "pnpm run test:opencode-review-runtime"
+
 [tasks."opencode:install"]
 description = "Install and verify the pinned OpenCode runtime in the supplied directory"
 run = "pnpm run opencode:install"
@@ -167,6 +171,7 @@ run = [
   "pnpm run test",
   "pnpm run test:skills-integrity",
   "pnpm run test:opencode-runtime",
+  "pnpm run test:opencode-review-runtime",
   "pnpm run test:e2e",
   "pnpm run check:contract-http",
   "pnpm run check:generated",
