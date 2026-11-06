@@ -17,8 +17,8 @@ jobs:
       group: opencode-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     outputs:
-      number: ${{ steps.budget.outputs.number }}
-      sha: ${{ steps.budget.outputs.sha }}
+      number: ${{ steps.workflow.outputs.number }}
+      sha: ${{ steps.workflow.outputs.sha }}
       artifact: ${{ steps.report.outputs.artifact }}
     permissions:
       contents: read
@@ -34,29 +34,19 @@ jobs:
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
         with:
           version: 2026.10.23
-      - name: Admit PR review in the model job
-        id: budget
+      - name: Authorize, admit and run the review
+        id: workflow
         run: mise run opencode:budget review
         env:
           GH_TOKEN: ${{ github.token }}
           OPENCODE_REVIEW_APP_IDS: ${{ vars.OPENCODE_REVIEW_APP_IDS }}
-      - name: Prepare pinned reviewer without provider credentials
-        if: steps.budget.outputs.allowed == 'true'
-        run: mise run opencode:review-prepare
-      - name: Run reviewer
-        if: steps.budget.outputs.allowed == 'true'
-        run: mise run opencode:review-run
-        env:
-          GH_TOKEN: ${{ github.token }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          OPENCODE_PR_NUMBER: ${{ steps.budget.outputs.number }}
-          OPENCODE_HEAD_SHA: ${{ steps.budget.outputs.sha }}
       - name: Identify this review result
         id: report
-        if: steps.budget.outputs.allowed == 'true'
+        if: steps.workflow.outputs.allowed == 'true'
         run: echo "artifact=review-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - name: Save review result for publication
-        if: steps.budget.outputs.allowed == 'true'
+        if: steps.workflow.outputs.allowed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.report.outputs.artifact }}

@@ -2,6 +2,54 @@ import { expect, test } from "vitest";
 import { createBudgetWorkflow } from "./opencode-budget-workflow";
 import { createCommentBudgetLock } from "./opencode-budget-lock";
 
+test("production adapter supplies the admitted PR identity to runtime after the budget write", async () => {
+  const events: string[] = [];
+  let body = "";
+  const api: typeof fetch = async (input, init) => {
+    if (String(input).includes("/pulls/"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: "owner/repo" } },
+        head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+      });
+    if (init?.method === "POST" || init?.method === "PATCH") {
+      body = JSON.parse(String(init.body)).body;
+      if (init.method === "PATCH") events.push("budget");
+      return Response.json({ id: 10, user: { id: 42 }, body });
+    }
+    return Response.json(body ? [{ id: 10, user: { id: 42 }, body }] : []);
+  };
+  const run = createBudgetWorkflow({
+    fetch: api,
+    prepare: async () => {
+      events.push("prepare");
+    },
+    model: async (identity) => {
+      expect(identity).toEqual({ number: 7, sha: "a".repeat(40) });
+      events.push("model");
+    },
+  });
+  const result = await run({
+    kind: "review",
+    eventName: "pull_request",
+    event: {
+      action: "opened",
+      repository: { full_name: "owner/repo" },
+      pull_request: { number: 7 },
+    },
+    repository: "owner/repo",
+    owner: "owner",
+    token: "token",
+    authorId: 42,
+    actionsUrl: "",
+  });
+  expect(result.status).toBe("completed");
+  expect(events).toEqual(["budget", "prepare", "model"]);
+});
+
 test("command and review attempts share a comment but have independent limits", async () => {
   let body = "";
   let calls = 0;
@@ -239,10 +287,9 @@ test("a prior cross-runner claim delays admission and failed lock cleanup blocks
   expect(prepared).toBe(false);
 });
 
-test("failed preparation spends an attempt, reruns spend again, publication does not", async () => {
+test("failed preparation spends an attempt and reruns spend again", async () => {
   let body = "";
   let calls = 0;
-  let published = 0;
   const api: typeof fetch = async (input, init) => {
     if (String(input).includes("/pulls/"))
       return Response.json({
@@ -266,9 +313,6 @@ test("failed preparation spends an attempt, reruns spend again, publication does
     },
     model: async () => {
       calls++;
-    },
-    publish: async () => {
-      published++;
     },
   });
   const options = {
@@ -294,10 +338,8 @@ test("failed preparation spends an attempt, reruns spend again, publication does
     actionsUrl: options.actionsUrl,
   });
   expect(await run(options)).toEqual(exhausted);
-  expect(await run({ ...options, publicationOnly: true })).toEqual({ status: "published" });
   expect(body).toContain('"review":3');
   expect(calls).toBe(0);
-  expect(published).toBe(1);
 });
 
 test.each(["error", "corrupt", "duplicate"])("%s comment state fails closed", async (problem) => {

@@ -1,6 +1,7 @@
 import { appendFile, readFile } from "node:fs/promises";
-import { createBudgetWorkflow } from "./opencode-budget-workflow.ts";
-import { createCommentBudgetLock } from "./opencode-budget-lock.ts";
+import { createProductionWorkflow } from "./opencode-production-workflow.ts";
+import { prepareCommand, runCommand } from "./opencode-command.ts";
+import { reviewWorkflow } from "./opencode-review-workflow.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
 const authorId = 41898282;
@@ -14,16 +15,24 @@ async function main() {
   const appIds = (process.env.OPENCODE_REVIEW_APP_IDS ?? "").split(",").filter(Boolean);
   if (appIds.some((id) => !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))))
     throw new Error();
-  const adapter = createBudgetWorkflow({
+  // The trusted orchestrator holds the key, but preparation and its subprocesses
+  // receive an environment without it. It is handed to the runtime only after admission.
+  const key = process.env.DEEPSEEK_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
+  const base = { ...process.env };
+  const adapter = createProductionWorkflow({
     fetch,
-    withLock: createCommentBudgetLock({
-      fetch,
-      repository,
-      token: process.env.GH_TOKEN ?? "",
-      authorId,
-    }),
-    prepare: async () => {},
-    model: async () => {},
+    prepare: () => (kind === "command" ? prepareCommand(base) : reviewWorkflow("prepare", base)),
+    model: async (identity) => {
+      const runtime = {
+        ...base,
+        DEEPSEEK_API_KEY: key,
+        OPENCODE_PR_NUMBER: identity.number?.toString(),
+        OPENCODE_HEAD_SHA: identity.sha,
+      };
+      if (kind === "command") await runCommand(runtime);
+      else await reviewWorkflow("run", runtime);
+    },
   });
   const result = await adapter({
     kind: kind === "command" ? "command" : "review",

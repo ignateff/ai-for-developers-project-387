@@ -7,7 +7,7 @@ const obj = (value: unknown): RecordValue =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as RecordValue) : {};
 const positive = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) > 0;
 
-type Options = {
+export type Options = {
   kind: "command" | "review";
   eventName: string;
   event: unknown;
@@ -17,13 +17,11 @@ type Options = {
   authorId: number;
   actionsUrl: string;
   allowedAppIds?: number[];
-  publicationOnly?: boolean;
 };
-type Dependencies = {
+export type Dependencies = {
   fetch: typeof fetch;
   prepare: () => Promise<void>;
-  model: () => Promise<void>;
-  publish?: () => Promise<void>;
+  model: (identity: { number?: number; sha?: string }) => Promise<void>;
   // A shared cross-runner lock is required in addition to the local queue.
   withLock?: <T>(key: string, action: () => Promise<T>) => Promise<T>;
 };
@@ -48,15 +46,6 @@ async function locallySerialized<T>(key: string, action: () => Promise<T>): Prom
 /** Workflow boundary: dependencies belong to trusted base code, never PR content. */
 export function createBudgetWorkflow(deps: Dependencies) {
   return async (options: Options): Promise<Result> => {
-    if (options.publicationOnly) {
-      try {
-        if (!deps.publish) return { status: "infra" };
-        await deps.publish();
-        return { status: "published" };
-      } catch {
-        return { status: "infra" };
-      }
-    }
     const { repository, owner, token, eventName } = options;
     if (
       !/^[\w-]+\/[\w.-]+$/.test(repository) ||
@@ -217,7 +206,7 @@ export function createBudgetWorkflow(deps: Dependencies) {
         }
       }
       await deps.prepare();
-      await deps.model();
+      await deps.model(isPr ? { number, sha } : {});
       return { status: "completed", ...(isPr ? { number, sha } : {}) };
     } catch {
       return { status: "infra", ...(isPr ? { number } : {}) };

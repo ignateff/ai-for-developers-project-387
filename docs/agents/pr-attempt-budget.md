@@ -2,6 +2,8 @@
 
 The adapter in `scripts/opencode-budget-workflow.ts` is wired into the command and review model jobs. The review job is explicitly disabled in the checked-in YAML and the GitHub workflow is disabled manually; neither settings changes nor real model calls are authorized by this code. The review runner does not collect the full context required by #39: it is not ready to enable. Local tests with mocked GitHub and runtime do not prove GitHub token permissions or cross-runner behavior.
 
+The trusted workflow orchestrator receives the provider key as a job-step environment variable, removes it from the process environment before admission, and excludes it from preparation; only the model/runtime invocation receives it after admission. This is not the same as withholding the secret from the trusted orchestrator itself.
+
 The adapter keeps two independent limits of three admitted attempts in one PR issue comment, distinct from review reports. Its trusted caller supplies the expected numeric comment author ID. A matching marker without that author is ignored. After trust checks it creates the state if missing and increments the relevant count before runtime preparation; an error or cancellation after the update can therefore consume an attempt. Re-running a model-capable adapter invocation requires a fresh admission; publication-only mode does not run the model. Ordinary issues do not receive a PR budget.
 
 The comment body is exactly the marker on one line and the JSON object on the next line, for example:

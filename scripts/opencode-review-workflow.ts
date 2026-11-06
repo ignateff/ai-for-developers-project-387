@@ -3,29 +3,29 @@ import { join, resolve } from "node:path";
 import { installRuntime } from "./opencode-install.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
 
-async function main() {
+export async function reviewWorkflow(mode: string, env: NodeJS.ProcessEnv) {
   const root = resolve(
-    process.env.RUNNER_TEMP ?? "",
-    `opencode-review-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`,
+    env.RUNNER_TEMP ?? "",
+    `opencode-review-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`,
   );
   if (
-    !process.env.RUNNER_TEMP ||
-    !/^\d+$/.test(process.env.GITHUB_RUN_ID ?? "") ||
-    !/^\d+$/.test(process.env.GITHUB_RUN_ATTEMPT ?? "")
+    !env.RUNNER_TEMP ||
+    !/^\d+$/.test(env.GITHUB_RUN_ID ?? "") ||
+    !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? "")
   )
     throw new Error();
-  if (process.argv[2] === "prepare") {
-    if (process.env.DEEPSEEK_API_KEY) throw new Error();
+  if (mode === "prepare") {
+    if (env.DEEPSEEK_API_KEY) throw new Error();
     await mkdir(root, { mode: 0o700 });
     const binary = await installRuntime({ directory: join(root, "runtime") });
     await writeFile(join(root, "binary"), binary, { flag: "wx", mode: 0o600 });
     return;
   }
-  if (process.argv[2] !== "run" || !process.env.DEEPSEEK_API_KEY) throw new Error();
-  const repository = process.env.GITHUB_REPOSITORY ?? "";
-  const number = process.env.OPENCODE_PR_NUMBER ?? "";
-  const sha = process.env.OPENCODE_HEAD_SHA ?? "";
-  const token = process.env.GH_TOKEN ?? "";
+  if (mode !== "run" || !env.DEEPSEEK_API_KEY) throw new Error();
+  const repository = env.GITHUB_REPOSITORY ?? "";
+  const number = env.OPENCODE_PR_NUMBER ?? "";
+  const sha = env.OPENCODE_HEAD_SHA ?? "";
+  const token = env.GH_TOKEN ?? "";
   if (
     !/^[\w-]+\/[\w.-]+$/.test(repository) ||
     !/^[1-9]\d*$/.test(number) ||
@@ -70,7 +70,7 @@ async function main() {
   const binary = await readFile(join(root, "binary"), "utf8");
   const result = await reviewSnapshot({
     binary,
-    apiKey: process.env.DEEPSEEK_API_KEY,
+    apiKey: env.DEEPSEEK_API_KEY,
     context: {
       requirements: {
         availability: "unavailable",
@@ -89,9 +89,11 @@ async function main() {
   console.log("OpenCode review: result saved for publication");
 }
 
-try {
-  await main();
-} catch {
-  console.error("OpenCode review workflow: infra or review failed; no success is claimed");
-  process.exitCode = 1;
+if (import.meta.main) {
+  try {
+    await reviewWorkflow(process.argv[2], process.env);
+  } catch {
+    console.error("OpenCode review workflow: infra or review failed; no success is claimed");
+    process.exitCode = 1;
+  }
 }
