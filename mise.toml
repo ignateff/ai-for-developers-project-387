@@ -77,6 +77,10 @@ run = "pnpm run test"
 description = "Run the fixture-only admission experiment and fail-closed GitHub metadata tests"
 run = "pnpm run test:actions-experiment"
 
+[tasks."actions:candidate"]
+description = "Inspect explicitly supplied event and GitHub Actions history without authorization"
+run = "pnpm run actions:candidate"
+
 [tasks."test:skills-integrity"]
 description = "Verify pinned Matt Pocock skill files and integrity checks"
 run = "pnpm run test:skills-integrity"
