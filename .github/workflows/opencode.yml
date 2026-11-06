@@ -9,6 +9,11 @@ on:
   pull_request_review_comment:
     types: [created]
 
+concurrency:
+  group: opencode-command-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   opencode:
     if: |
@@ -19,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
-      group: opencode-command-${{ github.event.issue.number || github.event.pull_request.number }}
+      group: opencode-budget-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: false
       queue: max
     permissions:
@@ -46,15 +51,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Prepare pinned noninteractive runtime without provider credentials
+      - name: Admit PR attempt in the model job
+        id: budget
         if: steps.trust.outputs.allowed == 'true'
+        run: mise run opencode:budget command
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Prepare pinned noninteractive runtime without provider credentials
+        if: steps.budget.outputs.allowed == 'true'
         run: mise run opencode:prepare
         env:
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
           GH_TOKEN: ${{ github.token }}
 
       - name: Run upstream GitHub handler
-        if: steps.trust.outputs.allowed == 'true'
+        if: steps.budget.outputs.allowed == 'true'
         run: mise run opencode:run
         env:
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}

@@ -9,8 +9,13 @@ function workflow() {
 it("bounds command execution to thirty minutes without cancelling an active fix", () => {
   const job = workflow().jobs.opencode;
   expect(job["timeout-minutes"]).toBe(30);
-  expect(job.concurrency).toEqual({
+  expect(workflow().concurrency).toEqual({
     group: "opencode-command-${{ github.event.issue.number || github.event.pull_request.number }}",
+    "cancel-in-progress": false,
+    queue: "max",
+  });
+  expect(job.concurrency).toEqual({
+    group: "opencode-budget-${{ github.event.issue.number || github.event.pull_request.number }}",
     "cancel-in-progress": false,
     queue: "max",
   });
@@ -35,14 +40,16 @@ it("gates preparation and provider credentials on the trusted-comment preflight"
     env?: Record<string, string>;
   }> = job.steps;
   const trust = steps.findIndex((step) => step.id === "trust");
+  const budget = steps.findIndex((step) => step.run === "mise run opencode:budget command");
   const prepare = steps.findIndex((step) => step.run === "mise run opencode:prepare");
   const run = steps.findIndex((step) => step.run === "mise run opencode:run");
   expect(trust).toBeGreaterThan(0);
-  expect(prepare).toBeGreaterThan(trust);
+  expect(budget).toBeGreaterThan(trust);
+  expect(prepare).toBeGreaterThan(budget);
   expect(run).toBeGreaterThan(prepare);
   expect(steps[trust].run).toBe("mise run opencode:trust");
   for (const index of [prepare, run]) {
-    expect(steps[index].if).toBe("steps.trust.outputs.allowed == 'true'");
+    expect(steps[index].if).toBe("steps.budget.outputs.allowed == 'true'");
   }
   expect(steps[run].env?.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
   for (const step of steps.slice(0, run)) {

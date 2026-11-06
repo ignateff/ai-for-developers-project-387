@@ -4,24 +4,49 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
+    # Explicit human authorization is required before enabling real review runs.
+    # jactionlint ignore=constant-condition
+    if: ${{ false }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: opencode-budget-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
-      pull-requests: write
       issues: write
+      pull-requests: read
     steps:
-      - uses: actions/checkout@v6
-      - uses: anomalyco/opencode/github@latest
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout trusted default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          model: deepseek/deepseek-flash
-          use_github_token: true
-          prompt: |
-            Review this pull request:
-            - Check for code quality issues
-            - Look for potential bugs
-            - Suggest improvements
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Install project tooling
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: 2026.10.23
+      - name: Admit PR review in the model job
+        id: budget
+        run: mise run opencode:budget review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENCODE_REVIEW_APP_IDS: ${{ vars.OPENCODE_REVIEW_APP_IDS }}
+      - name: Prepare pinned reviewer without provider credentials
+        if: steps.budget.outputs.allowed == 'true'
+        run: mise run opencode:review-prepare
+      - name: Run reviewer
+        if: steps.budget.outputs.allowed == 'true'
+        run: mise run opencode:review-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENCODE_PR_NUMBER: ${{ steps.budget.outputs.number }}
+          OPENCODE_HEAD_SHA: ${{ steps.budget.outputs.sha }}

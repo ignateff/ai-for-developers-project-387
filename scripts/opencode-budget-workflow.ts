@@ -125,6 +125,7 @@ export function createBudgetWorkflow(deps: Dependencies) {
           author = obj(pr.user);
         if (
           pr.number !== number ||
+          pr.state !== "open" ||
           !positive(baseRepo.id) ||
           baseRepo.id !== headRepo.id ||
           baseRepo.full_name?.toLowerCase() !== repository.toLowerCase() ||
