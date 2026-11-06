@@ -1,5 +1,6 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { createBudgetWorkflow } from "./opencode-budget-workflow.ts";
+import { createCommentBudgetLock } from "./opencode-budget-lock.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
 const authorId = 41898282;
@@ -13,7 +14,17 @@ async function main() {
   const appIds = (process.env.OPENCODE_REVIEW_APP_IDS ?? "").split(",").filter(Boolean);
   if (appIds.some((id) => !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))))
     throw new Error();
-  const adapter = createBudgetWorkflow({ fetch, prepare: async () => {}, model: async () => {} });
+  const adapter = createBudgetWorkflow({
+    fetch,
+    withLock: createCommentBudgetLock({
+      fetch,
+      repository,
+      token: process.env.GH_TOKEN ?? "",
+      authorId,
+    }),
+    prepare: async () => {},
+    model: async () => {},
+  });
   const result = await adapter({
     kind: kind === "command" ? "command" : "review",
     eventName: process.env.GITHUB_EVENT_NAME ?? "",

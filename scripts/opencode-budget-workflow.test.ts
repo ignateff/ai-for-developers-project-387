@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { createBudgetWorkflow } from "./opencode-budget-workflow";
+import { createCommentBudgetLock } from "./opencode-budget-lock";
 
 test("command and review attempts share a comment but have independent limits", async () => {
   let body = "";
@@ -80,6 +81,162 @@ test("command and review attempts share a comment but have independent limits", 
   expect(body).toContain('"command":3');
   expect(body).toContain('"review":3');
   expect(calls).toBe(6);
+});
+
+test("the shared comment lock is released before the first model finishes", async () => {
+  let nextId = 1;
+  const comments: { id: number; user: { id: number }; body: string }[] = [];
+  let releaseModel!: () => void;
+  let modelStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    modelStarted = resolve;
+  });
+  const blocked = new Promise<void>((resolve) => {
+    releaseModel = resolve;
+  });
+  const api: typeof fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("/pulls/"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: "owner/repo" } },
+        head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+      });
+    if (init?.method === "POST") {
+      const item = { id: nextId++, user: { id: 42 }, body: JSON.parse(String(init.body)).body };
+      comments.push(item);
+      return Response.json(item, { status: 201 });
+    }
+    const id = Number(url.match(/comments\/(\d+)/)?.[1]);
+    if (init?.method === "DELETE") {
+      const i = comments.findIndex((c) => c.id === id);
+      if (i < 0) return new Response(null, { status: 404 });
+      comments.splice(i, 1);
+      return new Response(null, { status: 204 });
+    }
+    if (init?.method === "PATCH") {
+      const c = comments.find((item) => item.id === id)!;
+      c.body = JSON.parse(String(init.body)).body;
+      return Response.json(c);
+    }
+    return Response.json(comments);
+  };
+  const withLock = createCommentBudgetLock({
+    fetch: api,
+    repository: "owner/repo",
+    token: "token",
+    authorId: 42,
+    delay: async () => {},
+  });
+  const first = createBudgetWorkflow({
+    fetch: api,
+    withLock,
+    prepare: async () => {},
+    model: async () => {
+      modelStarted();
+      await blocked;
+    },
+  });
+  const second = createBudgetWorkflow({
+    fetch: api,
+    withLock,
+    prepare: async () => {},
+    model: async () => {},
+  });
+  const base = {
+    kind: "review" as const,
+    eventName: "pull_request",
+    event: {
+      action: "opened",
+      repository: { full_name: "owner/repo" },
+      pull_request: { number: 7 },
+    },
+    repository: "owner/repo",
+    owner: "owner",
+    token: "token",
+    authorId: 42,
+    actionsUrl: "",
+  };
+  const running = first(base);
+  await started;
+  expect((await second(base)).status).toBe("completed");
+  expect(comments).toHaveLength(1);
+  expect(comments[0].body).toContain('"review":2');
+  releaseModel();
+  expect((await running).status).toBe("completed");
+});
+
+test("a prior cross-runner claim delays admission and failed lock cleanup blocks runtime", async () => {
+  const marker = "<!-- opencode-pr-budget-lock:v1 -->";
+  const comments = [
+    { id: 1, user: { id: 42 }, body: `${marker}\n00000000-0000-4000-8000-000000000000` },
+  ];
+  let nextId = 2;
+  let waited = 0;
+  let prepared = false;
+  let countWritten = false;
+  const api: typeof fetch = async (input, init) => {
+    const url = String(input);
+    if (url.includes("/pulls/"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: "owner/repo" } },
+        head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+      });
+    if (init?.method === "POST") {
+      const c = { id: nextId++, user: { id: 42 }, body: JSON.parse(String(init.body)).body };
+      comments.push(c);
+      return Response.json(c, { status: 201 });
+    }
+    if (init?.method === "PATCH") {
+      countWritten = true;
+      return Response.json({});
+    }
+    if (init?.method === "DELETE") return new Response(null, { status: 503 });
+    return Response.json(comments);
+  };
+  const withLock = createCommentBudgetLock({
+    fetch: api,
+    repository: "owner/repo",
+    token: "token",
+    authorId: 42,
+    delay: async () => {
+      waited++;
+      comments.shift();
+    },
+  });
+  const run = createBudgetWorkflow({
+    fetch: api,
+    withLock,
+    prepare: async () => {
+      prepared = true;
+    },
+    model: async () => {},
+  });
+  const result = await run({
+    kind: "review",
+    eventName: "pull_request",
+    event: {
+      action: "opened",
+      repository: { full_name: "owner/repo" },
+      pull_request: { number: 7 },
+    },
+    repository: "owner/repo",
+    owner: "owner",
+    token: "token",
+    authorId: 42,
+    actionsUrl: "",
+  });
+  expect(waited).toBe(1);
+  expect(countWritten).toBe(true);
+  expect(result.status).toBe("infra");
+  expect(prepared).toBe(false);
 });
 
 test("failed preparation spends an attempt, reruns spend again, publication does not", async () => {

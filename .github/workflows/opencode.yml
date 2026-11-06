@@ -23,10 +23,6 @@ jobs:
       startsWith(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    concurrency:
-      group: opencode-budget-${{ github.event.issue.number || github.event.pull_request.number }}
-      cancel-in-progress: false
-      queue: max
     permissions:
       id-token: write
       contents: read

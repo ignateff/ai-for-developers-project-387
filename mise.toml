@@ -103,6 +103,9 @@ run = "pnpm run opencode:review-prepare"
 [tasks."opencode:review-run"]
 run = "pnpm run opencode:review-run"
 
+[tasks."opencode:review-publish"]
+run = "pnpm run opencode:review-publish"
+
 [tasks."opencode:prepare"]
 description = "Prepare and validate the isolated noninteractive GitHub command runtime"
 run = "pnpm run opencode:prepare"

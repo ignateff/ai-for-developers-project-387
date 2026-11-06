@@ -17,6 +17,7 @@
     "opencode:budget": "node scripts/opencode-budget-cli.ts",
     "opencode:review-prepare": "node scripts/opencode-review-workflow.ts prepare",
     "opencode:review-run": "node scripts/opencode-review-workflow.ts run",
+    "opencode:review-publish": "node scripts/opencode-review-publish-cli.ts",
     "opencode:prepare": "node scripts/opencode-command.ts prepare",
     "opencode:run": "node scripts/opencode-command.ts run",
     "lint:opencode-workflow": "jactionlint .github/workflows/opencode.yml",

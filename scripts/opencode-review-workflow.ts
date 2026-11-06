@@ -86,7 +86,7 @@ async function main() {
     },
   });
   await writeFile(join(root, "review.json"), JSON.stringify(result), { flag: "wx", mode: 0o600 });
-  console.log("OpenCode review: result saved locally; publication is not configured");
+  console.log("OpenCode review: result saved for publication");
 }
 
 try {

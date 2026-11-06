@@ -14,11 +14,7 @@ it("bounds command execution to thirty minutes without cancelling an active fix"
     "cancel-in-progress": false,
     queue: "max",
   });
-  expect(job.concurrency).toEqual({
-    group: "opencode-budget-${{ github.event.issue.number || github.event.pull_request.number }}",
-    "cancel-in-progress": false,
-    queue: "max",
-  });
+  expect(job.concurrency).toBeUndefined();
 });
 
 it("bootstraps only the trusted default branch with credentials disabled", () => {
