@@ -1,0 +1,13 @@
+{
+  "exceptions": [
+    {
+      "path": ".github/workflows/hexlet-check.yml",
+      "rule": "artipacked",
+      "line": 19,
+      "sha256": "c8018c9fd5de3ef086be6307a7f265722936cd4c8ea05354285023d2b994187b",
+      "reviewDate": "2026-12-06",
+      "reason": "The generated Hexlet workflow explicitly prohibits edits. The owner approved temporarily accepting persisted checkout credentials in this exact unchanged file; request an upstream fix before renewal.",
+      "approval": "https://github.com/ignateff/ai-for-developers-project-387/issues/49"
+    }
+  ]
+}

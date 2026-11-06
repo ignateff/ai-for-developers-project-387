@@ -9,6 +9,9 @@ pkl = "0.32.2"
 pitchfork = "2.32.3"
 jactionlint = "2.3.0"
 shellcheck = "0.11.0"
+"github:betterleaks/betterleaks" = "1.10.0"
+"github:google/osv-scanner" = "2.7.0"
+hadolint = "2.15.1"
 
 [env]
 NODE_ENV = "development"
@@ -16,6 +19,10 @@ NODE_ENV = "development"
 [tasks.install]
 description = "Install project dependencies"
 run = "pnpm install --frozen-lockfile"
+
+[tasks."deps:update"]
+description = "Update selected workspace dependencies within declared ranges"
+run = "pnpm run deps:update"
 
 [tasks.add]
 description = "Add a dependency to a workspace project (default @calendar/web)"
@@ -66,9 +73,44 @@ run = "pnpm run lint"
 [tasks.typecheck]
 run = "pnpm run typecheck"
 
+[tasks."lint:unused"]
+run = "pnpm run lint:unused"
+
+[tasks."lint:workflows"]
+run = "pnpm run lint:workflows"
+
+[tasks."lint:shell"]
+run = "pnpm run lint:shell"
+
+[tasks."lint:docker"]
+run = "pnpm run lint:docker"
+
+[tasks."check:secrets"]
+run = "pnpm run check:secrets"
+
+[tasks."check:vulnerabilities"]
+run = "pnpm run check:vulnerabilities"
+
+[tasks."check:security"]
+description = "Run security scans and enforce dated risk exceptions"
+run = "pnpm run check:security"
+
+[tasks."check:commits"]
+run = "pnpm run check:commits"
+
+[tasks."lint:commit-message"]
+run = "pnpm run lint:commit-message"
+
 [tasks."check:quick"]
 description = "Run fast local checks without starting development daemons"
 run = "pnpm run check:quick"
+
+[tasks."check:files"]
+run = "pnpm run check:files"
+
+[tasks."check:push"]
+description = "Run whole-project offline checks before push"
+run = "pnpm run check:push"
 
 [tasks.test]
 run = "pnpm run test"
@@ -181,6 +223,14 @@ run = "pnpm run db:migrate"
 [tasks.check]
 description = "Run the same checks locally and in CI"
 run = [
+  "pnpm run check:files",
+  "pnpm run lint:unused",
+  "pnpm run lint:workflows",
+  "pnpm run lint:shell",
+  "pnpm run lint:docker",
+  "pnpm run check:secrets",
+  "pnpm run check:commits",
+  "pnpm run check:vulnerabilities",
   "pnpm run lint",
   "pnpm run format:check",
   "pnpm run typecheck",
@@ -193,10 +243,6 @@ run = [
   "pnpm run check:generated",
   "pnpm run build",
   "pnpm run test:docker-smoke",
-  "jactionlint .github/workflows/ci.yml .github/workflows/release-please.yml",
-  "pnpm run lint:opencode-workflow",
-  "pnpm run lint:opencode-review-workflow",
-  "pnpm run lint:triage-workflow",
 ]
 
 [daemons.api]

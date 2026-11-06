@@ -5,6 +5,7 @@
 - [Skill configuration](skills.md): project-local skills, dependency lock and OpenCode configuration.
 - [Domain](domain.md): glossary and ADR conventions.
 - [Testing](testing.md): full checks, contract, browser, visual and Docker verification.
+- [Quality gates](../quality-gates.md): scanner scope, accepted findings and dated exception review.
 - [Triage labels](triage-labels.md): issue classification.
 - [Implementation traceability](implementation-traceability.md): historical first-project evidence, not a fresh test report.
 - [PR attempt budget](pr-attempt-budget.md): local adapter, manual recovery and current integration limitations.

@@ -1,6 +1,6 @@
 # Testing
 
-`mise run check` runs lint, formatting, types, Vitest, Playwright, contract and generated-artifact checks, build, and workflow lint. CI runs the same check after installing Chromium.
+`mise run check` runs lint, formatting, types, Vitest, Playwright, contract and generated-artifact checks, build, workflow/shell/Dockerfile lint, unused-code detection, commit-message checks, and secrets/vulnerability scans. CI runs the same check after installing Chromium and fetching full Git history. Security scans and risk-exception review dates also run daily. See [quality gates](../quality-gates.md) for scope, accepted findings and limitations.
 
 The full check also runs `mise run test:docker-smoke`: Docker and its daemon are required, and an unavailable daemon is an error. It builds the current working-copy production inputs for `linux/amd64` (potentially slow under Apple Silicon emulation), then starts the normal image command on `PORT=8080` with an isolated in-memory database and an automatically assigned loopback port. Health, the page, JavaScript assets, browser errors and the exact production version message are checked. Only resources created by the run are removed; no deployment or booking is performed. The displayed revision is a random smoke marker, not a Git commit or a claim that a dirty checkout matches `HEAD`.
 
@@ -14,7 +14,7 @@ The smoke trusts all tracked files, including local modifications; it does **not
 
 Containers and images have unique run-specific names and ownership labels. Cleanup verifies the labels before removal. If a Docker command is interrupted or its result is uncertain, the check reports its run-specific names and label: inspect them for late completion rather than assuming the daemon stopped the operation. Never remove a resource whose ownership cannot be verified.
 
-Local pre-commit and pre-push hooks run `mise run check:quick` (lint, formatting and types), without starting dev daemons. This is not a replacement for the full CI check; require a successful `check` status before merging. Run `mise run check` explicitly for full local validation.
+Local pre-commit hooks run fast formatting, lint, ShellCheck and Hadolint checks on staged paths and scan actual staged content for secrets. The read-only hook neither stashes work nor stages fixes: formatting/lint see working-tree contents for a partially staged file; secrets still see the index. The commit-message hook uses commitlint. Pre-push runs `mise run check:push`, adding whole-project types, unused-code, workflow, secrets/history and commit-range checks without starting daemons or querying vulnerability databases. CI runs the complete `mise run check`, including the same shared hk checks via `mise run check:files`; require a successful `check` status before merging.
 
 ## Deployment verification
 

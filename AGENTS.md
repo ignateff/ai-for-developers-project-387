@@ -5,7 +5,8 @@
 - Add dependencies with `mise run add <packages...>` (targets `@calendar/web`; override with `--filter @calendar/api`).
 - Install Git hooks separately when needed: `mise run install-hooks` (hooks are shared by worktrees).
 - Development: `mise run dev` starts both servers as pitchfork daemons; inspect with `mise daemons ls`; stop with `mise daemons stop`.
-- Checks: `mise run check`; individual commands: `mise run lint`, `mise run test`, `mise run build`.
+- Completion gate: `mise run check` must pass before a change is done; report unavailable checks as blockers. Individual commands: `mise run lint`, `mise run test`, `mise run build`.
+- Keep lint rules enabled. Exceptions require a human decision, an exact path/rule and a reason; risk exceptions have enforced review dates. For quality-gate failures or exception renewal, follow `docs/quality-gates.md`.
 - `apps/api` is the Fastify server; `apps/web` is the Vite client; `contract` is the TypeSpec source.
 - Define API operations in TypeSpec first; add contract tests for each response scenario.
 - Regenerate OpenAPI and SDK with `mise run generate`; never edit `generated/` by hand.

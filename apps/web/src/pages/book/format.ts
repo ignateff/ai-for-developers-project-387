@@ -78,7 +78,7 @@ export function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-export function plural(count: number, one: string, few: string, many: string): string {
+function plural(count: number, one: string, few: string, many: string): string {
   const mod100 = Math.abs(count) % 100;
   const mod10 = mod100 % 10;
   if (mod100 >= 11 && mod100 <= 14) return many;

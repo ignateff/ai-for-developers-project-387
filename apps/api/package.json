@@ -11,7 +11,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.8",
+    "@fastify/static": "^10.1.10",
     "@types/better-sqlite3": "^9.6.0",
     "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.31.11",
