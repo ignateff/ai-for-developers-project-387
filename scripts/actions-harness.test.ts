@@ -2,6 +2,77 @@ import { expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { runHarness } from "./actions-harness.ts";
 
+it("does not count pending runs even if their jobs expose a successful marker", async () => {
+  let jobCalls = 0;
+  const result = await runHarness({
+    repository: "owner/repo",
+    token: "fixture",
+    workflowId: 10,
+    boundaryRunId: 1,
+    event: "issue_comment",
+    payload: {
+      action: "created",
+      issue: { number: 7, pull_request: {} },
+      comment: { body: "/oc" },
+    },
+    trusted: true,
+    fetch: async (url) => {
+      if (String(url).includes("/workflows/"))
+        return Response.json({
+          total_count: 2,
+          workflow_runs: [{ id: 1 }, { id: 2, status: "in_progress", run_attempt: 1 }],
+        });
+      jobCalls++;
+      return Response.json({
+        total_count: 1,
+        jobs: [
+          {
+            id: 2,
+            name: "budget-model / command / pr-7",
+            status: "in_progress",
+            steps: [{ name: "admission", status: "completed", conclusion: "success" }],
+          },
+        ],
+      });
+    },
+  });
+  expect(result).toMatchObject({ decision: "admit", used: 0 });
+  expect(jobCalls).toBe(0);
+});
+
+it.each([
+  [[]],
+  [[{ id: 9, name: "unknown", status: "completed", steps: [] }]],
+  [
+    [
+      { id: 9, name: "budget-model / command / pr-7", status: "completed", steps: [] },
+      { id: 10, name: "budget-model / command / pr-7", status: "completed", steps: [] },
+    ],
+  ],
+])("rejects completed history without an identifiable marker job", async (jobs) => {
+  const result = await runHarness({
+    repository: "owner/repo",
+    token: "fixture",
+    workflowId: 10,
+    boundaryRunId: 1,
+    event: "issue_comment",
+    payload: {
+      action: "created",
+      issue: { number: 7, pull_request: {} },
+      comment: { body: "/oc" },
+    },
+    trusted: true,
+    fetch: async (url) =>
+      String(url).includes("/workflows/")
+        ? Response.json({
+            total_count: 2,
+            workflow_runs: [{ id: 1 }, { id: 2, run_attempt: 1, status: "completed" }],
+          })
+        : Response.json({ total_count: jobs.length, jobs }),
+  });
+  expect(result.decision).toBe("infra");
+});
+
 it("runs the metadata harness as a process using only fixture REST responses", () => {
   const fixture = {
     options: {
@@ -19,7 +90,7 @@ it("runs the metadata harness as a process using only fixture REST responses", (
     responses: {
       "/repos/owner/repo/actions/workflows/10/runs?per_page=100&page=1": {
         total_count: 1,
-        workflow_runs: [{ id: 1, run_attempt: 1 }],
+        workflow_runs: [{ id: 1, run_attempt: 1, status: "completed" }],
       },
     },
   };
@@ -45,7 +116,10 @@ it("admits a trusted command with an empty retained history before simulated run
     },
     trusted: true,
     fetch: async () =>
-      Response.json({ total_count: 1, workflow_runs: [{ id: 1, run_attempt: 1 }] }),
+      Response.json({
+        total_count: 1,
+        workflow_runs: [{ id: 1, run_attempt: 1, status: "completed" }],
+      }),
   });
   expect(result).toMatchObject({ decision: "admit", pr: 7, budget: "command", used: 0 });
 });
@@ -54,6 +128,7 @@ it("counts admitted jobs across reruns once and enforces independent PR budgets"
   const marker = (id: number, name: string) => ({
     id,
     name,
+    status: "completed",
     steps: [{ name: "admission", status: "completed", conclusion: "success" }],
   });
   const fetcher: typeof fetch = async (url) => {
@@ -62,8 +137,8 @@ it("counts admitted jobs across reruns once and enforces independent PR budgets"
       return Response.json({
         total_count: 2,
         workflow_runs: [
-          { id: 1, run_attempt: 1 },
-          { id: 2, run_attempt: 4 },
+          { id: 1, run_attempt: 1, status: "completed" },
+          { id: 2, run_attempt: 4, status: "completed" },
         ],
       });
     const attempt = Number(path.match(/attempts\/(\d+)/)?.[1]);
@@ -125,13 +200,15 @@ it("fails closed when retained history or marker metadata is unavailable", async
           ? Response.json({
               total_count: 2,
               workflow_runs: [
-                { id: 1, run_attempt: 1 },
-                { id: 2, run_attempt: 1 },
+                { id: 1, run_attempt: 1, status: "completed" },
+                { id: 2, run_attempt: 1, status: "completed" },
               ],
             })
           : Response.json({
               total_count: 1,
-              jobs: [{ id: 2, name: "budget-model / command / pr-7", steps: [] }],
+              jobs: [
+                { id: 2, name: "budget-model / command / pr-7", status: "completed", steps: [] },
+              ],
             }),
     }),
   ).toEqual({ decision: "infra", reason: "github-history-unavailable-or-ambiguous" });

@@ -18,13 +18,17 @@ it("binds a comment payload and reads Actions history without authorizing a mode
     fetch: async (url) => {
       urls.push(String(url));
       return String(url).includes("/workflows/")
-        ? Response.json({ total_count: 1, workflow_runs: [{ id: 42, run_attempt: 1 }] })
+        ? Response.json({
+            total_count: 1,
+            workflow_runs: [{ id: 42, run_attempt: 1, status: "completed" }],
+          })
         : Response.json({
             total_count: 1,
             jobs: [
               {
                 id: 9,
                 name: "model",
+                status: "completed",
                 steps: [{ name: "admission", status: "completed", conclusion: "success" }],
               },
             ],

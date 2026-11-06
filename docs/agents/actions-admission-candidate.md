@@ -5,8 +5,11 @@
 `node scripts/actions-gate-cli.ts` reads the GitHub event file and environment,
 checks command trust with the existing `authorizeComment`, then queries real
 GitHub REST GET endpoints using the harness protocol. It prints only a sanitized
-decision and optional hypothetical count/evidence; it writes only `decision` to
-`GITHUB_OUTPUT` when present. It always exits nonzero and never emits an admit.
+decision and optional hypothetical count/evidence; it writes `decision` and, only
+for a hypothetical would-admit, `metadata_candidate` to `GITHUB_OUTPUT`. It always
+exits nonzero and never emits an authorization. Before calculation it GETs the
+executing run using `GITHUB_RUN_ID` and checks its `workflow_id` against the
+configured ID. Missing or inconsistent metadata fails closed.
 Review trust is not established and fails closed. Ordinary messages and issues
 are skipped; trust/API ambiguity fails closed. The live event must come from the
 trusted GitHub runner, not an attacker-controlled local file. The API token needs
@@ -14,8 +17,9 @@ read access to Actions and PR metadata and collaborator permissions where needed
 
 `actions-admission.workflow.yml.example` is an inert template, not an enabled
 workflow. Its proposed job name is `budget-model / <command|review> / pr-<n>`
-and marker is a completed successful `admission` step. The current step always
-fails, so it cannot produce a marker or run a model. The workflow ID and boundary
+and marker is a completed successful `admission` step. An isolated echo-only
+marker can succeed after a hypothetical would-admit; a separate unconditional
+step fails the job. The template contains no model invocation. The workflow ID and boundary
 are supplied via repository variables `ADMISSION_WORKFLOW_ID` and
 `ADMISSION_BOUNDARY_RUN_ID`; they are assertions, not proof of history. Do not
 add a model step or treat the hypothetical result as authorization.
@@ -26,16 +30,16 @@ workflow ID and an explicitly recorded run ID, and trigger test PR comments,
 review comments and PR events without a model key. Record sanitized run/attempt
 URLs and decisions, test pagination and unavailable history, cancellation, full
 and job-only reruns, and verify token rights including any exchanged App token.
-The current always-failing marker cannot establish successful-marker behavior:
-testing that requires a separately reviewed, explicitly authorized metadata-only
-experiment that cannot invoke a model. Do not publish tokens or event payloads.
+Testing successful-marker behavior requires a separately reviewed, explicitly
+authorized metadata-only experiment. Do not publish tokens or event payloads.
 Remove or disable the experimental workflow after the approved observations.
 Even if race and cancellation undercount risks are accepted, incomplete or
 deleted history, unauthenticated marker names and unverified trust remain hard
 blockers. A successful observation alone does not enable this gate.
 
 This is an observation harness, not an admission gate. It has no workflow trigger,
-does not invoke a model, and always returns `decision: "infra"`. The previous
+does not invoke a model, and returns `skip` for non-candidates or untrusted
+comments and `infra` for candidates and uncertainty; it never authorizes. The previous
 in-memory `/admit` fixture was removed; it was not a GitHub API or evidence of
 atomic allocation. No live experiment is authorized by this
 document; obtain separate approval before using GitHub or checking token rights.
@@ -77,10 +81,11 @@ branch SHA, and title are not substitutes. `boundaryRunId` is also supplied by
 the operator. The existing reader assumes run IDs order history and that seeing
 the boundary and consistent paginated counts implies completeness; neither
 assumption proves retention or detects deleted history. It requires a binding
-for each included run, including pending runs; it cannot decide safely whether
-those runs should consume budget.
+for each included completed run. Pending runs are not counted; this does not
+resolve concurrency or whether an in-progress run already consumed an attempt.
 
-The proposed marker is a successful `admission` step in a job named `model`.
+The older budget inspector expects a successful `admission` step in a job named
+`model`; the harness and template instead use `budget-model / <budget> / pr-<n>`.
 The reader counts distinct matching job IDs across run attempts, but neither
 marker durability on cancellation, visibility timing, nor partial/full re-run
 job identity is established. Candidate `used` and `hypothetical` fields are

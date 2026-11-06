@@ -21,13 +21,17 @@ const base = {
 it("reports a hypothetical exhausted command budget from Actions jobs without authorizing", async () => {
   const api = vi.fn(async (url: string | URL | Request) =>
     String(url).includes("/workflows/")
-      ? Response.json({ total_count: 1, workflow_runs: [{ id: 42, run_attempt: 3 }] })
+      ? Response.json({
+          total_count: 1,
+          workflow_runs: [{ id: 42, run_attempt: 3, status: "completed" }],
+        })
       : Response.json({
           total_count: 1,
           jobs: [
             {
               id: Number(String(url).match(/attempts\/(\d+)/)?.[1]),
               name: "model",
+              status: "completed",
               steps: [{ name: "admission", status: "completed", conclusion: "success" }],
             },
           ],
@@ -60,7 +64,10 @@ it("refuses inconsistent metadata for a repeated job across attempts", async () 
   const api: typeof fetch = async (url) => {
     const path = String(url);
     if (path.includes("/workflows/"))
-      return Response.json({ total_count: 1, workflow_runs: [{ id: 42, run_attempt: 2 }] });
+      return Response.json({
+        total_count: 1,
+        workflow_runs: [{ id: 42, run_attempt: 2, status: "completed" }],
+      });
     const success = path.includes("/attempts/1/");
     return Response.json({
       total_count: 1,
@@ -68,6 +75,7 @@ it("refuses inconsistent metadata for a repeated job across attempts", async () 
         {
           id: 99,
           name: "model",
+          status: "completed",
           steps: [
             { name: "admission", status: "completed", conclusion: success ? "success" : "failure" },
           ],
@@ -87,9 +95,9 @@ it("keeps review and other PR usage separate from either comment channel", async
       ? Response.json({
           total_count: 3,
           workflow_runs: [
-            { id: 42, run_attempt: 1 },
-            { id: 43, run_attempt: 1 },
-            { id: 44, run_attempt: 1 },
+            { id: 42, run_attempt: 1, status: "completed" },
+            { id: 43, run_attempt: 1, status: "completed" },
+            { id: 44, run_attempt: 1, status: "completed" },
           ],
         })
       : Response.json({
@@ -98,6 +106,7 @@ it("keeps review and other PR usage separate from either comment channel", async
             {
               id: Number(String(url).match(/runs\/(\d+)/)?.[1]),
               name: "model",
+              status: "completed",
               conclusion: "cancelled",
               steps: [{ name: "admission", status: "completed", conclusion: "success" }],
             },

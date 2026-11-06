@@ -132,12 +132,21 @@ export async function evaluateBudget(options: {
     let used = 0;
     for (const run of runs) {
       if (!positive(run.id) || run.id < boundaryRunId) continue;
+      if (
+        !["completed", "queued", "in_progress", "waiting", "pending", "requested"].includes(
+          String(run.status),
+        )
+      )
+        throw new Error();
+      if (run.status !== "completed") continue;
       if (!positive(run.run_attempt) || run.run_attempt > 100) throw new Error();
       const binding = byRun.get(run.id);
       if (!binding) throw new Error();
       const jobsSeen = new Map<number, string>();
       for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
         const jobs = await getPages(`actions/runs/${run.id}/attempts/${attempt}/jobs`, "jobs");
+        const applicable = jobs.filter((job) => job.name === "model");
+        if (applicable.length !== 1 || applicable[0].status !== "completed") throw new Error();
         for (const job of jobs) {
           if (!positive(job.id) || typeof job.name !== "string" || !Array.isArray(job.steps))
             throw new Error();

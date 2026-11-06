@@ -79,6 +79,13 @@ export async function runHarness(options: {
       const id = run.id as number;
       if (id <= boundaryRunId) continue;
       if (
+        !["completed", "queued", "in_progress", "waiting", "pending", "requested"].includes(
+          String(run.status),
+        )
+      )
+        throw new Error();
+      if (run.status !== "completed") continue;
+      if (
         !Number.isSafeInteger(run.run_attempt) ||
         (run.run_attempt as number) < 1 ||
         (run.run_attempt as number) > 100
@@ -87,6 +94,10 @@ export async function runHarness(options: {
       const seen = new Map<number, string>();
       for (let attempt = 1; attempt <= (run.run_attempt as number); attempt++) {
         const jobs = await pages(`actions/runs/${id}/attempts/${attempt}/jobs`, "jobs");
+        const applicable = jobs.filter(
+          (job) => typeof job.name === "string" && job.name.startsWith("budget-model / "),
+        );
+        if (applicable.length !== 1 || applicable[0].status !== "completed") throw new Error();
         for (const job of jobs) {
           if (typeof job.name !== "string" || !Array.isArray(job.steps)) throw new Error();
           const signature = JSON.stringify(job);

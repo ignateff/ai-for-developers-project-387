@@ -26,9 +26,18 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
-      - name: admission
+      - name: inspect (always fails closed)
+        id: inspect
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ADMISSION_WORKFLOW_ID: ${{ vars.ADMISSION_WORKFLOW_ID }}
           ADMISSION_BOUNDARY_RUN_ID: ${{ vars.ADMISSION_BOUNDARY_RUN_ID }}
         run: node scripts/actions-gate-cli.ts
+      # A successful marker is only simulated accounting metadata, never authorization.
+      - name: admission
+        if: ${{ steps.inspect.outputs.metadata_candidate == 'would-admit' }}
+        run: echo "Metadata-only hypothetical marker; no model access"
+      - name: fail closed
+        if: ${{ always() }}
+        run: exit 1

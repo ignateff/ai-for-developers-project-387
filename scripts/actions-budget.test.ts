@@ -1,14 +1,61 @@
 import { expect, it } from "vitest";
 import { classifyEvent, evaluateBudget } from "./actions-budget.ts";
 
+it.each(["empty", "unknown", "duplicate", "pending-job", "pending-run"])(
+  "handles %s without counting pending or ambiguous jobs",
+  async (scenario) => {
+    const job = {
+      id: 2,
+      name: "model",
+      status: scenario === "pending-job" ? "in_progress" : "completed",
+      steps: [{ name: "admission", status: "completed", conclusion: "success" }],
+    };
+    const jobs =
+      scenario === "empty"
+        ? []
+        : scenario === "unknown"
+          ? [{ ...job, name: "other" }]
+          : scenario === "duplicate"
+            ? [job, { ...job, id: 3 }]
+            : [job];
+    const result = await evaluateBudget({
+      repository: "owner/repo",
+      token: "fixture",
+      workflowId: 10,
+      boundaryRunId: 1,
+      bindings: [{ runId: 1, pr: 7, budget: "command" }],
+      request: { pr: 7, budget: "command" },
+      fetch: async (url) =>
+        String(url).includes("/workflows/")
+          ? Response.json({
+              total_count: 1,
+              workflow_runs: [
+                {
+                  id: 1,
+                  run_attempt: 1,
+                  status: scenario === "pending-run" ? "in_progress" : "completed",
+                },
+              ],
+            })
+          : Response.json({ total_count: jobs.length, jobs }),
+    });
+    if (scenario === "pending-run") expect(result).toMatchObject({ decision: "infra", used: 0 });
+    else
+      expect(result).toEqual({
+        decision: "infra",
+        reason: "github-history-unavailable-or-ambiguous",
+      });
+  },
+);
+
 it("counts separate budgets from paginated Actions history without granting model access", async () => {
   const fetcher: typeof fetch = async (url) => {
     if (String(url).includes("/actions/workflows/10/runs?"))
       return Response.json({
         total_count: 2,
         workflow_runs: [
-          { id: 1, run_attempt: 1 },
-          { id: 2, run_attempt: 1 },
+          { id: 1, run_attempt: 1, status: "completed" },
+          { id: 2, run_attempt: 1, status: "completed" },
         ],
       });
     return Response.json({
@@ -17,6 +64,7 @@ it("counts separate budgets from paginated Actions history without granting mode
         {
           id: 100,
           name: "model",
+          status: "completed",
           steps: [{ name: "admission", status: "completed", conclusion: "success" }],
         },
       ],
@@ -87,7 +135,10 @@ it("counts new model jobs on rerun but not a reused model job on publication-onl
   const fetcher: typeof fetch = async (url) => {
     const path = String(url);
     if (path.includes("/workflows/"))
-      return Response.json({ total_count: 1, workflow_runs: [{ id: 1, run_attempt: 4 }] });
+      return Response.json({
+        total_count: 1,
+        workflow_runs: [{ id: 1, run_attempt: 4, status: "completed" }],
+      });
     const attempt = Number(path.match(/attempts\/(\d+)/)?.[1]);
     return Response.json({
       total_count: 1,
@@ -95,6 +146,7 @@ it("counts new model jobs on rerun but not a reused model job on publication-onl
         {
           id: attempt === 4 ? 3 : attempt,
           name: "model",
+          status: "completed",
           steps: [{ name: "admission", status: "completed", conclusion: "success" }],
         },
       ],
@@ -132,7 +184,7 @@ it.each(["missing-binding", "missing-boundary", "api-error", "truncated", "uncer
       if (String(url).includes("/workflows/"))
         return Response.json({
           total_count: scenario === "truncated" ? 2 : 1,
-          workflow_runs: [{ id: 1, run_attempt: 1 }],
+          workflow_runs: [{ id: 1, run_attempt: 1, status: "completed" }],
         });
       return Response.json({
         total_count: 1,
@@ -140,6 +192,7 @@ it.each(["missing-binding", "missing-boundary", "api-error", "truncated", "uncer
           {
             id: 1,
             name: "model",
+            status: "completed",
             steps:
               scenario === "uncertain-marker"
                 ? []
@@ -172,8 +225,12 @@ it("loads all history pages and refuses inconsistent totals", async () => {
         total_count: page === 2 && inconsistent ? 102 : 101,
         workflow_runs:
           page === 1
-            ? Array.from({ length: 100 }, (_, i) => ({ id: i + 1, run_attempt: 1 }))
-            : [{ id: 101, run_attempt: 1 }],
+            ? Array.from({ length: 100 }, (_, i) => ({
+                id: i + 1,
+                run_attempt: 1,
+                status: "queued",
+              }))
+            : [{ id: 101, run_attempt: 1, status: "queued" }],
       });
     }
     return Response.json({ total_count: 0, jobs: [] });
