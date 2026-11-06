@@ -88,6 +88,10 @@ run = "pnpm run actions:harness"
 description = "Inspect explicitly supplied event and GitHub Actions history without authorization"
 run = "pnpm run actions:candidate"
 
+[tasks."actions:gate"]
+description = "Run the fail-closed Actions metadata gate from GitHub event environment"
+run = "pnpm run actions:gate"
+
 [tasks."test:skills-integrity"]
 description = "Verify pinned Matt Pocock skill files and integrity checks"
 run = "pnpm run test:skills-integrity"

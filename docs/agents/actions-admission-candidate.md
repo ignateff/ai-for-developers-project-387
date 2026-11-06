@@ -1,5 +1,39 @@
 # Actions admission: read-only candidate (#41)
 
+## GitHub job entry point
+
+`node scripts/actions-gate-cli.ts` reads the GitHub event file and environment,
+checks command trust with the existing `authorizeComment`, then queries real
+GitHub REST GET endpoints using the harness protocol. It prints only a sanitized
+decision and optional hypothetical count/evidence; it writes only `decision` to
+`GITHUB_OUTPUT` when present. It always exits nonzero and never emits an admit.
+Review trust is not established and fails closed. Ordinary messages and issues
+are skipped; trust/API ambiguity fails closed. The live event must come from the
+trusted GitHub runner, not an attacker-controlled local file. The API token needs
+read access to Actions and PR metadata and collaborator permissions where needed.
+
+`actions-admission.workflow.yml.example` is an inert template, not an enabled
+workflow. Its proposed job name is `budget-model / <command|review> / pr-<n>`
+and marker is a completed successful `admission` step. The current step always
+fails, so it cannot produce a marker or run a model. The workflow ID and boundary
+are supplied via repository variables `ADMISSION_WORKFLOW_ID` and
+`ADMISSION_BOUNDARY_RUN_ID`; they are assertions, not proof of history. Do not
+add a model step or treat the hypothetical result as authorization.
+
+After separate approval, operators can copy the template into a dedicated
+test repository's `.github/workflows/`, configure the two variables to a numeric
+workflow ID and an explicitly recorded run ID, and trigger test PR comments,
+review comments and PR events without a model key. Record sanitized run/attempt
+URLs and decisions, test pagination and unavailable history, cancellation, full
+and job-only reruns, and verify token rights including any exchanged App token.
+The current always-failing marker cannot establish successful-marker behavior:
+testing that requires a separately reviewed, explicitly authorized metadata-only
+experiment that cannot invoke a model. Do not publish tokens or event payloads.
+Remove or disable the experimental workflow after the approved observations.
+Even if race and cancellation undercount risks are accepted, incomplete or
+deleted history, unauthenticated marker names and unverified trust remain hard
+blockers. A successful observation alone does not enable this gate.
+
 This is an observation harness, not an admission gate. It has no workflow trigger,
 does not invoke a model, and always returns `decision: "infra"`. The previous
 in-memory `/admit` fixture was removed; it was not a GitHub API or evidence of
