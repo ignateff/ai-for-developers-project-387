@@ -1,9 +1,9 @@
 # Actions admission: read-only candidate (#41)
 
 This is an observation harness, not an admission gate. It has no workflow trigger,
-does not invoke a model, and always returns `decision: "infra"`. The older
-`actions-experiment.ts` `/admit` endpoint is an in-memory fixture, not a GitHub
-API or evidence of atomic allocation. No live experiment is authorized by this
+does not invoke a model, and always returns `decision: "infra"`. The previous
+in-memory `/admit` fixture was removed; it was not a GitHub API or evidence of
+atomic allocation. No live experiment is authorized by this
 document; obtain separate approval before using GitHub or checking token rights.
 
 `mise run test:actions-experiment` exercises the external HTTP seam with mocked
@@ -24,6 +24,8 @@ Example shape (replace every value with deliberately collected metadata):
   "repository": "owner/repo",
   "workflowId": 123,
   "boundaryRunId": 1000,
+  "kind": "full",
+  "trusted": true,
   "event": "issue_comment",
   "payload": {
     "action": "created",
@@ -34,7 +36,7 @@ Example shape (replace every value with deliberately collected metadata):
 }
 ```
 
-The current event payload and **every** historical run binding are operator
+The `kind` and `trusted` values, current event payload, and **every** historical run binding are operator
 assertions, not authenticated or recovered from GitHub. The listing endpoint does
 not provide the original webhook payload, and empty `pull_requests`, default
 branch SHA, and title are not substitutes. `boundaryRunId` is also supplied by
