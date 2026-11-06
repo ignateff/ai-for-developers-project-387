@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.7.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.6.0...v0.7.0) (2026-11-06)
+
+
+### Features
+
+* **actions:** add fail-closed metadata gate ([69a7333](https://github.com/ignateff/ai-for-developers-project-387/commit/69a73333ea3430e22fc99ac64b4670ec73e13b6e)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* **actions:** simulate PR admission budgets locally ([d30f953](https://github.com/ignateff/ai-for-developers-project-387/commit/d30f95308b65a0970ba20daade95b64c517788c3)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* add best-effort PR attempt budgets ([ebb5d29](https://github.com/ignateff/ai-for-developers-project-387/commit/ebb5d29dd14f401c8a2631aa373b6c37be35484d))
+* add local PR attempt budget adapter ([4e94ef0](https://github.com/ignateff/ai-for-developers-project-387/commit/4e94ef0dad32c8e7a23d023071de6c661d805b4a)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* **agents:** enable isolated skill loading ([80f56d0](https://github.com/ignateff/ai-for-developers-project-387/commit/80f56d0fb1bd1c7851e189f18dfac2b554bfe142))
+* **agents:** enable isolated skill loading ([3b8164d](https://github.com/ignateff/ai-for-developers-project-387/commit/3b8164dd79f9247f062a740cf3bd1af1a1b735ce)), closes [#22](https://github.com/ignateff/ai-for-developers-project-387/issues/22)
+* **ci:** add preliminary issue triage ([08b3197](https://github.com/ignateff/ai-for-developers-project-387/commit/08b3197b938da4b52759d97e3ded12f98202bb58))
+* **ci:** add preliminary issue triage ([6ffb82b](https://github.com/ignateff/ai-for-developers-project-387/commit/6ffb82bbcdc1e98e2924384d3be5249b0f6c9177)), closes [#35](https://github.com/ignateff/ai-for-developers-project-387/issues/35)
+* integrate PR attempt budget into model jobs ([25a9259](https://github.com/ignateff/ai-for-developers-project-387/commit/25a92597d2b1974f21f11c605eb072f0938b2be9)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* **review:** add isolated CLI reviewer ([6a002e6](https://github.com/ignateff/ai-for-developers-project-387/commit/6a002e612539b381e0e6d84dcd4cb938e21220f0)), closes [#40](https://github.com/ignateff/ai-for-developers-project-387/issues/40)
+* separate PR budget queue and review publication ([fa4eb5f](https://github.com/ignateff/ai-for-developers-project-387/commit/fa4eb5f924c19a50bd0e3bcaf76dd59558e1e5da)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+
+
+### Bug Fixes
+
+* **actions:** fail closed on ambiguous admission history ([bc9143b](https://github.com/ignateff/ai-for-developers-project-387/commit/bc9143b1167654ff87d12d62be15c15caf86508b)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* **agents:** allow issue publication from commands ([fa4ea0d](https://github.com/ignateff/ai-for-developers-project-387/commit/fa4ea0dd8d3876f551391cdc0870082415e6ae52))
+* **agents:** allow issue publication from commands ([66991b0](https://github.com/ignateff/ai-for-developers-project-387/commit/66991b0a3fbab355fb149c8637cb62efe62af534)), closes [#27](https://github.com/ignateff/ai-for-developers-project-387/issues/27)
+* isolate command queue and fail closed on incomplete reviews ([df4f216](https://github.com/ignateff/ai-for-developers-project-387/commit/df4f216f8510b391067e5c28e27a34ad3f7a4a17)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* **review:** require findings after snapshot delivery ([86a7625](https://github.com/ignateff/ai-for-developers-project-387/commit/86a76252d8292bf5bd05994f540cb720d41ced61)), closes [#40](https://github.com/ignateff/ai-for-developers-project-387/issues/40)
+* run PR budget admission through production workflow ([18346d6](https://github.com/ignateff/ai-for-developers-project-387/commit/18346d62d6c050117efb7f3f747bd6536cd77768)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+* supply pinned changed sources to review runtime ([2acebf1](https://github.com/ignateff/ai-for-developers-project-387/commit/2acebf154ff3d60dc53240ac9f249cd4bc894532)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+
+
+### Reverts
+
+* **actions:** remove admission budget experiments ([4be64d0](https://github.com/ignateff/ai-for-developers-project-387/commit/4be64d08a990a511c6d64d65acb32654de2eed5f)), closes [#41](https://github.com/ignateff/ai-for-developers-project-387/issues/41)
+
 ## [0.6.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.5.0...v0.6.0) (2026-11-05)
 
 
