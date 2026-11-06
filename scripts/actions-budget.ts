@@ -135,14 +135,19 @@ export async function evaluateBudget(options: {
       if (!positive(run.run_attempt) || run.run_attempt > 100) throw new Error();
       const binding = byRun.get(run.id);
       if (!binding) throw new Error();
-      const jobsSeen = new Set<number>();
+      const jobsSeen = new Map<number, string>();
       for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
         const jobs = await getPages(`actions/runs/${run.id}/attempts/${attempt}/jobs`, "jobs");
         for (const job of jobs) {
           if (!positive(job.id) || typeof job.name !== "string" || !Array.isArray(job.steps))
             throw new Error();
-          if (jobsSeen.has(job.id)) continue;
-          jobsSeen.add(job.id);
+          const signature = JSON.stringify({ name: job.name, steps: job.steps });
+          const previous = jobsSeen.get(job.id);
+          if (previous !== undefined) {
+            if (previous !== signature) throw new Error();
+            continue;
+          }
+          jobsSeen.set(job.id, signature);
           if (job.name !== "model") continue;
           const markers = job.steps.filter(
             (step: unknown) =>

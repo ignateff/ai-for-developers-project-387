@@ -74,7 +74,7 @@ run = "pnpm run check:quick"
 run = "pnpm run test"
 
 [tasks."test:actions-experiment"]
-description = "Run the fixture-only admission experiment and fail-closed GitHub metadata tests"
+description = "Run the read-only admission inspector and fail-closed GitHub metadata tests"
 run = "pnpm run test:actions-experiment"
 
 [tasks."actions:candidate"]

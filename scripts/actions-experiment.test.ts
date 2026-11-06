@@ -1,116 +1,133 @@
-import { expect, it } from "vitest";
-import { createExperiment, createExperimentClient } from "./actions-experiment.ts";
+import { expect, it, vi } from "vitest";
+import { inspectExperiment } from "./actions-experiment.ts";
 
-it("allocates fixture evidence before fake runtime preparation", async () => {
-  const experiment = createExperiment();
-  const result = await experiment.dispatch({
-    runId: 1,
-    kind: "full",
-    event: "issue_comment",
-    payload: {
-      action: "created",
-      issue: { number: 7, pull_request: {} },
-      comment: { body: "/oc review" },
-    },
-    trusted: true,
-    runtime: "prepare-fails",
-  });
-  expect(result).toMatchObject({ decision: "admitted", outcome: "prepare-fails", used: 1 });
-  expect(await experiment.history()).toMatchObject([{ pr: 7, budget: "command", runId: 1 }]);
-});
+const command = {
+  action: "created",
+  issue: { number: 7, pull_request: {} },
+  comment: { body: "/oc go" },
+};
+const base = {
+  repository: "owner/repo",
+  token: "secret",
+  workflowId: 12,
+  boundaryRunId: 42,
+  bindings: [{ runId: 42, pr: 7, budget: "command" as const }],
+  event: "issue_comment",
+  payload: command,
+  trusted: true,
+  kind: "full" as const,
+};
 
-it("fails closed when the fixture API cannot confirm allocation", async () => {
-  const client = createExperimentClient(async () => new Response(null, { status: 503 }));
-  const result = await client.dispatch({
-    runId: 1,
-    kind: "full",
-    event: "issue_comment",
-    payload: {
-      action: "created",
-      issue: { number: 7, pull_request: {} },
-      comment: { body: "/oc go" },
-    },
-    trusted: true,
-  });
-  expect(result).toEqual({ decision: "infra", reason: "fixture-api-unavailable" });
-});
-
-it("shares command budget across comment channels while review has a separate budget", async () => {
-  const experiment = createExperiment();
-  const issue = {
-    action: "created",
-    issue: { number: 7, pull_request: {} },
-    comment: { body: "/oc go" },
-  };
-  const line = {
-    action: "created",
-    pull_request: { number: 7 },
-    comment: { body: "/opencode go" },
-  };
-  const send = (runId: number, event: string, payload: unknown) =>
-    experiment.dispatch({ runId, kind: "full", event, payload, trusted: true });
-  expect((await send(1, "issue_comment", issue)).decision).toBe("admitted");
-  expect((await send(2, "pull_request_review_comment", line)).decision).toBe("admitted");
-  expect((await send(3, "issue_comment", issue)).decision).toBe("admitted");
-  expect(await send(4, "issue_comment", issue)).toMatchObject({ decision: "denied", used: 3 });
-  expect(await send(5, "issue_comment", issue)).toMatchObject({ decision: "denied", used: 3 });
-  expect(
-    await send(6, "pull_request", {
-      action: "synchronize",
-      pull_request: { number: 7, draft: false },
-    }),
-  ).toMatchObject({ decision: "admitted", used: 1 });
-  expect(await experiment.history()).toHaveLength(4);
-});
-
-it("does not consume for untrusted, ordinary, issue, or draft events", async () => {
-  const experiment = createExperiment();
-  const base = { runId: 1, kind: "full" as const, event: "issue_comment", trusted: true };
-  const command = {
-    action: "created",
-    issue: { number: 7, pull_request: {} },
-    comment: { body: "/oc go" },
-  };
-  expect((await experiment.dispatch({ ...base, payload: command, trusted: false })).decision).toBe(
-    "denied",
+it("reports a hypothetical exhausted command budget from Actions jobs without authorizing", async () => {
+  const api = vi.fn(async (url: string | URL | Request) =>
+    String(url).includes("/workflows/")
+      ? Response.json({ total_count: 1, workflow_runs: [{ id: 42, run_attempt: 3 }] })
+      : Response.json({
+          total_count: 1,
+          jobs: [
+            {
+              id: Number(String(url).match(/attempts\/(\d+)/)?.[1]),
+              name: "model",
+              steps: [{ name: "admission", status: "completed", conclusion: "success" }],
+            },
+          ],
+        }),
   );
-  expect(
-    (await experiment.dispatch({ ...base, payload: { ...command, comment: { body: "hello" } } }))
-      .decision,
-  ).toBe("skipped");
-  expect(
-    (await experiment.dispatch({ ...base, payload: { ...command, issue: { number: 7 } } }))
-      .decision,
-  ).toBe("skipped");
-  expect(
-    (
-      await experiment.dispatch({
-        ...base,
-        event: "pull_request",
-        payload: { action: "opened", pull_request: { number: 7, draft: true } },
-      })
-    ).decision,
-  ).toBe("skipped");
-  expect(await experiment.history()).toEqual([]);
+  expect(await inspectExperiment({ ...base, fetch: api })).toMatchObject({
+    decision: "infra",
+    reason: "admission-properties-unverified",
+    hypothetical: "limit-exhausted",
+    used: 3,
+  });
+  expect(api).toHaveBeenCalledTimes(4);
 });
 
-it("serializes competing admissions and charges cancellation and model reruns, not publication", async () => {
-  const experiment = createExperiment();
-  const request = {
-    runId: 10,
-    kind: "full" as const,
-    event: "issue_comment",
-    payload: {
-      action: "created",
-      issue: { number: 7, pull_request: {} },
-      comment: { body: "/oc go" },
-    },
-    trusted: true,
+it.each([
+  [{ ...base, trusted: false }, "untrusted"],
+  [{ ...base, payload: { ...command, comment: { body: "hello" } } }, "not-a-candidate"],
+  [{ ...base, payload: { ...command, issue: { number: 7 } } }, "not-a-candidate"],
+  [{ ...base, kind: "publication" as const }, "publication-only"],
+])("rejects non-admissions before reading history", async (input, reason) => {
+  const api = vi.fn();
+  expect(await inspectExperiment({ ...input, fetch: api })).toMatchObject({
+    decision: "infra",
+    reason,
+  });
+  expect(api).not.toHaveBeenCalled();
+});
+
+it("refuses inconsistent metadata for a repeated job across attempts", async () => {
+  const api: typeof fetch = async (url) => {
+    const path = String(url);
+    if (path.includes("/workflows/"))
+      return Response.json({ total_count: 1, workflow_runs: [{ id: 42, run_attempt: 2 }] });
+    const success = path.includes("/attempts/1/");
+    return Response.json({
+      total_count: 1,
+      jobs: [
+        {
+          id: 99,
+          name: "model",
+          steps: [
+            { name: "admission", status: "completed", conclusion: success ? "success" : "failure" },
+          ],
+        },
+      ],
+    });
   };
-  await experiment.dispatch({ ...request, runtime: "cancelled" });
-  await experiment.dispatch({ ...request, kind: "model", runtime: "timeout" });
-  expect((await experiment.dispatch({ ...request, kind: "publication" })).decision).toBe("skipped");
-  const results = await Promise.all([experiment.dispatch(request), experiment.dispatch(request)]);
-  expect(results.map((r) => r.decision).sort()).toEqual(["admitted", "denied"]);
-  expect(await experiment.history()).toHaveLength(3);
+  expect(await inspectExperiment({ ...base, fetch: api })).toMatchObject({
+    decision: "infra",
+    reason: "github-history-unavailable-or-ambiguous",
+  });
+});
+
+it("keeps review and other PR usage separate from either comment channel", async () => {
+  const api: typeof fetch = async (url) =>
+    String(url).includes("/workflows/")
+      ? Response.json({
+          total_count: 3,
+          workflow_runs: [
+            { id: 42, run_attempt: 1 },
+            { id: 43, run_attempt: 1 },
+            { id: 44, run_attempt: 1 },
+          ],
+        })
+      : Response.json({
+          total_count: 1,
+          jobs: [
+            {
+              id: Number(String(url).match(/runs\/(\d+)/)?.[1]),
+              name: "model",
+              conclusion: "cancelled",
+              steps: [{ name: "admission", status: "completed", conclusion: "success" }],
+            },
+          ],
+        });
+  const options = {
+    ...base,
+    bindings: [
+      { runId: 42, pr: 7, budget: "command" as const },
+      { runId: 43, pr: 7, budget: "review" as const },
+      { runId: 44, pr: 8, budget: "command" as const },
+    ],
+    fetch: api,
+  };
+  expect(
+    await inspectExperiment({
+      ...options,
+      event: "pull_request_review_comment",
+      payload: {
+        action: "created",
+        pull_request: { number: 7 },
+        comment: { body: "/opencode go" },
+      },
+    }),
+  ).toMatchObject({ used: 1, binding: { pr: 7, budget: "command" } });
+  expect(
+    await inspectExperiment({
+      ...options,
+      event: "pull_request",
+      payload: { action: "reopened", pull_request: { number: 7, draft: false } },
+    }),
+  ).toMatchObject({ used: 1, binding: { pr: 7, budget: "review" } });
 });
