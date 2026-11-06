@@ -233,7 +233,7 @@ async function pathsFromEnvironment(base: NodeJS.ProcessEnv) {
   return { workspace, directory };
 }
 
-async function prepareCommand(base: NodeJS.ProcessEnv) {
+export async function prepareCommand(base: NodeJS.ProcessEnv) {
   const paths = await pathsFromEnvironment(base);
   await inspectSource(base, paths.workspace);
   if (base.DEEPSEEK_API_KEY)
@@ -273,7 +273,7 @@ async function prepareCommand(base: NodeJS.ProcessEnv) {
   console.log(`OpenCode ${runtimeVersion} prepared; effective command policy is noninteractive`);
 }
 
-async function runCommand(base: NodeJS.ProcessEnv) {
+export async function runCommand(base: NodeJS.ProcessEnv) {
   if (base.GITHUB_ACTIONS !== "true")
     throw new Error("OpenCode publishing handler is restricted to the authorized GitHub workflow");
   const paths = await pathsFromEnvironment(base);

@@ -144,7 +144,10 @@ if (import.meta.main) {
       process.env.GITHUB_OUTPUT ?? "",
       `allowed=${decision.allowed}\nnumber=${decision.number ?? ""}\nreason=${decision.reason}\n`,
     );
-    console.log(`OpenCode trust: ${decision.reason}`);
+    if (decision.reason === "github-error") {
+      console.error("OpenCode trust: infra");
+      process.exitCode = 1;
+    } else console.log(`OpenCode trust: ${decision.reason}`);
   } catch {
     console.error("OpenCode trust: unable to write decision");
     process.exitCode = 1;

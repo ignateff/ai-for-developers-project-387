@@ -93,6 +93,19 @@ run = "pnpm run opencode:install"
 description = "Authorize the original command author and reject fork PRs before agent startup"
 run = "pnpm run opencode:trust"
 
+[tasks."opencode:budget"]
+description = "Admit a command or review attempt before runtime preparation"
+run = "pnpm run opencode:budget"
+
+[tasks."opencode:review-prepare"]
+run = "pnpm run opencode:review-prepare"
+
+[tasks."opencode:review-run"]
+run = "pnpm run opencode:review-run"
+
+[tasks."opencode:review-publish"]
+run = "pnpm run opencode:review-publish"
+
 [tasks."opencode:prepare"]
 description = "Prepare and validate the isolated noninteractive GitHub command runtime"
 run = "pnpm run opencode:prepare"
@@ -103,6 +116,9 @@ run = "pnpm run opencode:run"
 
 [tasks."lint:opencode-workflow"]
 run = "pnpm run lint:opencode-workflow"
+
+[tasks."lint:opencode-review-workflow"]
+run = "pnpm run lint:opencode-review-workflow"
 
 [tasks."lint:triage-workflow"]
 run = "pnpm run lint:triage-workflow"
@@ -179,6 +195,7 @@ run = [
   "pnpm run test:docker-smoke",
   "jactionlint .github/workflows/ci.yml .github/workflows/release-please.yml",
   "pnpm run lint:opencode-workflow",
+  "pnpm run lint:opencode-review-workflow",
   "pnpm run lint:triage-workflow",
 ]
 

@@ -7,5 +7,6 @@
 - [Testing](testing.md): full checks, contract, browser, visual and Docker verification.
 - [Triage labels](triage-labels.md): issue classification.
 - [Implementation traceability](implementation-traceability.md): historical first-project evidence, not a fresh test report.
+- [PR attempt budget](pr-attempt-budget.md): local adapter, manual recovery and current integration limitations.
 
 The root [AGENTS.md](../../AGENTS.md) remains the automatically discovered entry point; this directory holds its detailed references.
