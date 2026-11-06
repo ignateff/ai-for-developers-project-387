@@ -43,6 +43,21 @@ const policyOr = (output: string) =>
     });
   });
 
+it("reports explicitly when there are no confirmed defects", async () => {
+  const output =
+    readEvent() +
+    JSON.stringify({
+      type: "text",
+      part: { text: '{"summary":"Review completed","limitations":[],"findings":[]}' },
+    }) +
+    '\n{"type":"step_finish","part":{"reason":"stop"}}';
+  const result = await createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({
+    binary: "/runtime",
+    context,
+  });
+  expect(result.summary).toMatch(/no confirmed defects/i);
+});
+
 it.each([
   [
     "failed read",
@@ -67,6 +82,13 @@ it.each([
       validResult,
   ],
   ["stop is not terminal", readEvent() + validResult + '\n{"type":"text","part":{"text":"extra"}}'],
+  [
+    "review emitted before reading context",
+    validResult.split('\n{"type":"step_finish"')[0] +
+      "\n" +
+      readEvent() +
+      '{"type":"step_finish","part":{"reason":"stop"}}',
+  ],
 ])("rejects %s", async (_case, output) => {
   await expect(
     createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({

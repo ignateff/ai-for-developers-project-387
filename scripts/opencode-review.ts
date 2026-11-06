@@ -123,7 +123,8 @@ function parseOutput(
       throw new Error();
     if (event.type === "text") {
       if (typeof event.part?.text !== "string") throw new Error();
-      text += event.part.text;
+      if ([...files].every(([name, lines]) => readLines.get(name)?.size === lines.length))
+        text += event.part.text;
     }
     if (event.type === "tool_use") {
       const part = event.part;
@@ -185,6 +186,8 @@ function parseOutput(
     )
   )
     throw new Error();
+  if (result.findings.length === 0 && !/no (?:confirmed )?defects/i.test(result.summary))
+    result.summary = `No confirmed defects. ${result.summary}`;
   return result;
 }
 
