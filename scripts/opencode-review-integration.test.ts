@@ -17,6 +17,8 @@ test.each([
   "oversized collector warning",
   "malicious model priority",
   "malicious missing requirements",
+  "crowded essential context",
+  "no room for essential evidence",
   "oversized findings",
 ])("review publication handles %s", async (scenario) => {
   const dir = await mkdtemp(join(tmpdir(), "review-limitations-"));
@@ -32,8 +34,11 @@ test.each([
     body:
       (scenario === "malicious missing requirements"
         ? "No linked issue"
-        : "https://github.com/ignateff/ai-for-developers-project-386/issues/12") +
-      (scenario === "oversized collector warning" ? `\n[long](${"x".repeat(13000)}.md)` : ""),
+        : "https://github.com/ignateff/ai-for-developers-project-386/issues/12\nhttps://example.com/evidence") +
+      (scenario === "oversized collector warning" ? `\n[long](${"x".repeat(13000)}.md)` : "") +
+      (scenario === "crowded essential context"
+        ? Array.from({ length: 12 }, (_, i) => `\n[long](${"x".repeat(1100)}${i}.md)`).join("")
+        : ""),
     user: { type: "User", login: "ignateff" },
     base: { sha: base, repo: { id: 1, full_name: repository } },
     head: { sha, repo: { id: 1, full_name: repository } },
@@ -43,6 +48,12 @@ test.each([
     if (path.endsWith("/pulls/7")) return Response.json(pr);
     if (path.endsWith("/pulls/7/files"))
       return Response.json([{ filename: "booking.ts", status: "added" }]);
+    if (
+      path.includes("/contents/") &&
+      scenario === "crowded essential context" &&
+      path.includes("xxxx")
+    )
+      return new Response(null, { status: 404 });
     if (path.includes("/contents/"))
       return Response.json({
         type: "file",
@@ -61,7 +72,10 @@ test.each([
     }
     if (path.endsWith("/issues/7/comments")) return Response.json([]);
     if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
-    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    if (path.endsWith("/status"))
+      return scenario === "malicious model priority" || scenario === "crowded essential context"
+        ? Response.json({})
+        : Response.json({ state: "success", statuses: [] });
     return Response.json([]);
   };
   const env = {
@@ -126,11 +140,19 @@ test.each([
         const report = {
           summary: "Review completed",
           findings:
-            scenario === "oversized findings"
-              ? Array.from({ length: 6 }, (_, i) => ({
+            scenario === "oversized findings" ||
+            scenario === "crowded essential context" ||
+            scenario === "no room for essential evidence"
+              ? Array.from({ length: scenario === "oversized findings" ? 6 : 5 }, (_, i) => ({
                   file: "booking.ts",
                   line: i + 1,
-                  conditions: "x".repeat(11000),
+                  conditions: "x".repeat(
+                    scenario === "crowded essential context"
+                      ? 11600
+                      : scenario === "no room for essential evidence"
+                        ? 11900
+                        : 11000,
+                  ),
                   consequence: "Confirmed defect",
                 }))
               : [
@@ -156,14 +178,17 @@ test.each([
         ].join("\n");
       },
     });
-    if (scenario === "oversized findings") {
-      await expect(reviewWorkflow("run", env, { fetch: api, review })).rejects.toThrow(
-        /findings.*publication.*limit/i,
-      );
-      expect(comments).toHaveLength(0);
-      return;
-    }
     await reviewWorkflow("run", env, { fetch: api, review });
+    if (scenario === "oversized findings" || scenario === "no room for essential evidence") {
+      const saved = JSON.parse(
+        await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+      );
+      expect(saved.findings).toHaveLength(scenario === "oversized findings" ? 6 : 5);
+      expect(saved.findings[0].conditions).toHaveLength(
+        scenario === "oversized findings" ? 11000 : 11900,
+      );
+      expect(saved.limitations).toContainEqual(expect.stringContaining("Model limitation 98:"));
+    }
     await publishWorkflow({
       env,
       fetch: api,
@@ -172,13 +197,26 @@ test.each([
         JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
     });
     expect(comments).toHaveLength(1);
+    if (scenario === "oversized findings" || scenario === "no room for essential evidence") {
+      expect(comments[0]).toMatch(/findings.*(?:not included|not displayed)/i);
+      expect(comments[0]).toContain("review-1-1");
+      expect(comments[0]).toMatch(/artifact/i);
+      expect(comments[0]).toMatch(/human/i);
+      return;
+    }
     if (scenario === "malicious missing requirements")
       expect(comments[0]).toContain(
         "Requirements unavailable: No linked requirements could be loaded.",
       );
     else expect(comments[0]).toContain("relative document link");
     expect(comments[0]).toContain("Only changed files");
-    expect(comments[0]).toContain("booking.ts:1 — When booking; Confirmed defect");
+    if (scenario === "malicious model priority" || scenario === "crowded essential context") {
+      expect(comments[0]).toContain("Agreement is unconfirmed");
+      expect(comments[0]).toContain("External or unsupported links were not loaded");
+      expect(comments[0]).toContain("CI context is incomplete");
+    }
+    if (scenario === "crowded essential context") expect(comments[0]).toContain("Confirmed defect");
+    else expect(comments[0]).toContain("booking.ts:1 — When booking; Confirmed defect");
     if (scenario === "oversized collector warning")
       expect(comments[0]).toMatch(/collector.*truncated/i);
     expect(comments[0]).toMatch(/limitations.*(?:omitted|truncated)/i);

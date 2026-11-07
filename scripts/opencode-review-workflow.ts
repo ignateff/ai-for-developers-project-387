@@ -132,9 +132,17 @@ export async function reviewWorkflow(
     });
   }
   // Optional context is untrusted evidence, never a reason to broaden API access.
-  const limitations = [
+  const limitations: string[] = [];
+  const essentialLimitations = new Set<string>();
+  const essential = (...items: string[]) => {
+    for (const item of items) {
+      essentialLimitations.add(item);
+      limitations.push(item);
+    }
+  };
+  essential(
     "Only changed files were collected at pinned base/head; the full repository was not collected.",
-  ];
+  );
   const optional = async (path: string, repo = repository) => {
     try {
       return await get(path, repo);
@@ -174,7 +182,7 @@ export async function reviewWorkflow(
         documentLinks.add(match[1]);
       else {
         const warning = `A relative document link in ${origin} could not be loaded without a pinned repository ref.`;
-        if (!limitations.includes(warning)) limitations.push(warning);
+        if (!essentialLimitations.has(warning)) essential(warning);
       }
     for (const match of input.matchAll(
       /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:blob|tree)\/[^\s)\]>]+/gi,
@@ -198,7 +206,7 @@ export async function reviewWorkflow(
         input,
       )
     )
-      limitations.push("External or unsupported links were not loaded.");
+      essential("External or unsupported links were not loaded.");
   };
   collectRefs(body);
   const directDocuments = new Set(documentLinks);
@@ -331,7 +339,7 @@ export async function reviewWorkflow(
   }
   if (documentLinks.size > 12)
     limitations.push("Linked repository documents exceeded the collection limit.");
-  limitations.push(
+  essential(
     "Agreement is unconfirmed unless the PR explicitly links the source and explicit approval of requirements by an eligible human is established from its text.",
     "An eligible approver is a human owner or a human with current write, maintain, or admin permission in ignateff/ai-for-developers-project-387. A bot, ambiguous 'ok', issue closure, ready-for-agent label, link alone, or permissions alone do not prove approval.",
   );
@@ -403,15 +411,15 @@ export async function reviewWorkflow(
         statusStates.includes(s.state),
     );
   if (!validChecks || !validStatuses)
-    limitations.push("CI context is incomplete or unavailable; pending checks are not successful.");
+    essential("CI context is incomplete or unavailable; pending checks are not successful.");
   if (!Array.isArray(reviews) || !Array.isArray(reviewComments) || !Array.isArray(issueComments))
-    limitations.push("Previous review or discussion context is incomplete or unavailable.");
+    essential("Previous review or discussion context is incomplete or unavailable.");
   if (
     [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages].some(
       (x) => !x.complete,
     )
   )
-    limitations.push(
+    essential(
       "CI or previous review context is incomplete or exceeded the 300 item per endpoint limit.",
     );
   const comments = (value: unknown) =>
@@ -469,9 +477,9 @@ export async function reviewWorkflow(
     },
     isRelease,
   };
-  if (truncated) limitations.push("Some context text was truncated at 30000 characters.");
+  if (truncated) essential("Some context text was truncated at 30000 characters.");
   if (aggregateTruncated)
-    limitations.push(
+    essential(
       "Optional context text exceeded the aggregate size budget and was truncated; omitted evidence cannot establish approval or completeness.",
     );
   const current = await get(`pulls/${number}`);
@@ -491,6 +499,7 @@ export async function reviewWorkflow(
     apiKey: env.DEEPSEEK_API_KEY,
     context: JSON.parse(serialized),
   });
+  let publicationLimit = false;
   // Never hide malformed model output by trimming it.
   if (result.limitations.every((s) => typeof s === "string" && s.trim() && s.length <= 12000)) {
     const notice = "Additional review limitations were omitted to fit publication limits.";
@@ -498,49 +507,54 @@ export async function reviewWorkflow(
       env.OPENCODE_REVIEW_ARTIFACT ?? `review-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
     const fits = (items: string[]) =>
       items.length <= 100 &&
-      formatReviewBody(repository, sha, artifact, { ...result, limitations: items }).length <=
-        reviewBodyLimit;
-    if (!fits([]))
-      throw new Error(
-        "Review findings and summary exceed the publication size limit; findings were not discarded.",
-      );
+      formatReviewBody(repository, sha, artifact, {
+        summary: result.summary,
+        findings: result.findings,
+        limitations: items,
+      }).length <= reviewBodyLimit;
     const core = [
       ...(context.requirements.availability === "unavailable"
         ? [`Requirements unavailable: ${context.requirements.reason}`]
         : []),
-      ...limitations.filter((s) =>
-        /^(Only changed files|CI context|Previous review|CI or previous review|Some context text|Optional context text)/.test(
-          s,
-        ),
-      ),
+      ...essentialLimitations,
     ];
     const collected = [...new Set(limitations)]
       .filter((s) => !core.includes(s))
       .map((s) => (s.length > 1000 ? `${s.slice(0, 950)} [collector warning truncated]` : s));
-    const ordered = [...new Set(core), ...collected, ...result.limitations];
+    const uniqueCore = [...new Set(core)];
+    const ordered = [...uniqueCore, ...collected, ...result.limitations];
     const kept: string[] = [];
     let omitted = false;
+    if (!fits([])) publicationLimit = true;
     for (const [index, item] of ordered.entries()) {
+      if (publicationLimit) break;
       if (fits([...kept, item, notice])) {
         kept.push(item);
       } else {
-        if (index < new Set(core).size)
-          throw new Error(
-            "Core collector evidence and findings exceed the publication size limit; findings were not discarded.",
-          );
+        if (index < uniqueCore.length) {
+          publicationLimit = true;
+          break;
+        }
         omitted = true;
       }
     }
-    if (omitted) {
-      if (!fits([...kept, notice]))
-        throw new Error("Review findings leave no room for the publication limitations notice.");
+    if (omitted && !publicationLimit) {
       kept.push(notice);
     }
-    result.limitations = kept;
+    result.limitations = publicationLimit ? ordered : kept;
   } else {
     result.limitations.push(...limitations);
   }
-  await writeFile(join(root, "review.json"), JSON.stringify(result), { flag: "wx", mode: 0o600 });
+  await writeFile(
+    join(root, "review.json"),
+    JSON.stringify({
+      summary: result.summary,
+      findings: result.findings,
+      limitations: result.limitations,
+      ...(publicationLimit ? { publicationLimit: true } : {}),
+    }),
+    { flag: "wx", mode: 0o600 },
+  );
   console.log("OpenCode review: result saved for publication");
 }
 

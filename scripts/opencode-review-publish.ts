@@ -3,6 +3,7 @@ export type Report =
       summary: string;
       limitations: string[];
       findings: { file: string; line: number; conditions: string; consequence: string }[];
+      publicationLimit?: true;
     }
   | { failure: "infra" | "timeout" | "agent_failed" };
 
@@ -30,16 +31,20 @@ export function formatReviewBody(
     "",
     ...("failure" in report
       ? [`**Review stopped: ${report.failure}. Human attention required.**`]
-      : [
-          "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
-          "",
-          safe(report.summary),
-          "",
-          ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
-          ...report.findings.map(
-            (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
-          ),
-        ]),
+      : report.publicationLimit
+        ? [
+            `**Human attention required: findings are not included in this comment because the complete review exceeds the publication size limit. Download artifact \`${artifact}\` from the Actions run linked above and inspect its review.json for the complete findings and limitations.**`,
+          ]
+        : [
+            "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
+            "",
+            safe(report.summary),
+            "",
+            ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
+            ...report.findings.map(
+              (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
+            ),
+          ]),
   ].join("\n");
 }
 
@@ -72,7 +77,7 @@ export async function publishReview(options: {
       ? ["infra", "timeout", "agent_failed"].includes(report.failure)
       : text(report.summary) &&
         Array.isArray(report.limitations) &&
-        report.limitations.length <= 100 &&
+        (report.publicationLimit === true || report.limitations.length <= 100) &&
         report.limitations.every(text) &&
         Array.isArray(report.findings) &&
         report.findings.length <= 100 &&
