@@ -1,10 +1,9 @@
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 import { verifyInstalledRuntime } from "./opencode-install.ts";
 import { ReviewFailure } from "./opencode-review-failure.ts";
+import { ProcessFailure, runIsolatedProcess } from "./opencode-process.ts";
 
 export type ReviewResult = {
   summary: string;
@@ -28,42 +27,26 @@ export type ReviewContext = {
 
 type ProcessOptions = { cwd: string; env: NodeJS.ProcessEnv; signal?: AbortSignal };
 type Dependencies = {
-  verify: (binary: string) => Promise<void>;
+  verify: (binary: string, signal?: AbortSignal) => Promise<void>;
   run: (binary: string, args: string[], options: ProcessOptions) => Promise<string>;
   cleanup?: (root: string) => Promise<void>;
 };
 
 class ProcessStartFailure extends Error {}
-const execute = promisify(execFile);
 export async function runReviewProcess(binary: string, args: string[], options: ProcessOptions) {
-  const pending = execute(binary, args, {
-    ...options,
-    encoding: "utf8",
-    killSignal: "SIGKILL",
-    maxBuffer: 8 * 1024 * 1024,
-  });
-  pending.child.stdin?.end();
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    if (
-      !options.signal?.aborted &&
-      pending.child.exitCode === null &&
-      pending.child.signalCode === null
-    ) {
-      timedOut = true;
-      pending.child.kill("SIGKILL");
-    }
-  }, 300_000);
   try {
-    const { stdout } = await pending;
-    return stdout;
+    return await runIsolatedProcess(binary, args, {
+      ...options,
+      timeout: 300_000,
+      maxBuffer: 8 * 1024 * 1024,
+    });
   } catch (error) {
     if (options.signal?.aborted) throw new ReviewFailure("cancelled");
-    if (timedOut) throw new ReviewFailure("timeout");
-    if (pending.child.pid === undefined) throw new ProcessStartFailure();
+    if (error instanceof ProcessFailure && error.reason === "timeout")
+      throw new ReviewFailure("timeout");
+    if (error instanceof ProcessFailure && error.reason === "start")
+      throw new ProcessStartFailure();
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 const defaultDependencies: Dependencies = {
@@ -229,7 +212,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
       options.signal?.throwIfAborted();
       const context = JSON.stringify(options.context);
       if (!context || Buffer.byteLength(context) > 4 * 1024 * 1024) throw new Error();
-      await dependencies.verify(options.binary);
+      await dependencies.verify(options.binary, options.signal);
       options.signal?.throwIfAborted();
       root = await mkdtemp(join(tmpdir(), "calendar-review-"));
       const workspace = join(root, "workspace");
@@ -285,6 +268,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
         await writeFile(join(workspace, name), lines.join("\n"), { mode: 0o600, flag: "wx" });
       }
       const runEnv = { ...env, ...(options.apiKey ? { DEEPSEEK_API_KEY: options.apiKey } : {}) };
+      options.signal?.throwIfAborted();
       // Reserve the full process timeout; preparation must not borrow reporting time.
       if (options.deadline !== undefined && Date.now() + 300_000 >= options.deadline)
         throw new Error("Insufficient time for review");

@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createReviewAdapter, runReviewProcess, type ReviewContext } from "./opencode-review.ts";
@@ -46,6 +46,53 @@ const policyOr = (output: string) =>
       })),
     });
   });
+
+it("aborts the reviewer and its child processes without waiting for inherited pipes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "review-abort-"));
+  const marker = join(root, "child-survived");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 250);
+  try {
+    await expect(
+      runReviewProcess("/bin/sh", ["-c", '(sleep 1; touch "$1") & wait', "fixture", marker], {
+        cwd: tmpdir(),
+        env: { PATH: "/usr/bin:/bin" },
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ reason: "cancelled" });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await expect(access(marker)).rejects.toThrow();
+  } finally {
+    clearTimeout(timer);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 5000);
+
+it("propagates deadline cancellation through verification and policy inspection", async () => {
+  const controller = new AbortController();
+  const verify = vi.fn(async (_binary: string, signal?: AbortSignal) => {
+    expect(signal).toBe(controller.signal);
+  });
+  const run = vi.fn(async (_binary, args, options) => {
+    expect(args[0]).toBe("debug");
+    expect(options.signal).toBe(controller.signal);
+    return runReviewProcess("/bin/sh", ["-c", "sleep 30"], options);
+  });
+  const timer = setTimeout(() => controller.abort(), 250);
+  try {
+    await expect(
+      createReviewAdapter({ verify, run })({
+        binary: "/fixture",
+        context,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ reason: "cancelled" });
+    expect(verify).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledOnce();
+  } finally {
+    clearTimeout(timer);
+  }
+}, 5000);
 
 it("does not launch a model when policy inspection leaves less than five minutes", async () => {
   const deadline = Date.now() + 301_000;

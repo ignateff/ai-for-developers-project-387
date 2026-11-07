@@ -4,6 +4,7 @@ import { createProductionWorkflow } from "./opencode-production-workflow.ts";
 import { prepareCommand, runCommand } from "./opencode-command.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
+import { installRuntime } from "./opencode-install.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
 const authorId = 41898282;
@@ -13,8 +14,8 @@ export async function runBudgetCli(options: {
   env: NodeJS.ProcessEnv;
   fetch: typeof fetch;
   authorId: number;
-  prepare?: () => Promise<void>;
-  model?: (identity: { number?: number; sha?: string }) => Promise<void>;
+  prepare?: (signal?: AbortSignal) => Promise<void>;
+  model?: (identity: { number?: number; sha?: string }, signal?: AbortSignal) => Promise<void>;
 }) {
   const { kind, env } = options;
   const event = JSON.parse(await readFile(env.GITHUB_EVENT_PATH ?? "", "utf8"));
@@ -60,7 +61,21 @@ export async function runBudgetCli(options: {
   };
   const prepare =
     options.prepare ??
-    (() => (kind === "command" ? prepareCommand(base) : reviewWorkflow("prepare", base)));
+    (async () => {
+      if (kind === "command") return prepareCommand(base);
+      const temp = base.RUNNER_TEMP;
+      const run = base.GITHUB_RUN_ID ?? "";
+      const attempt = base.GITHUB_RUN_ATTEMPT ?? "";
+      if (!temp || !/^\d+$/.test(run) || !/^\d+$/.test(attempt)) throw new Error();
+      const root = join(temp, `opencode-review-${run}-${attempt}`);
+      await mkdir(root, { mode: 0o700 });
+      const binary = await installRuntime({
+        directory: join(root, "runtime"),
+        signal: controller.signal,
+      });
+      controller.signal.throwIfAborted();
+      await writeFile(join(root, "binary"), binary, { flag: "wx", mode: 0o600 });
+    });
   const model =
     options.model ??
     (async (identity: { number?: number; sha?: string }) => {
@@ -82,19 +97,19 @@ export async function runBudgetCli(options: {
             }),
           review: (reviewOptions) => {
             enoughTime();
-            return reviewSnapshot({ ...reviewOptions, deadline });
+            return reviewSnapshot({ ...reviewOptions, deadline, signal: controller.signal });
           },
         });
     });
   const adapter = createProductionWorkflow({
     fetch: options.fetch,
-    prepare: kind === "review" ? () => bounded(prepare) : prepare,
+    prepare: kind === "review" ? () => bounded(() => prepare(controller.signal)) : prepare,
     model:
       kind === "review"
         ? (identity) =>
             bounded(async () => {
               enoughTime();
-              await model(identity);
+              await model(identity, controller.signal);
             })
         : model,
   });
