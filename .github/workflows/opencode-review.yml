@@ -24,7 +24,14 @@ jobs:
       contents: read
       issues: write
       pull-requests: read
+      # Read CI evidence for the pinned head: workflow runs, check runs and commit statuses.
+      actions: read
+      checks: read
+      statuses: read
     steps:
+      - name: Start review time budget
+        id: clock
+        run: echo "started=$(date +%s)000" >> "$GITHUB_OUTPUT"
       - name: Checkout trusted default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -41,12 +48,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OPENCODE_REVIEW_APP_IDS: ${{ vars.OPENCODE_REVIEW_APP_IDS }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENCODE_REVIEW_STARTED_AT: ${{ steps.clock.outputs.started }}
       - name: Identify this review result
         id: report
-        if: steps.workflow.outputs.allowed == 'true'
+        if: ${{ !cancelled() && steps.workflow.outputs.report == 'true' }}
         run: echo "artifact=review-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - name: Save review result for publication
-        if: steps.workflow.outputs.allowed == 'true'
+        if: ${{ !cancelled() && steps.workflow.outputs.report == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.report.outputs.artifact }}
@@ -55,7 +63,7 @@ jobs:
 
   publish:
     needs: review
-    if: needs.review.outputs.artifact != ''
+    if: ${{ !cancelled() && needs.review.outputs.artifact != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

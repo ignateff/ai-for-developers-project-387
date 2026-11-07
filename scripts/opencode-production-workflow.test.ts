@@ -113,7 +113,7 @@ test("production review adapter spends before preparing and reruns never reuse a
     },
   });
   for (let attempt = 0; attempt < 3; attempt++)
-    expect(await failing(options)).toEqual({ status: "infra", number: 7 });
+    expect(await failing(options)).toMatchObject({ status: "infra", number: 7 });
   expect((await failing(options)).status).toBe("limit_exhausted");
   expect(modelCalls).toBe(0);
   expect(comments[0].body).toContain('"review":3');
@@ -126,7 +126,7 @@ test("production review adapter spends before preparing and reruns never reuse a
       throw Error("timeout secret");
     },
   });
-  expect(await timeout(options)).toEqual({ status: "infra", number: 7 });
+  expect(await timeout(options)).toMatchObject({ status: "infra", number: 7 });
   expect((await timeout(options)).status).toBe("infra");
   expect(comments[0].body).toContain('"review":2');
   expect(modelCalls).toBe(2);

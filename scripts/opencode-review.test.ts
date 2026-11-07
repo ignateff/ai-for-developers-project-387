@@ -1,5 +1,9 @@
 import { expect, it, vi } from "vitest";
-import { createReviewAdapter, type ReviewContext } from "./opencode-review.ts";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createReviewAdapter, runReviewProcess, type ReviewContext } from "./opencode-review.ts";
+import { ReviewFailure } from "./opencode-review-failure.ts";
 
 const context: ReviewContext = {
   requirements: { availability: "available", text: "Booking works" },
@@ -42,6 +46,137 @@ const policyOr = (output: string) =>
       })),
     });
   });
+
+it("aborts the reviewer and its child processes without waiting for inherited pipes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "review-abort-"));
+  const marker = join(root, "child-survived");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 250);
+  try {
+    await expect(
+      runReviewProcess("/bin/sh", ["-c", '(sleep 1; touch "$1") & wait', "fixture", marker], {
+        cwd: tmpdir(),
+        env: { PATH: "/usr/bin:/bin" },
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ reason: "cancelled" });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await expect(access(marker)).rejects.toThrow();
+  } finally {
+    clearTimeout(timer);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 5000);
+
+it("propagates deadline cancellation through verification and policy inspection", async () => {
+  const controller = new AbortController();
+  const verify = vi.fn(async (_binary: string, signal?: AbortSignal) => {
+    expect(signal).toBe(controller.signal);
+  });
+  const run = vi.fn(async (_binary, args, options) => {
+    expect(args[0]).toBe("debug");
+    expect(options.signal).toBe(controller.signal);
+    return runReviewProcess("/bin/sh", ["-c", "sleep 30"], options);
+  });
+  const timer = setTimeout(() => controller.abort(), 250);
+  try {
+    await expect(
+      createReviewAdapter({ verify, run })({
+        binary: "/fixture",
+        context,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ reason: "cancelled" });
+    expect(verify).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledOnce();
+  } finally {
+    clearTimeout(timer);
+  }
+}, 5000);
+
+it("does not launch a model when policy inspection leaves less than five minutes", async () => {
+  const deadline = Date.now() + 301_000;
+  const now = vi.spyOn(Date, "now");
+  const policy = policyOr("");
+  const run = vi.fn(async (binary, args, options) => {
+    const result = await policy(binary, args, options);
+    now.mockReturnValue(deadline - 300_000);
+    return result;
+  });
+  try {
+    const error = await createReviewAdapter({ verify: async () => {}, run })({
+      binary: "/runtime",
+      context,
+      deadline,
+    }).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ReviewFailure);
+    expect(run.mock.calls.map((call) => call[1][0])).toEqual(["debug"]);
+  } finally {
+    now.mockRestore();
+  }
+});
+
+it("does not classify a policy inspection timeout as a model timeout", async () => {
+  const error = await createReviewAdapter({
+    verify: async () => {},
+    run: async () => {
+      throw new ReviewFailure("timeout");
+    },
+  })({ binary: "/runtime", context }).catch((e: unknown) => e);
+  expect(error).not.toBeInstanceOf(ReviewFailure);
+});
+
+it("treats a missing executable after policy inspection as infrastructure failure", async () => {
+  const policy = policyOr("");
+  const review = createReviewAdapter({
+    verify: async () => {},
+    run: (binary, args, options) =>
+      args[0] === "debug" ? policy(binary, args, options) : runReviewProcess(binary, args, options),
+  });
+  const error = await review({ binary: "/nonexistent-opencode-review-binary", context }).catch(
+    (e: unknown) => e,
+  );
+  expect(error).not.toBeInstanceOf(ReviewFailure);
+  expect(String(error)).not.toContain("ENOENT");
+});
+
+it("treats a non-executable runtime as infrastructure failure", async () => {
+  const root = await mkdtemp(join(tmpdir(), "review-no-execute-"));
+  try {
+    const binary = join(root, "runtime");
+    await writeFile(binary, "#!/bin/sh\nexit 1\n", { mode: 0o600 });
+    const policy = policyOr("");
+    const review = createReviewAdapter({
+      verify: async () => {},
+      run: (path, args, options) =>
+        args[0] === "debug" ? policy(path, args, options) : runReviewProcess(path, args, options),
+    });
+    const error = await review({ binary, context }).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ReviewFailure);
+    expect(String(error)).not.toContain("EACCES");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it.each(["timeout", "agent_failed", "cancelled"] as const)(
+  "preserves %s if cleanup also fails",
+  async (reason) => {
+    const policy = policyOr("");
+    const review = createReviewAdapter({
+      verify: async () => {},
+      run: async (binary, args, options) => {
+        if (args[0] === "debug") return policy(binary, args, options);
+        throw new ReviewFailure(reason);
+      },
+      cleanup: async (root) => {
+        await rm(root, { recursive: true, force: true });
+        throw new Error("secret cleanup detail");
+      },
+    });
+    await expect(review({ binary: "/runtime", context })).rejects.toMatchObject({ reason });
+  },
+);
 
 it("reports explicitly when there are no confirmed defects", async () => {
   const output =

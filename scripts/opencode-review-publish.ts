@@ -1,8 +1,55 @@
-type Report = {
-  summary: string;
-  limitations: string[];
-  findings: { file: string; line: number; conditions: string; consequence: string }[];
-};
+export type Report =
+  | {
+      summary: string;
+      limitations: string[];
+      publicationLimitations?: string[];
+      findings: { file: string; line: number; conditions: string; consequence: string }[];
+      publicationLimit?: true;
+    }
+  | { failure: "infra" | "timeout" | "agent_failed" };
+
+export const reviewBodyLimit = 60000;
+
+export function formatReviewBody(
+  repository: string,
+  sha: string,
+  artifact: string,
+  report: Report,
+) {
+  const marker = `<!-- opencode-review-report:${artifact} -->`;
+  const safe = (s: string) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/@/g, "@\u200b")
+      .replace(/[\r\n]+/g, " ");
+  return [
+    marker,
+    `## OpenCode review`,
+    `Head: \`${sha}\``,
+    `Actions logs: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
+    "",
+    ...("failure" in report
+      ? [`**Review stopped: ${report.failure}. Human attention required.**`]
+      : report.publicationLimit
+        ? [
+            `**Human attention required: findings are not included in this comment because the review or essential context exceeds publication limits. Download artifact \`${artifact}\` from the Actions run linked above and inspect its review.json for the complete findings and limitations.**`,
+          ]
+        : [
+            "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
+            "",
+            safe(report.summary),
+            "",
+            ...(report.publicationLimitations ?? report.limitations).map(
+              (s) => `- Limitation: ${safe(s)}`,
+            ),
+            ...report.findings.map(
+              (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
+            ),
+          ]),
+  ].join("\n");
+}
 
 /** Publication is separate from model invocation and safe to retry with the same artifact. */
 export async function publishReview(options: {
@@ -18,6 +65,8 @@ export async function publishReview(options: {
   const { repository, token, authorId, number, sha, artifact, report } = options;
   const text = (value: unknown): value is string =>
     typeof value === "string" && value.trim().length > 0 && value.length <= 12000;
+  const nonempty = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
   if (
     !/^[\w-]+\/[\w.-]+$/.test(repository) ||
     !token ||
@@ -29,21 +78,26 @@ export async function publishReview(options: {
     !/^[a-f\d]{40}$/i.test(sha) ||
     !/^review-[1-9]\d*-[1-9]\d*$/.test(artifact) ||
     !report ||
-    !text(report.summary) ||
-    !Array.isArray(report.limitations) ||
-    report.limitations.length > 100 ||
-    !report.limitations.every(text) ||
-    !Array.isArray(report.findings) ||
-    report.findings.length > 100 ||
-    !report.findings.every(
-      (f) =>
-        f &&
-        text(f.file) &&
-        Number.isSafeInteger(f.line) &&
-        f.line > 0 &&
-        text(f.conditions) &&
-        text(f.consequence),
-    )
+    !("failure" in report
+      ? ["infra", "timeout", "agent_failed"].includes(report.failure)
+      : text(report.summary) &&
+        Array.isArray(report.limitations) &&
+        report.limitations.every(nonempty) &&
+        (report.publicationLimit === true ||
+          (Array.isArray(report.publicationLimitations ?? report.limitations) &&
+            (report.publicationLimitations ?? report.limitations).length <= 100 &&
+            (report.publicationLimitations ?? report.limitations).every(text))) &&
+        Array.isArray(report.findings) &&
+        (report.publicationLimit === true || report.findings.length <= 100) &&
+        report.findings.every(
+          (f) =>
+            f &&
+            (report.publicationLimit === true ? nonempty(f.file) : text(f.file)) &&
+            Number.isSafeInteger(f.line) &&
+            f.line > 0 &&
+            (report.publicationLimit === true ? nonempty(f.conditions) : text(f.conditions)) &&
+            (report.publicationLimit === true ? nonempty(f.consequence) : text(f.consequence)),
+        ))
   )
     throw new Error();
   const base = `https://api.github.com/repos/${repository}`;
@@ -84,29 +138,9 @@ export async function publishReview(options: {
     if (comments.length < 100) break;
     if (page === 1000) throw new Error();
   }
-  const safe = (s: string) =>
-    s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/@/g, "@\u200b")
-      .replace(/[\r\n]+/g, " ");
-  const lines = [
-    marker,
-    `## OpenCode review`,
-    `Head: \`${sha}\``,
-    "",
-    "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
-    "",
-    safe(report.summary),
-    "",
-    ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
-    ...report.findings.map(
-      (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
-    ),
-  ];
-  const body = lines.join("\n");
-  if (body.length > 60000) throw new Error();
+  const body = formatReviewBody(repository, sha, artifact, report);
+  if (body.length > reviewBodyLimit)
+    throw new Error("Review body exceeds the publication size limit; findings were not discarded.");
   await assertHead();
   await request(`issues/${number}/comments`, "POST", body);
 }

@@ -1,6 +1,36 @@
 import { expect, test } from "vitest";
 import { publishWorkflow } from "./opencode-review-publish-cli";
 
+test("oversize recovery rejects malformed finding structure before contacting GitHub", async () => {
+  let calls = 0;
+  await expect(
+    publishWorkflow({
+      fetch: async () => {
+        calls++;
+        return Response.json({});
+      },
+      authorId: 42,
+      env: {
+        RUNNER_TEMP: "/tmp",
+        GITHUB_REPOSITORY: "owner/repo",
+        GH_TOKEN: "token",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: "a".repeat(40),
+        OPENCODE_REVIEW_ARTIFACT: "review-123-1",
+      },
+      readReport: async () => ({
+        summary: "Review",
+        limitations: [],
+        publicationLimit: true,
+        findings: [
+          { file: "booking.ts", line: 0, conditions: "x".repeat(12001), consequence: "defect" },
+        ],
+      }),
+    }),
+  ).rejects.toThrow();
+  expect(calls).toBe(0);
+});
+
 test("publication-only rerun publishes a saved review without budget or model calls", async () => {
   const comments: string[] = [];
   const api: typeof fetch = async (input, init) => {
@@ -36,6 +66,7 @@ test("publication-only rerun publishes a saved review without budget or model ca
   expect(comments[0]).toContain("No confirmed defects");
   expect(comments[0]).toContain("Full base/head source snapshots were unavailable");
   expect(comments[0]).toContain("a".repeat(40));
+  expect(comments[0]).toContain("https://github.com/owner/repo/actions/runs/123/attempts/1");
 });
 
 test("publication refuses a stale head and does not call the model", async () => {

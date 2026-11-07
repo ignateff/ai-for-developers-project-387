@@ -90,6 +90,43 @@ it.each(["tar.gz", "zip"] as const)(
   },
 );
 
+it("aborts an active runtime version check and cleans its staging directory", async () => {
+  const root = await directory();
+  const fixture = await archiveFixture("tar.gz", "#!/bin/sh\nsleep 30 &\nwait\n");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 250);
+  try {
+    await expect(
+      installVerifiedArchive({ directory: root, ...fixture, signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(await readdir(root)).toEqual([]);
+  } finally {
+    clearTimeout(timer);
+  }
+}, 5000);
+
+it("cancels a stalled download stream when preparation is aborted", async () => {
+  const controller = new AbortController();
+  let cancelled = false;
+  const promise = installRuntime({
+    directory: await directory(),
+    platform: "linux",
+    arch: "x64",
+    signal: controller.signal,
+    fetch: async () =>
+      new Response(
+        new ReadableStream({
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      ),
+  });
+  setTimeout(() => controller.abort(), 50);
+  await expect(promise).rejects.toThrow(/download/i);
+  expect(cancelled).toBe(true);
+}, 5000);
+
 it.each([
   "#!/bin/sh\nprintf '9.9.9 private-version-output\\n'\n",
   "#!/bin/sh\nprintf 'private-version-output\\n' >&2\nexit 3\n",

@@ -1,4 +1,97 @@
-# Local review adapter
+# PR review: operation and local adapter
+
+## Status and authorization
+
+The review workflow is disabled in GitHub and its review job is disabled in the
+checked-in YAML. The existing implementation does not yet collect the complete
+context required by [#43](https://github.com/ignateff/ai-for-developers-project-387/issues/43);
+local mocks do not establish actual GitHub publication or token permissions.
+Enabling the workflow, changing GitHub settings, and real model calls each require
+separate authorization. Real App publication belongs to the separately authorized
+demonstration; do not claim it succeeded on the basis of local tests. Review is
+advisory, not a required merge status. A human decides after checking CI, evidence,
+the current head and each finding.
+
+## Intended operation
+
+The configured PR events are `opened`, `synchronize`, `reopened`, and
+`ready_for_review`. Automatic review skips drafts without spending a review
+attempt. Explicit `/oc` commands from a trusted person in either the general or
+inline comment channel are allowed on drafts and consume command attempts under
+the normal rules. `edited` does not invoke the model; after changing only the
+description or requirements, a person initiates a manual rerun. Review and
+command execution use separate queues; cancelling an outdated review must not
+cancel a correction.
+
+Admission requires current owner or `write`/`maintain`/`admin` access, or an
+explicitly allowed bot with its verified numeric bot-user ID: `opencode-agent[bot]`
+(`219766164`) or `calendar-release-ignateff-bot[bot]` (`351107404`). Both head
+and base must belong to this repository. Unknown bots, forks and trust API errors
+must not receive model access. These are agreed identities, not authorization to
+configure an allowlist or enable the workflow. Command authorization has its own
+upstream limitations; see [command execution](opencode-commands.md).
+
+Authors should fill out the PR template with the original request, requirements,
+explicit approval, checks and SHA, consequences of failure, Git rollback and a
+separate data recovery assessment. Approval requires an explicit human approval
+by the owner or a current `write`/`maintain`/`admin` collaborator in project
+387: a label, closed issue, bot message, ambiguous “OK”, or link alone is not
+proof. An unavailable source or unverifiable authority means unconfirmed approval,
+not confirmed compliance. A missing approval does not relax the fail-closed PR
+author trust gate. Bare `#number` refers to project 387; use full links to project 386. Other external or inaccessible sources must be reported as not loaded.
+Release PRs need version, changelog and CI checks, not an invented issue.
+
+The intended review reads a snapshot as data, not instructions granting authority;
+it does not execute PR code or publish itself. A separate publisher checks the
+current head before posting. Reports should retain SHA and Actions/log links;
+outdated results must not be presented as reviewing a newer head. Check the
+actual run and comment rather than assuming a missing or failed report means no
+defects. Incomplete CI or context is not a pass. A review comment never authorizes
+automatic correction; a person must explicitly request it.
+
+## Attempt budget and recovery
+
+Each PR has two independent, lifetime limits: three admitted command attempts
+shared by both command channels, and three automatic review attempts. A new PR
+gets its own budget; push, reopen, description edits and comments do not reset
+it. Ordinary issues are unaffected. After trust and freshness checks, the relevant
+counter is incremented before runtime preparation. Preparation failure, missing
+key, timeout or cancellation after admission consume an attempt. Rejected events,
+plain text, draft automatic review and limit refusal do not. A full rerun or
+rerun of a model-capable job needs a new admission; publication-only reruns do
+not invoke the model or spend another attempt. `limit_exhausted` is logged with
+the PR and SHA; inspect the log and do not assume a review ran.
+
+Both counters share one marked PR comment from the expected numeric author, not
+the review report. A missing comment creates zero state, including on an old PR
+or after deletion. API errors, malformed state or duplicate matching comments
+are `infra` and fail closed. The owner may correct or reset the comment after
+investigating; preserve its exact format and expected author. Deletion loses
+history and effectively resets the budget on the next admission. Humans and
+agents with sufficient rights can edit or delete the state.
+
+Updates are serialized on a best-effort basis, not atomically: races, cancellation
+and edits can lose updates. Neither a strict attempt limit nor a monetary ceiling
+is guaranteed, and one invocation may make multiple model requests. For the
+exact comment format, lock recovery and risks, see [PR attempt budget](agents/pr-attempt-budget.md).
+
+## Troubleshooting and verification
+
+Inspect Actions for the PR and head SHA first. `timeout` denotes a confirmed time
+limit, `infra` an infrastructure/trust/preparation failure, and `agent_failed`
+another confirmed agent failure; an unknown cause must be investigated, not
+guessed. An outdated cancelled run is not a timeout. A runner forcibly stopped
+or a failed publisher may leave no comment: check logs and artifact availability.
+After resolving the cause, choose a publication-only retry if available; a retry
+that can call the model spends a new attempt and still needs authorization.
+Never bypass trust or manually remove an active budget lock to recover a run.
+
+The full `mise run check` includes workflow lint and local adapter tests; mock
+providers and runtime tests are not evidence of real GitHub permissions or
+publication. Record actual commands, outcomes, logs and SHA in the PR; flag any
+checks not run. Do not enable a disabled workflow simply to obtain evidence.
+
+## Local review adapter
 
 `scripts/opencode-review.ts` exports `reviewSnapshot`. It accepts a path to the
 checksum- and version-verified OpenCode runtime, a prepared `ReviewContext`, an
