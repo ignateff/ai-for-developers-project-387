@@ -36,6 +36,7 @@ test("publication-only rerun publishes a saved review without budget or model ca
   expect(comments[0]).toContain("No confirmed defects");
   expect(comments[0]).toContain("Full base/head source snapshots were unavailable");
   expect(comments[0]).toContain("a".repeat(40));
+  expect(comments[0]).toContain("https://github.com/owner/repo/actions/runs/123/attempts/1");
 });
 
 test("publication refuses a stale head and does not call the model", async () => {

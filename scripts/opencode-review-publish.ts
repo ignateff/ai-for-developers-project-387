@@ -95,6 +95,7 @@ export async function publishReview(options: {
     marker,
     `## OpenCode review`,
     `Head: \`${sha}\``,
+    `Actions logs: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
     "",
     "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
     "",
