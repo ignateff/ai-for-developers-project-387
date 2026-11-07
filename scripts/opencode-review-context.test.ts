@@ -23,14 +23,14 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
           state: "open",
           draft: false,
           changed_files: 1,
-          body: `Agreement: https://github.com/ignateff/ai-for-developers-project-387/blob/main/docs/approval.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/${historical}/docs/history.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/main/docs/history.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/missing/docs/unpinned.md\n#33`,
+          body: `Agreement: https://github.com/ignateff/ai-for-developers-project-387/blob/${base}/docs/approval%20notes.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/${historical}/docs/history.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/main/docs/history.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/feature/docs/history.md\nhttps://github.com/ignateff/ai-for-developers-project-386/blob/${historical}/docs/%2e%2e/secret.md`,
           base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
           head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
         });
       if (path.endsWith("/pulls/7/files"))
         return Response.json([{ filename: "a", status: "added" }]);
       if (
-        path.endsWith("/contents/docs/approval.md") ||
+        path.endsWith("/contents/docs/approval%20notes.md") ||
         path.endsWith("/contents/docs/history.md")
       ) {
         const content = "Explicit approval in document";
@@ -73,11 +73,12 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
       },
     );
     expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThan(4 * 1024 * 1024);
+    expect(snapshot.requirements.availability).toBe("available");
+    expect(snapshot.requirements.text).toContain("Explicit approval in document");
     expect(snapshot.agreement.sources).toContainEqual(
       expect.objectContaining({
         status: "unconfirmed",
-        source:
-          "https://github.com/ignateff/ai-for-developers-project-387/blob/main/docs/approval.md",
+        source: `https://github.com/ignateff/ai-for-developers-project-387/blob/${base}/docs/approval%20notes.md`,
         text: "Explicit approval in document",
         author: null,
         resolvedRef: base,
@@ -94,7 +95,7 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
     expect(snapshot.agreement.sources).toContainEqual(
       expect.objectContaining({
         source:
-          "https://github.com/ignateff/ai-for-developers-project-386/blob/missing/docs/unpinned.md",
+          "https://github.com/ignateff/ai-for-developers-project-386/blob/feature/docs/history.md",
         text: null,
         resolvedRef: null,
         status: "unconfirmed",
@@ -104,20 +105,24 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
       expect.objectContaining({
         source:
           "https://github.com/ignateff/ai-for-developers-project-386/blob/main/docs/history.md",
-        resolvedRef: historical,
-        text: "Explicit approval in document",
+        resolvedRef: null,
+        text: null,
         status: "unconfirmed",
       }),
     );
-    expect(requested.some((url) => url.includes(`/contents/docs/approval.md?ref=${base}`))).toBe(
-      true,
-    );
+    expect(
+      requested.some((url) => url.includes(`/contents/docs/approval%20notes.md?ref=${base}`)),
+    ).toBe(true);
     expect(
       requested.some((url) => url.includes(`/contents/docs/history.md?ref=${historical}`)),
     ).toBe(true);
-    expect(requested.some((url) => url.includes("/contents/docs/unpinned.md"))).toBe(false);
+    expect(requested.filter((url) => url.includes("/contents/docs/history.md?")).length).toBe(1);
+    expect(requested.some((url) => url.includes("approval%2520notes"))).toBe(false);
+    expect(requested.some((url) => url.includes("/contents/docs/secret.md"))).toBe(false);
+    expect(requested.some((url) => url.includes("/commits/main"))).toBe(false);
     const limitations = snapshot.agreement.limitations.join(" ");
     expect(limitations).toContain("aggregate size budget");
+    expect(limitations).toContain("ambiguous");
     for (const criterion of [
       "human owner",
       "write, maintain, or admin",

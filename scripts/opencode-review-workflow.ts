@@ -265,8 +265,8 @@ export async function reviewWorkflow(
   }
   if (refs.size > visited.size)
     limitations.push("Linked GitHub references exceeded the collection limit.");
-  // Documents are evidence, not policy or proof of authorship. Pin 387 to the PR base;
-  // resolve historical refs to a commit before fetching their contents.
+  // A branch may contain slashes, so only a full commit SHA identifies the
+  // boundary between a blob URL's ref and path without guessing.
   for (const link of [...documentLinks].slice(0, 12)) {
     const match =
       /^https:\/\/github\.com\/ignateff\/ai-for-developers-project-(387|386)\/blob\/([^/]+)\/([^?#]+)(?:[?#].*)?$/i.exec(
@@ -275,30 +275,25 @@ export async function reviewWorkflow(
     const relative = !link.startsWith("https://") && !link.includes(":");
     const project = match?.[1] ?? (relative ? "387" : "");
     const requestedRef = match?.[2] ?? (relative ? "PR base" : "");
-    const path = match?.[3] ?? (relative ? link : "");
-    let ref =
-      project === "387" && repository.toLowerCase() === "ignateff/ai-for-developers-project-387"
+    const encodedPath = match?.[3] ?? (relative ? link : "");
+    let path = "";
+    try {
+      const parts = encodedPath.split("/").map(decodeURIComponent);
+      if (parts.some((part) => /[/\\]/.test(part))) throw new Error();
+      path = parts.join("/");
+    } catch {
+      limitations.push(
+        `Linked repository document ${link} has an invalid or ambiguous encoded path.`,
+      );
+    }
+    const ref =
+      project === "387" &&
+      repository.toLowerCase() === "ignateff/ai-for-developers-project-387" &&
+      (relative || requestedRef.toLowerCase() === pr.base.sha.toLowerCase())
         ? pr.base.sha
         : project === "386" && /^[a-f\d]{40}$/i.test(requestedRef)
           ? requestedRef
           : "";
-    if (
-      project === "386" &&
-      !ref &&
-      /^[a-z\d._-]+$/i.test(requestedRef) &&
-      !requestedRef.includes("..")
-    ) {
-      const commit = await optional(
-        `commits/${encodeURIComponent(requestedRef)}`,
-        "ignateff/ai-for-developers-project-386",
-      );
-      if (typeof commit?.sha === "string" && /^[a-f\d]{40}$/i.test(commit.sha)) {
-        ref = commit.sha;
-        limitations.push(
-          `Historical document ${link} was resolved from a mutable ref to a commit; it is untrusted evidence, not policy.`,
-        );
-      }
-    }
     let content: string | null = null;
     if (ref && path) {
       try {
@@ -308,17 +303,10 @@ export async function reviewWorkflow(
       }
     } else
       limitations.push(
-        `Linked repository document ${link} could not be loaded at a safe pinned ref.`,
+        `Linked repository document ${link} could not be loaded: the ref or path is ambiguous, unsafe, or not pinned to the required commit.`,
       );
-    if (
-      project === "387" &&
-      ref &&
-      requestedRef !== "PR base" &&
-      requestedRef.toLowerCase() !== pr.base.sha.toLowerCase()
-    )
-      limitations.push(
-        `Linked document ${link} was loaded at the pinned PR base, not its requested ref.`,
-      );
+    if (content !== null)
+      materials.push({ source: text(link), title: "Linked repository document", body: content });
     agreements.push({
       source: text(link),
       text: content,
