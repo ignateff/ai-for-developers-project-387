@@ -30,8 +30,10 @@ type ProcessOptions = { cwd: string; env: NodeJS.ProcessEnv; signal?: AbortSigna
 type Dependencies = {
   verify: (binary: string) => Promise<void>;
   run: (binary: string, args: string[], options: ProcessOptions) => Promise<string>;
+  cleanup?: (root: string) => Promise<void>;
 };
 
+class ProcessStartFailure extends Error {}
 const execute = promisify(execFile);
 export async function runReviewProcess(binary: string, args: string[], options: ProcessOptions) {
   const pending = execute(binary, args, {
@@ -58,6 +60,7 @@ export async function runReviewProcess(binary: string, args: string[], options: 
   } catch (error) {
     if (options.signal?.aborted) throw new ReviewFailure("cancelled");
     if (timedOut) throw new ReviewFailure("timeout");
+    if (pending.child.pid === undefined) throw new ProcessStartFailure();
     throw error;
   } finally {
     clearTimeout(timer);
@@ -220,6 +223,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
   }): Promise<ReviewResult> {
     let root: string | undefined;
     let agentStarted = false;
+    let failed = false;
     try {
       options.signal?.throwIfAborted();
       const context = JSON.stringify(options.context);
@@ -304,16 +308,21 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
       }
       return result;
     } catch (error) {
+      failed = true;
       if (options.signal?.aborted) throw new ReviewFailure("cancelled");
       if (error instanceof ReviewFailure) throw error;
+      if (error instanceof ProcessStartFailure)
+        throw new Error("OpenCode review failed; no review was produced");
       if (agentStarted) throw new ReviewFailure("agent_failed");
       throw new Error("OpenCode review failed; no review was produced");
     } finally {
       if (root) {
         try {
-          await rm(root, { recursive: true, force: true });
+          if (dependencies.cleanup) await dependencies.cleanup(root);
+          else await rm(root, { recursive: true, force: true });
         } catch {
-          throw new Error("OpenCode review cleanup failed");
+          if (!failed) throw new Error("OpenCode review cleanup failed");
+          console.error("OpenCode review cleanup failed; human attention required");
         }
       }
     }

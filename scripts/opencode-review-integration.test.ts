@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -8,6 +8,118 @@ import { publishWorkflow } from "./opencode-review-publish-cli.ts";
 import { createBudgetWorkflow } from "./opencode-budget-workflow.ts";
 import { ReviewFailure } from "./opencode-review-failure.ts";
 import { publishReview } from "./opencode-review-publish.ts";
+import { runBudgetCli } from "./opencode-budget-cli.ts";
+import { parse } from "yaml";
+
+test("production CLI emits a failure artifact and workflow outputs for independent publication", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-cli-"));
+  const sha = "a".repeat(40);
+  const comments: { id: number; user: { id: number }; body: string }[] = [];
+  const repository = "owner/repo";
+  const api: typeof fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith("/pulls/7"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: repository } },
+        head: { sha, repo: { id: 1, full_name: repository } },
+      });
+    if (init?.method === "POST") {
+      const comment = {
+        id: comments.length + 1,
+        user: { id: 42 },
+        body: JSON.parse(String(init.body)).body,
+      };
+      comments.push(comment);
+      return Response.json(comment);
+    }
+    const comment = comments.find((item) => path.endsWith(`/issues/comments/${item.id}`));
+    if (comment && init?.method === "PATCH") {
+      comment.body = JSON.parse(String(init.body)).body;
+      return Response.json(comment);
+    }
+    if (comment && init?.method === "DELETE") {
+      comments.splice(comments.indexOf(comment), 1);
+      return new Response(null, { status: 204 });
+    }
+    return Response.json(comments);
+  };
+  const eventPath = join(dir, "event.json");
+  const output = join(dir, "output");
+  const env = {
+    RUNNER_TEMP: dir,
+    GITHUB_EVENT_PATH: eventPath,
+    GITHUB_OUTPUT: output,
+    GITHUB_EVENT_NAME: "pull_request",
+    GITHUB_REPOSITORY: repository,
+    GITHUB_REPOSITORY_OWNER: "owner",
+    GITHUB_RUN_ID: "1",
+    GITHUB_RUN_ATTEMPT: "1",
+    GH_TOKEN: "token",
+    DEEPSEEK_API_KEY: "key",
+  };
+  try {
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        action: "opened",
+        repository: { full_name: repository },
+        pull_request: { number: 7 },
+      }),
+    );
+    const result = await runBudgetCli({
+      kind: "review",
+      env,
+      fetch: api,
+      authorId: 42,
+      prepare: async () => {},
+      model: async () => {
+        throw new ReviewFailure("timeout");
+      },
+    });
+    expect(result.status).toBe("timeout");
+    const outputs = Object.fromEntries(
+      (await readFile(output, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => line.split("=")),
+    );
+    expect(outputs).toMatchObject({ report: "true", number: "7", sha });
+    const workflow = parse(await readFile(".github/workflows/opencode-review.yml", "utf8"));
+    const steps = workflow.jobs.review.steps;
+    expect(steps.find((step: { id?: string }) => step.id === "report").if).toContain(
+      "steps.workflow.outputs.report == 'true'",
+    );
+    expect(
+      steps.find((step: { name?: string }) => step.name === "Save review result for publication")
+        .if,
+    ).toContain("steps.workflow.outputs.report == 'true'");
+    expect(workflow.jobs.publish.if).toContain("needs.review.outputs.artifact != ''");
+    const artifact = join(dir, "opencode-review-1-1", "review.json");
+    expect(JSON.parse(await readFile(artifact, "utf8"))).toEqual({ failure: "timeout" });
+    await mkdir(join(dir, "opencode-review-publication"));
+    await copyFile(artifact, join(dir, "opencode-review-publication", "review.json"));
+    await publishWorkflow({
+      env: {
+        ...env,
+        OPENCODE_PR_NUMBER: outputs.number,
+        OPENCODE_HEAD_SHA: outputs.sha,
+        OPENCODE_REVIEW_ARTIFACT: "review-1-1",
+      },
+      fetch: api,
+      authorId: 42,
+      readReport: async (path) => JSON.parse(await readFile(path, "utf8")),
+    });
+    expect(comments.find((item) => item.body.includes("opencode-review-report"))?.body).toContain(
+      "Review stopped: timeout",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test.each(["infra", "timeout", "agent_failed"] as const)(
   "an admitted %s is independently published with SHA and logs, never as a successful review",
