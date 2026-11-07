@@ -1,0 +1,75 @@
+name: Budget GitHub experiment
+on:
+  pull_request:
+    types: [reopened]
+permissions: {}
+concurrency:
+  group: budget-github-experiment-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+  queue: max
+jobs:
+  budget:
+    name: opencode-command-v2-pr-${{ github.event.pull_request.number }}
+    if: ${{ github.event.pull_request.number == 58 && github.event.pull_request.user.login == 'ignateff' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'experiment/budget-actions-visibility' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.gate.outputs.status }}
+      sha: ${{ github.event.pull_request.head.sha }}
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: 2026.10.23
+      - name: Check budget from actual Actions attempts
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { countAdmissions } from './scripts/opencode-actions-budget.ts';
+          const fetcher = async (url, init) => {
+            const rewritten = String(url).replace('/workflows/opencode.yml/', '/workflows/budget-github-experiment.yml/');
+            const response = await fetch(rewritten, init);
+            if (!response.ok || !rewritten.includes('/workflows/')) return response;
+            const value = await response.json();
+            for (const run of value.workflow_runs ?? []) if (run.event === 'pull_request') run.event = 'issue_comment';
+            return Response.json(value);
+          };
+          try {
+            const count = await countAdmissions({ repository: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN, pr: 58, runId: Number(process.env.GITHUB_RUN_ID), attempt: Number(process.env.GITHUB_RUN_ATTEMPT), fetch: fetcher });
+            const status = count >= 3 ? 'limit_exhausted' : 'allowed';
+            appendFileSync(process.env.GITHUB_OUTPUT, `status=${status}\n`);
+            console.log(`Experiment: ${status}; previous admissions=${count}; no model used`);
+          } catch {
+            appendFileSync(process.env.GITHUB_OUTPUT, 'status=infra\n');
+            console.error('Experiment: incomplete Actions history');
+            process.exitCode = 1;
+          }
+          NODE
+      - name: Record command admission v2
+        if: steps.gate.outputs.status == 'allowed'
+        run: echo 'Test admission only; no model call.'
+  report:
+    needs: budget
+    if: ${{ !cancelled() && needs.budget.outputs.status == 'limit_exhausted' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: read
+      pull-requests: write
+    steps:
+      - name: Report simulated budget exhaustion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.budget.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/issues/58/comments" -f "body=Budget experiment: limit_exhausted; no model was called. Human attention required. SHA: $SHA. Logs: $RUN_URL"
