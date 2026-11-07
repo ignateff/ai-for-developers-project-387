@@ -108,7 +108,9 @@ Workflow `.github/workflows/scheduled-performance-audit.yml` запускает 
 
 JSON-отчёт сохраняется артефактом `lighthouse-report`, а агент должен опубликовать результат в issue или комментарии и создать отдельную задачу только для новой находки. Ссылка на прогон связывает вывод с артефактом; артефакты хранятся ограниченное время. Отчёты в `.audit/` игнорируются Git. Для проверки создания задачи ручной запуск с `training: true` использует синтетический отчёт: соответствующий issue учебный и не подтверждает дефект приложения. Лабораторный Lighthouse не измеряет INP.
 
-Новый workflow и учебный сценарий ещё ожидают проверки ручными прогонами. Предыдущий [ручной запуск исходного аудита](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42022733750) не выявил превышений LCP и CLS; INP не измерялся. Проверяемый адрес — прежний деплой, который может отличаться от кода текущего репозитория.
+7 ноября 2026 [ручной аудит приложения](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42400320316) сохранил артефакт `lighthouse-report`. [Вывод агента](https://github.com/ignateff/ai-for-developers-project-387/issues/53#issuecomment-6711201155): LCP 2212,5 мс и CLS 0,000097 в пределах целей; INP не измерялся. Проверяемый адрес — прежний деплой, который может отличаться от кода текущего репозитория.
+
+[Учебный запуск](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42400137780) создал [учебный issue № 56](https://github.com/ignateff/ai-for-developers-project-387/issues/56) с синтетическим LCP. [Повторный запуск](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42400239693) завершился успешно и не создал второй issue или повторный комментарий.
 
 ### Версия и публикация
 
