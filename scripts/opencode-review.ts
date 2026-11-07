@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { verifyInstalledRuntime } from "./opencode-install.ts";
+import { ReviewFailure } from "./opencode-review-failure.ts";
 
 export type ReviewResult = {
   summary: string;
@@ -36,13 +37,31 @@ export async function runReviewProcess(binary: string, args: string[], options: 
   const pending = execute(binary, args, {
     ...options,
     encoding: "utf8",
-    timeout: 300_000,
     killSignal: "SIGKILL",
     maxBuffer: 8 * 1024 * 1024,
   });
   pending.child.stdin?.end();
-  const { stdout } = await pending;
-  return stdout;
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    if (
+      !options.signal?.aborted &&
+      pending.child.exitCode === null &&
+      pending.child.signalCode === null
+    ) {
+      timedOut = true;
+      pending.child.kill("SIGKILL");
+    }
+  }, 300_000);
+  try {
+    const { stdout } = await pending;
+    return stdout;
+  } catch (error) {
+    if (options.signal?.aborted) throw new ReviewFailure("cancelled");
+    if (timedOut) throw new ReviewFailure("timeout");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 const defaultDependencies: Dependencies = {
   verify: verifyInstalledRuntime,
@@ -200,6 +219,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
     signal?: AbortSignal;
   }): Promise<ReviewResult> {
     let root: string | undefined;
+    let agentStarted = false;
     try {
       options.signal?.throwIfAborted();
       const context = JSON.stringify(options.context);
@@ -260,6 +280,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
         await writeFile(join(workspace, name), lines.join("\n"), { mode: 0o600, flag: "wx" });
       }
       const runEnv = { ...env, ...(options.apiKey ? { DEEPSEEK_API_KEY: options.apiKey } : {}) };
+      agentStarted = true;
       const output = await dependencies.run(
         options.binary,
         [
@@ -282,8 +303,10 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
         );
       }
       return result;
-    } catch {
-      if (options.signal?.aborted) throw new Error("OpenCode review cancelled");
+    } catch (error) {
+      if (options.signal?.aborted) throw new ReviewFailure("cancelled");
+      if (error instanceof ReviewFailure) throw error;
+      if (agentStarted) throw new ReviewFailure("agent_failed");
       throw new Error("OpenCode review failed; no review was produced");
     } finally {
       if (root) {

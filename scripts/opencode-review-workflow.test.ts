@@ -365,7 +365,7 @@ test("disabled review model job spends inside the rerun job without holding the 
   expect(JSON.stringify(job.steps.slice(0, model))).not.toContain("secrets.");
   const publish = workflow.jobs.publish;
   expect(publish.needs).toBe("review");
-  expect(publish.if).toBe("needs.review.outputs.artifact != ''");
+  expect(publish.if).toBe("${{ !cancelled() && needs.review.outputs.artifact != '' }}");
   expect(JSON.stringify(publish)).not.toContain("DEEPSEEK_API_KEY");
   expect(JSON.stringify(publish)).not.toContain("opencode:budget");
   expect(JSON.stringify(publish)).not.toContain("opencode:review-run");

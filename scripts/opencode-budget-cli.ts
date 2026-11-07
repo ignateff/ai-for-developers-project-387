@@ -1,4 +1,5 @@
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createProductionWorkflow } from "./opencode-production-workflow.ts";
 import { prepareCommand, runCommand } from "./opencode-command.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
@@ -45,14 +46,29 @@ async function main() {
     actionsUrl: `https://github.com/${repository}/actions/runs/${runId}`,
     allowedAppIds: appIds.map(Number),
   });
+  const failure = ["infra", "timeout", "agent_failed"].includes(result.status);
+  let reportAvailable = result.status === "completed";
+  if (kind === "review" && failure && result.sha && result.number) {
+    const run = process.env.GITHUB_RUN_ID ?? "";
+    const attempt = process.env.GITHUB_RUN_ATTEMPT ?? "";
+    const temp = process.env.RUNNER_TEMP;
+    if (!temp || !/^[1-9]\d*$/.test(run) || !/^[1-9]\d*$/.test(attempt)) throw new Error();
+    const root = join(temp, `opencode-review-${run}-${attempt}`);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    await writeFile(join(root, "review.json"), JSON.stringify({ failure: result.status }), {
+      flag: "wx",
+      mode: 0o600,
+    });
+    reportAvailable = true;
+  }
   console.log(
     `OpenCode budget: ${result.status}${result.number ? ` PR #${result.number}` : ""}${result.sha ? ` head ${result.sha}` : ""}${result.actionsUrl ? ` ${result.actionsUrl}` : ""}`,
   );
   await appendFile(
     process.env.GITHUB_OUTPUT ?? "",
-    `allowed=${result.status === "completed"}\nnumber=${result.number ?? ""}\nsha=${result.sha ?? ""}\n`,
+    `allowed=${result.status === "completed"}\nreport=${reportAvailable}\nnumber=${result.number ?? ""}\nsha=${result.sha ?? ""}\n`,
   );
-  if (result.status === "infra") process.exitCode = 1;
+  if (failure || result.status === "cancelled") process.exitCode = 1;
 }
 
 try {

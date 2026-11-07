@@ -5,6 +5,91 @@ import { expect, test } from "vitest";
 import { createProductionWorkflow } from "./opencode-production-workflow.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
 import { publishWorkflow } from "./opencode-review-publish-cli.ts";
+import { createBudgetWorkflow } from "./opencode-budget-workflow.ts";
+import { ReviewFailure } from "./opencode-review-failure.ts";
+import { publishReview } from "./opencode-review-publish.ts";
+
+test.each(["infra", "timeout", "agent_failed"] as const)(
+  "an admitted %s is independently published with SHA and logs, never as a successful review",
+  async (reason) => {
+    const sha = "a".repeat(40);
+    const repository = "owner/repo";
+    const comments: { id: number; user: { id: number }; body: string }[] = [];
+    let head = sha;
+    const api: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith("/pulls/7"))
+        return Response.json({
+          number: 7,
+          state: "open",
+          draft: false,
+          user: { type: "User", login: "owner" },
+          base: { repo: { id: 1, full_name: repository } },
+          head: { sha: head, repo: { id: 1, full_name: repository } },
+        });
+      if (init?.method === "POST") {
+        const item = {
+          id: comments.length + 1,
+          user: { id: 42 },
+          body: JSON.parse(String(init.body)).body,
+        };
+        comments.push(item);
+        return Response.json(item);
+      }
+      if (init?.method === "PATCH") {
+        comments[0].body = JSON.parse(String(init.body)).body;
+        return Response.json(comments[0]);
+      }
+      return Response.json(comments);
+    };
+    const run = createBudgetWorkflow({
+      fetch: api,
+      prepare: async () => {
+        if (reason === "infra") throw new Error("secret");
+      },
+      model: async () => {
+        throw new ReviewFailure(reason === "infra" ? "agent_failed" : reason);
+      },
+    });
+    const result = await run({
+      kind: "review",
+      eventName: "pull_request",
+      event: {
+        action: "opened",
+        repository: { full_name: repository },
+        pull_request: { number: 7 },
+      },
+      repository,
+      owner: "owner",
+      token: "token",
+      authorId: 42,
+      actionsUrl: "https://github.com/owner/repo/actions/runs/1",
+    });
+    expect(result).toMatchObject({ status: reason, number: 7, sha });
+    const publish = () =>
+      publishReview({
+        fetch: api,
+        repository,
+        token: "token",
+        authorId: 42,
+        number: 7,
+        sha,
+        artifact: "review-1-1",
+        report: { failure: reason },
+      });
+    head = "b".repeat(40);
+    await expect(publish()).rejects.toThrow();
+    head = sha;
+    await publish();
+    await publish();
+    const reports = comments.filter((item) => item.body.includes("opencode-review-report"));
+    expect(reports).toHaveLength(1);
+    expect(reports[0].body).toContain(`Review stopped: ${reason}. Human attention required.`);
+    expect(reports[0].body).toContain(sha);
+    expect(reports[0].body).toContain("/actions/runs/1/attempts/1");
+    expect(reports[0].body).not.toMatch(/secret|no confirmed defects/i);
+  },
+);
 
 test("trusted PR event produces a separately published review, while a stale head cannot be published", async () => {
   const dir = await mkdtemp(join(tmpdir(), "review-integration-"));

@@ -1,4 +1,5 @@
 import { authorizeComment } from "./opencode-trust.ts";
+import { ReviewFailure } from "./opencode-review-failure.ts";
 
 const marker = "<!-- opencode-pr-attempt-budget:v1 -->";
 const queues = new Map<string, Promise<void>>();
@@ -88,6 +89,7 @@ export function createBudgetWorkflow(deps: Dependencies) {
       if (!response.ok) throw new Error("GitHub request failed");
       return response.json();
     };
+    let admittedSha: string | undefined;
     try {
       if (options.kind === "command") {
         if (obj(obj(event.comment).user).type !== "User") return { status: "skipped" };
@@ -213,12 +215,14 @@ export function createBudgetWorkflow(deps: Dependencies) {
             ...(validUrl.test(options.actionsUrl) ? { actionsUrl: options.actionsUrl } : {}),
           };
         }
+        admittedSha = sha;
       }
       await deps.prepare();
       await deps.model(isPr ? { number, sha } : {});
       return { status: "completed", ...(isPr ? { number, sha } : {}) };
-    } catch {
-      return { status: "infra", ...(isPr ? { number } : {}) };
+    } catch (error) {
+      const status = error instanceof ReviewFailure ? error.reason : "infra";
+      return { status, ...(isPr ? { number } : {}), ...(admittedSha ? { sha: admittedSha } : {}) };
     }
   };
 }

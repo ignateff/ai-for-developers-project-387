@@ -1,8 +1,10 @@
-type Report = {
-  summary: string;
-  limitations: string[];
-  findings: { file: string; line: number; conditions: string; consequence: string }[];
-};
+type Report =
+  | {
+      summary: string;
+      limitations: string[];
+      findings: { file: string; line: number; conditions: string; consequence: string }[];
+    }
+  | { failure: "infra" | "timeout" | "agent_failed" };
 
 /** Publication is separate from model invocation and safe to retry with the same artifact. */
 export async function publishReview(options: {
@@ -29,21 +31,23 @@ export async function publishReview(options: {
     !/^[a-f\d]{40}$/i.test(sha) ||
     !/^review-[1-9]\d*-[1-9]\d*$/.test(artifact) ||
     !report ||
-    !text(report.summary) ||
-    !Array.isArray(report.limitations) ||
-    report.limitations.length > 100 ||
-    !report.limitations.every(text) ||
-    !Array.isArray(report.findings) ||
-    report.findings.length > 100 ||
-    !report.findings.every(
-      (f) =>
-        f &&
-        text(f.file) &&
-        Number.isSafeInteger(f.line) &&
-        f.line > 0 &&
-        text(f.conditions) &&
-        text(f.consequence),
-    )
+    !("failure" in report
+      ? ["infra", "timeout", "agent_failed"].includes(report.failure)
+      : text(report.summary) &&
+        Array.isArray(report.limitations) &&
+        report.limitations.length <= 100 &&
+        report.limitations.every(text) &&
+        Array.isArray(report.findings) &&
+        report.findings.length <= 100 &&
+        report.findings.every(
+          (f) =>
+            f &&
+            text(f.file) &&
+            Number.isSafeInteger(f.line) &&
+            f.line > 0 &&
+            text(f.conditions) &&
+            text(f.consequence),
+        ))
   )
     throw new Error();
   const base = `https://api.github.com/repos/${repository}`;
@@ -97,14 +101,18 @@ export async function publishReview(options: {
     `Head: \`${sha}\``,
     `Actions logs: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
     "",
-    "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
-    "",
-    safe(report.summary),
-    "",
-    ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
-    ...report.findings.map(
-      (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
-    ),
+    ...("failure" in report
+      ? [`**Review stopped: ${report.failure}. Human attention required.**`]
+      : [
+          "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
+          "",
+          safe(report.summary),
+          "",
+          ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
+          ...report.findings.map(
+            (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
+          ),
+        ]),
   ];
   const body = lines.join("\n");
   if (body.length > 60000) throw new Error();

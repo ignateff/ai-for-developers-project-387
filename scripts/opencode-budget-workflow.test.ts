@@ -1,6 +1,98 @@
 import { expect, test } from "vitest";
 import { createBudgetWorkflow } from "./opencode-budget-workflow";
 import { createCommentBudgetLock } from "./opencode-budget-lock";
+import { ReviewFailure } from "./opencode-review-failure";
+
+test("an admitted preparation failure retains the verified PR identity for independent reporting", async () => {
+  let body = "";
+  const api: typeof fetch = async (input, init) => {
+    if (String(input).includes("/pulls/"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: "owner/repo" } },
+        head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+      });
+    if (init?.method === "POST" || init?.method === "PATCH") {
+      body = JSON.parse(String(init.body)).body;
+      return Response.json({ id: 10, user: { id: 42 }, body });
+    }
+    return Response.json(body ? [{ id: 10, user: { id: 42 }, body }] : []);
+  };
+  const run = createBudgetWorkflow({
+    fetch: api,
+    prepare: async () => {
+      throw new Error();
+    },
+    model: async () => {
+      throw new Error("must not run");
+    },
+  });
+  expect(
+    await run({
+      kind: "review",
+      eventName: "pull_request",
+      event: {
+        action: "opened",
+        repository: { full_name: "owner/repo" },
+        pull_request: { number: 7 },
+      },
+      repository: "owner/repo",
+      owner: "owner",
+      token: "token",
+      authorId: 42,
+      actionsUrl: "https://github.com/owner/repo/actions/runs/1",
+    }),
+  ).toMatchObject({ status: "infra", number: 7, sha: "a".repeat(40) });
+});
+
+test.each(["timeout", "agent_failed", "cancelled"] as const)(
+  "preserves confirmed %s without calling it a different failure",
+  async (reason) => {
+    let body = "";
+    const api: typeof fetch = async (input, init) => {
+      if (String(input).includes("/pulls/"))
+        return Response.json({
+          number: 7,
+          state: "open",
+          draft: false,
+          user: { type: "User", login: "owner" },
+          base: { repo: { id: 1, full_name: "owner/repo" } },
+          head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+        });
+      if (init?.method === "POST" || init?.method === "PATCH") {
+        body = JSON.parse(String(init.body)).body;
+        return Response.json({ id: 10, user: { id: 42 }, body });
+      }
+      return Response.json(body ? [{ id: 10, user: { id: 42 }, body }] : []);
+    };
+    const run = createBudgetWorkflow({
+      fetch: api,
+      prepare: async () => {},
+      model: async () => {
+        throw new ReviewFailure(reason);
+      },
+    });
+    expect(
+      await run({
+        kind: "review",
+        eventName: "pull_request",
+        event: {
+          action: "opened",
+          repository: { full_name: "owner/repo" },
+          pull_request: { number: 7 },
+        },
+        repository: "owner/repo",
+        owner: "owner",
+        token: "token",
+        authorId: 42,
+        actionsUrl: "",
+      }),
+    ).toMatchObject({ status: reason, sha: "a".repeat(40) });
+  },
+);
 
 test("production adapter supplies the admitted PR identity to runtime after the budget write", async () => {
   const events: string[] = [];
@@ -329,7 +421,8 @@ test("failed preparation spends an attempt and reruns spend again", async () => 
     authorId: 42,
     actionsUrl: "https://github.com/owner/repo/actions/runs/1",
   };
-  for (let i = 0; i < 3; i++) expect(await run(options)).toEqual({ status: "infra", number: 7 });
+  for (let i = 0; i < 3; i++)
+    expect(await run(options)).toMatchObject({ status: "infra", number: 7 });
   const exhausted = await run(options);
   expect(exhausted).toEqual({
     status: "limit_exhausted",
@@ -693,7 +786,7 @@ test("timeout after admission consumes the attempt without exposing diagnostics"
     authorId: 42,
     actionsUrl: "https://github.com/owner/repo/actions/runs/1",
   };
-  expect(await run(options)).toEqual({ status: "infra", number: 7 });
+  expect(await run(options)).toMatchObject({ status: "infra", number: 7 });
   expect((await run(options)).status).toBe("limit_exhausted");
   expect(body).toContain('"review":3');
 });
