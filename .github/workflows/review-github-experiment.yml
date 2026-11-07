@@ -58,7 +58,7 @@ jobs:
           OPENCODE_HEAD_SHA: ${{ steps.review.outputs.sha }}
           OPENCODE_REVIEW_ARTIFACT: review-${{ github.run_id }}-${{ github.run_attempt }}
   model-probe:
-    if: ${{ github.event.action == 'synchronize' && github.event.pull_request.number == 58 && github.event.pull_request.user.login == 'ignateff' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'experiment/budget-actions-visibility' }}
+    if: ${{ github.event.action == 'ready_for_review' && github.event.pull_request.number == 58 && github.event.pull_request.user.login == 'ignateff' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'experiment/budget-actions-visibility' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
