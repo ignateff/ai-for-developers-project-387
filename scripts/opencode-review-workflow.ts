@@ -522,7 +522,24 @@ export async function reviewWorkflow(
     const ordered = [...uniqueCore, ...collected, ...result.limitations];
     const kept: string[] = [];
     let omitted = false;
-    if (!fits([]) || uniqueCore.some((s) => s.length > 12000)) publicationLimit = true;
+    const validFinding = (f: (typeof result.findings)[number]) =>
+      f &&
+      typeof f.file === "string" &&
+      f.file.trim() &&
+      Number.isSafeInteger(f.line) &&
+      f.line > 0 &&
+      typeof f.conditions === "string" &&
+      f.conditions.trim() &&
+      typeof f.consequence === "string" &&
+      f.consequence.trim();
+    const findingsExceedLimit =
+      result.findings.every(validFinding) &&
+      (result.findings.length > 100 ||
+        result.findings.some((f) =>
+          [f.file, f.conditions, f.consequence].some((value) => value.length > 12000),
+        ));
+    if (!fits([]) || uniqueCore.some((s) => s.length > 12000) || findingsExceedLimit)
+      publicationLimit = true;
     const fitsComplete = ordered.every((s) => s.length <= 12000) && fits(ordered);
     for (const [index, item] of ordered.entries()) {
       if (publicationLimit) break;

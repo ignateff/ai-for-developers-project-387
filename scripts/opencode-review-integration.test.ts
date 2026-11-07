@@ -22,6 +22,8 @@ test.each([
   "oversized findings",
   "exact limitation capacity",
   "unavailable linked source",
+  "too many findings",
+  "oversized finding field",
 ])("review publication handles %s", async (scenario) => {
   const dir = await mkdtemp(join(tmpdir(), "review-limitations-"));
   const sha = "a".repeat(40);
@@ -146,29 +148,45 @@ test.each([
         const report = {
           summary: "Review completed",
           findings:
-            scenario === "oversized findings" ||
-            scenario === "crowded essential context" ||
-            scenario === "no room for essential evidence"
-              ? Array.from({ length: scenario === "oversized findings" ? 6 : 5 }, (_, i) => ({
+            scenario === "too many findings"
+              ? Array.from({ length: 101 }, (_, i) => ({
                   file: "booking.ts",
                   line: i + 1,
-                  conditions: "x".repeat(
-                    scenario === "crowded essential context"
-                      ? 11600
-                      : scenario === "no room for essential evidence"
-                        ? 11900
-                        : 11000,
-                  ),
+                  conditions: "When booking",
                   consequence: "Confirmed defect",
                 }))
-              : [
-                  {
-                    file: "booking.ts",
-                    line: 1,
-                    conditions: "When booking",
-                    consequence: "Confirmed defect",
-                  },
-                ],
+              : scenario === "oversized finding field"
+                ? [
+                    {
+                      file: "booking.ts",
+                      line: 1,
+                      conditions: "x".repeat(12001),
+                      consequence: "Confirmed defect",
+                    },
+                  ]
+                : scenario === "oversized findings" ||
+                    scenario === "crowded essential context" ||
+                    scenario === "no room for essential evidence"
+                  ? Array.from({ length: scenario === "oversized findings" ? 6 : 5 }, (_, i) => ({
+                      file: "booking.ts",
+                      line: i + 1,
+                      conditions: "x".repeat(
+                        scenario === "crowded essential context"
+                          ? 11600
+                          : scenario === "no room for essential evidence"
+                            ? 11900
+                            : 11000,
+                      ),
+                      consequence: "Confirmed defect",
+                    }))
+                  : [
+                      {
+                        file: "booking.ts",
+                        line: 1,
+                        conditions: "When booking",
+                        consequence: "Confirmed defect",
+                      },
+                    ],
           limitations: [
             ...Array.from(
               {
@@ -203,6 +221,9 @@ test.each([
       expect(savedReport.limitations).toContainEqual(
         expect.stringContaining("Model limitation 98:"),
       );
+    if (scenario === "too many findings") expect(savedReport.findings).toHaveLength(101);
+    if (scenario === "oversized finding field")
+      expect(savedReport.findings[0].conditions).toHaveLength(12001);
     if (scenario === "oversized findings" || scenario === "no room for essential evidence") {
       const saved = JSON.parse(
         await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
@@ -230,7 +251,9 @@ test.each([
       scenario === "oversized findings" ||
       scenario === "no room for essential evidence" ||
       scenario === "oversized collector warning" ||
-      scenario === "crowded essential context"
+      scenario === "crowded essential context" ||
+      scenario === "too many findings" ||
+      scenario === "oversized finding field"
     ) {
       if (scenario === "crowded essential context")
         expect(

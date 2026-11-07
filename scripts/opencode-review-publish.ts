@@ -88,15 +88,15 @@ export async function publishReview(options: {
             (report.publicationLimitations ?? report.limitations).length <= 100 &&
             (report.publicationLimitations ?? report.limitations).every(text))) &&
         Array.isArray(report.findings) &&
-        report.findings.length <= 100 &&
+        (report.publicationLimit === true || report.findings.length <= 100) &&
         report.findings.every(
           (f) =>
             f &&
-            text(f.file) &&
+            (report.publicationLimit === true ? nonempty(f.file) : text(f.file)) &&
             Number.isSafeInteger(f.line) &&
             f.line > 0 &&
-            text(f.conditions) &&
-            text(f.consequence),
+            (report.publicationLimit === true ? nonempty(f.conditions) : text(f.conditions)) &&
+            (report.publicationLimit === true ? nonempty(f.consequence) : text(f.consequence)),
         ))
   )
     throw new Error();
