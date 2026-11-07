@@ -47,6 +47,38 @@ const policyOr = (output: string) =>
     });
   });
 
+it("does not launch a model when policy inspection leaves less than five minutes", async () => {
+  const deadline = Date.now() + 301_000;
+  const now = vi.spyOn(Date, "now");
+  const policy = policyOr("");
+  const run = vi.fn(async (binary, args, options) => {
+    const result = await policy(binary, args, options);
+    now.mockReturnValue(deadline - 300_000);
+    return result;
+  });
+  try {
+    const error = await createReviewAdapter({ verify: async () => {}, run })({
+      binary: "/runtime",
+      context,
+      deadline,
+    }).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ReviewFailure);
+    expect(run.mock.calls.map((call) => call[1][0])).toEqual(["debug"]);
+  } finally {
+    now.mockRestore();
+  }
+});
+
+it("does not classify a policy inspection timeout as a model timeout", async () => {
+  const error = await createReviewAdapter({
+    verify: async () => {},
+    run: async () => {
+      throw new ReviewFailure("timeout");
+    },
+  })({ binary: "/runtime", context }).catch((e: unknown) => e);
+  expect(error).not.toBeInstanceOf(ReviewFailure);
+});
+
 it("treats a missing executable after policy inspection as infrastructure failure", async () => {
   const policy = policyOr("");
   const review = createReviewAdapter({

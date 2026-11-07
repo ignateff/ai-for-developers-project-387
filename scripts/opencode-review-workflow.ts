@@ -167,7 +167,14 @@ export async function reviewWorkflow(
   const documentLinks = new Set<string>();
   const full =
     /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(387|386)\/issues\/(\d+)(?:#issuecomment-(\d+))?/gi;
-  const collectRefs = (input: string) => {
+  const collectRefs = (input: string, origin = repository) => {
+    for (const match of input.matchAll(/\]\((?!https?:\/\/|#)([^\s)]+\.md)(?:#[^\s)]*)?\)/gi))
+      if (origin.toLowerCase() === "ignateff/ai-for-developers-project-387")
+        documentLinks.add(match[1]);
+      else
+        limitations.push(
+          `A relative document link in ${origin} could not be loaded without a pinned repository ref.`,
+        );
     for (const match of input.matchAll(
       /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:blob|tree)\/[^\s)\]>]+/gi,
     ))
@@ -193,8 +200,6 @@ export async function reviewWorkflow(
       limitations.push("External or unsupported links were not loaded.");
   };
   collectRefs(body);
-  for (const match of body.matchAll(/\]\((?!https?:\/\/|#)([^\s)]+\.md)(?:#[^\s)]*)?\)/gi))
-    documentLinks.add(match[1]);
   const directDocuments = new Set(documentLinks);
   const directRefs = new Set(refs.keys());
   const baseDocs = [];
@@ -215,12 +220,13 @@ export async function reviewWorkflow(
     if (!issue || typeof issue !== "object" || typeof issue.body !== "string") {
       limitations.push(`Linked issue ${ref.repo}#${ref.issue} was unavailable.`);
     } else {
+      const issueBody = text(issue.body);
       materials.push({
         source: `${ref.repo}#${ref.issue}`,
         title: text(issue.title),
-        body: text(issue.body),
+        body: issueBody,
       });
-      collectRefs(text(issue.body));
+      collectRefs(issueBody, ref.repo);
     }
     if (ref.comment) {
       const comment = await optional(`issues/comments/${ref.comment}`, ref.repo);
@@ -245,12 +251,13 @@ export async function reviewWorkflow(
         validLogin &&
         comment.user?.type === "User" &&
         ["admin", "maintain", "write"].includes(permission?.permission);
-      collectRefs(text(comment.body));
+      const commentBody = text(comment.body);
+      collectRefs(commentBody, ref.repo);
       // Permission and explicit wording are evidence for the reviewer, not a semantic approval verdict.
       agreements.push({
         source: `${ref.repo}#${ref.issue}#issuecomment-${ref.comment}`,
         author: validLogin ? login : null,
-        text: text(comment.body),
+        text: commentBody,
         authorPermission: permission?.permission ?? null,
         eligible: Boolean(eligible),
         explicitlyLinkedInPr: directRefs.has(key),
@@ -360,7 +367,40 @@ export async function reviewWorkflow(
   const reviews = reviewPages.items;
   const reviewComments = reviewCommentPages.items;
   const issueComments = issueCommentPages.items;
-  if (!Array.isArray(checks?.check_runs) || !Array.isArray(statuses?.statuses))
+  const checkStates = ["queued", "in_progress", "completed", "waiting", "requested", "pending"];
+  const conclusions = [
+    "action_required",
+    "cancelled",
+    "failure",
+    "neutral",
+    "success",
+    "skipped",
+    "stale",
+    "timed_out",
+    "startup_failure",
+  ];
+  const statusStates = ["error", "failure", "pending", "success"];
+  const validChecks =
+    Array.isArray(checks.check_runs) &&
+    checks.check_runs.every(
+      (c: any) =>
+        c &&
+        typeof c.name === "string" &&
+        c.name.length > 0 &&
+        checkStates.includes(c.status) &&
+        (c.status === "completed" ? conclusions.includes(c.conclusion) : c.conclusion == null),
+    );
+  const validStatuses =
+    Array.isArray(statuses.statuses) &&
+    statusStates.includes(statuses.state) &&
+    statuses.statuses.every(
+      (s: any) =>
+        s &&
+        typeof s.context === "string" &&
+        s.context.length > 0 &&
+        statusStates.includes(s.state),
+    );
+  if (!validChecks || !validStatuses)
     limitations.push("CI context is incomplete or unavailable; pending checks are not successful.");
   if (!Array.isArray(reviews) || !Array.isArray(reviewComments) || !Array.isArray(issueComments))
     limitations.push("Previous review or discussion context is incomplete or unavailable.");
@@ -411,7 +451,7 @@ export async function reviewWorkflow(
             url: text(c?.html_url),
           }))
         : null,
-      status: statusPages.complete ? text(statuses?.state) : null,
+      status: statusPages.complete && validStatuses ? text(statuses?.state) : null,
       statuses: Array.isArray(statuses?.statuses)
         ? statuses.statuses.map((s: any) => ({
             context: text(s?.context),

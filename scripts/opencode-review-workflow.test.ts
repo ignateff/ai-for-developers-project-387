@@ -85,9 +85,24 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
 });
 
 test.each([
-  { check_runs: "invalid" },
-  { total_count: 2, check_runs: [{ name: "one", status: "completed" }] },
-])("review reports malformed or incomplete CI data as incomplete", async (checkRuns) => {
+  [{ check_runs: "invalid" }, { state: "success", statuses: [] }],
+  [
+    { total_count: 2, check_runs: [{ name: "one", status: "completed" }] },
+    { state: "success", statuses: [] },
+  ],
+  [
+    { total_count: 1, check_runs: [null] },
+    { state: "success", statuses: [] },
+  ],
+  [
+    { total_count: 0, check_runs: [] },
+    { state: "success", statuses: [{}] },
+  ],
+  [
+    { total_count: 0, check_runs: [] },
+    { state: "bogus", statuses: [] },
+  ],
+])("review reports malformed or incomplete CI data as incomplete", async (checkRuns, statuses) => {
   const dir = await mkdtemp(join(tmpdir(), "review-ci-"));
   const sha = "a".repeat(40),
     base = "b".repeat(40);
@@ -110,7 +125,7 @@ test.each([
       if (path.includes("/contents/"))
         return Response.json({ type: "file", encoding: "base64", content: "eA==", size: 1 });
       if (path.endsWith("/check-runs")) return Response.json(checkRuns);
-      if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+      if (path.endsWith("/status")) return Response.json(statuses);
       return Response.json([]);
     };
     await reviewWorkflow(
@@ -166,14 +181,20 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
       if (path.includes("/contents/"))
         return Response.json({ type: "file", encoding: "base64", content: "eA==", size: 1 });
       if (path.endsWith("/issues/33"))
-        return Response.json({ title: "one", body: "Nested #34 and https://example.com/spec" });
+        return Response.json({
+          title: "one",
+          body: "Nested #34 and https://example.com/spec and [spec](docs/spec.md)",
+        });
       if (path.endsWith("/issues/34"))
         return Response.json({
           title: "two",
           body: "https://github.com/ignateff/ai-for-developers-project-386/issues/2#issuecomment-123",
         });
       if (path.endsWith("/issues/2"))
-        return Response.json({ title: "history", body: "Historical requirement" });
+        return Response.json({
+          title: "history",
+          body: "Historical requirement [doc](docs/historical.md)",
+        });
       if (path.endsWith("/issues/comments/123"))
         return Response.json({
           body: "ok",
@@ -215,6 +236,10 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
       },
     );
     expect(snapshot.requirements.text).toContain("Historical requirement");
+    expect(requested.some((url) => url.includes(`/contents/docs/spec.md?ref=${base}`))).toBe(true);
+    expect(snapshot.agreement.sources).toContainEqual(
+      expect.objectContaining({ source: "docs/spec.md", explicitlyLinkedInPr: false }),
+    );
     expect(snapshot.requirements.text).toContain("AGENTS.md");
     expect(snapshot.agreement.sources[0]).toMatchObject({
       eligible: true,
@@ -223,6 +248,8 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
       text: "ok",
     });
     expect(snapshot.agreement.limitations.join(" ")).toContain("External or unsupported");
+    expect(snapshot.agreement.limitations.join(" ")).toContain("relative document link");
+    expect(requested.some((url) => url.includes("/contents/docs/historical.md"))).toBe(false);
     expect(snapshot.ci.checks).toHaveLength(101);
     expect(snapshot.ci.status).toBe("pending");
     expect(requested.filter((url) => url.includes("/contents/AGENTS.md"))[0]).toContain(

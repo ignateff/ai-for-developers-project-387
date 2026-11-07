@@ -1,7 +1,7 @@
 import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { createProductionWorkflow } from "./opencode-production-workflow.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
 import { publishWorkflow } from "./opencode-review-publish-cli.ts";
@@ -10,6 +10,81 @@ import { ReviewFailure } from "./opencode-review-failure.ts";
 import { publishReview } from "./opencode-review-publish.ts";
 import { runBudgetCli } from "./opencode-budget-cli.ts";
 import { parse } from "yaml";
+
+test("a review that runs out of preparation time reports infrastructure failure without starting the model", async () => {
+  vi.useFakeTimers();
+  const dir = await mkdtemp(join(tmpdir(), "review-deadline-"));
+  const now = Date.now();
+  const sha = "a".repeat(40);
+  const eventPath = join(dir, "event.json");
+  const env = {
+    RUNNER_TEMP: dir,
+    GITHUB_EVENT_PATH: eventPath,
+    GITHUB_OUTPUT: join(dir, "output"),
+    GITHUB_EVENT_NAME: "pull_request",
+    GITHUB_REPOSITORY: "owner/repo",
+    GITHUB_REPOSITORY_OWNER: "owner",
+    GITHUB_RUN_ID: "1",
+    GITHUB_RUN_ATTEMPT: "1",
+    GH_TOKEN: "token",
+    DEEPSEEK_API_KEY: "key",
+    OPENCODE_REVIEW_STARTED_AT: String(now),
+  };
+  let calls = 0;
+  const comments: any[] = [];
+  const api: typeof fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith("/pulls/7"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: "owner/repo" } },
+        head: { sha, repo: { id: 1, full_name: "owner/repo" } },
+      });
+    if (init?.method === "POST") {
+      const comment = { id: 1, user: { id: 42 }, body: JSON.parse(String(init.body)).body };
+      comments.push(comment);
+      return Response.json(comment);
+    }
+    if (init?.method === "PATCH") {
+      comments[0].body = JSON.parse(String(init.body)).body;
+      return Response.json(comments[0]);
+    }
+    return Response.json(comments);
+  };
+  try {
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        action: "opened",
+        repository: { full_name: "owner/repo" },
+        pull_request: { number: 7 },
+      }),
+    );
+    const result = await runBudgetCli({
+      kind: "review",
+      env,
+      fetch: api,
+      authorId: 42,
+      prepare: async () => {
+        vi.advanceTimersByTime(8 * 60_000);
+      },
+      model: async () => {
+        calls++;
+      },
+    });
+    expect(result.status).toBe("infra");
+    expect(calls).toBe(0);
+    expect(
+      JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
+    ).toEqual({ failure: "infra" });
+  } finally {
+    vi.useRealTimers();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("production CLI emits a failure artifact and workflow outputs for independent publication", async () => {
   const dir = await mkdtemp(join(tmpdir(), "review-cli-"));
@@ -322,6 +397,52 @@ test("trusted PR event produces a separately published review, while a stale hea
       comments.find((comment) => comment.body.includes("opencode-pr-attempt-budget"))?.body,
     ).toContain('"review":1');
     expect(calls).toBe(1);
+
+    // Exercise the actual CLI and collector with fixture GitHub responses: slow
+    // context collection must not reach the real runtime or publish directly.
+    const started = Date.now();
+    const clock = vi.spyOn(Date, "now");
+    const eventPath = join(dir, "event.json");
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        action: "opened",
+        repository: { full_name: repository },
+        pull_request: { number: 7 },
+      }),
+    );
+    try {
+      const result = await runBudgetCli({
+        kind: "review",
+        authorId: 42,
+        env: {
+          ...env,
+          GITHUB_RUN_ID: "2",
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_OUTPUT: join(dir, "output"),
+          GITHUB_EVENT_NAME: "pull_request",
+          GITHUB_REPOSITORY_OWNER: "ignateff",
+          OPENCODE_REVIEW_STARTED_AT: String(started),
+        },
+        fetch: async (input, init) => {
+          if (String(input).includes("/contents/")) clock.mockReturnValue(started + 8 * 60_000);
+          return api(input, init);
+        },
+        prepare: async () => {
+          await mkdir(join(dir, "opencode-review-2-1"));
+          await writeFile(join(dir, "opencode-review-2-1", "binary"), "/must-not-run");
+        },
+      });
+      expect(result.status).toBe("infra");
+      expect(
+        JSON.parse(await readFile(join(dir, "opencode-review-2-1", "review.json"), "utf8")),
+      ).toEqual({ failure: "infra" });
+      expect(comments.filter((item) => item.body.includes("opencode-review-report"))).toHaveLength(
+        1,
+      );
+    } finally {
+      clock.mockRestore();
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

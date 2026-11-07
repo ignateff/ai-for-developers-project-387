@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createProductionWorkflow } from "./opencode-production-workflow.ts";
 import { prepareCommand, runCommand } from "./opencode-command.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
+import { reviewSnapshot } from "./opencode-review.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
 const authorId = 41898282;
@@ -27,23 +28,75 @@ export async function runBudgetCli(options: {
   const key = env.DEEPSEEK_API_KEY;
   delete env.DEEPSEEK_API_KEY;
   const base = { ...env };
+  // Three minutes remain for job setup uncertainty, artifact upload and reporting.
+  const started = Number(env.OPENCODE_REVIEW_STARTED_AT);
+  const deadline =
+    kind === "review" && Number.isSafeInteger(started) && started > 0
+      ? started + 12 * 60_000
+      : kind === "review" && env.GITHUB_ACTIONS === "true"
+        ? 0
+        : Date.now() + 12 * 60_000;
+  const controller = new AbortController();
+  const bounded = async (action: () => Promise<void>) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("Review preparation deadline exceeded");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        action(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error("Review preparation deadline exceeded"));
+          }, remaining);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const enoughTime = () => {
+    if (Date.now() + 300_000 >= deadline) throw new Error("Insufficient time for review");
+  };
+  const prepare =
+    options.prepare ??
+    (() => (kind === "command" ? prepareCommand(base) : reviewWorkflow("prepare", base)));
+  const model =
+    options.model ??
+    (async (identity: { number?: number; sha?: string }) => {
+      const runtime = {
+        ...base,
+        DEEPSEEK_API_KEY: key,
+        OPENCODE_PR_NUMBER: identity.number?.toString(),
+        OPENCODE_HEAD_SHA: identity.sha,
+      };
+      if (kind === "command") await runCommand(runtime);
+      else
+        await reviewWorkflow("run", runtime, {
+          fetch: (input, init) =>
+            options.fetch(input, {
+              ...init,
+              signal: init?.signal
+                ? AbortSignal.any([init.signal, controller.signal])
+                : controller.signal,
+            }),
+          review: (reviewOptions) => {
+            enoughTime();
+            return reviewSnapshot({ ...reviewOptions, deadline });
+          },
+        });
+    });
   const adapter = createProductionWorkflow({
     fetch: options.fetch,
-    prepare:
-      options.prepare ??
-      (() => (kind === "command" ? prepareCommand(base) : reviewWorkflow("prepare", base))),
+    prepare: kind === "review" ? () => bounded(prepare) : prepare,
     model:
-      options.model ??
-      (async (identity) => {
-        const runtime = {
-          ...base,
-          DEEPSEEK_API_KEY: key,
-          OPENCODE_PR_NUMBER: identity.number?.toString(),
-          OPENCODE_HEAD_SHA: identity.sha,
-        };
-        if (kind === "command") await runCommand(runtime);
-        else await reviewWorkflow("run", runtime);
-      }),
+      kind === "review"
+        ? (identity) =>
+            bounded(async () => {
+              enoughTime();
+              await model(identity);
+            })
+        : model,
   });
   const result = await adapter({
     kind: kind === "command" ? "command" : "review",

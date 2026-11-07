@@ -220,6 +220,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
     context: ReviewContext;
     apiKey?: string;
     signal?: AbortSignal;
+    deadline?: number;
   }): Promise<ReviewResult> {
     let root: string | undefined;
     let agentStarted = false;
@@ -284,6 +285,9 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
         await writeFile(join(workspace, name), lines.join("\n"), { mode: 0o600, flag: "wx" });
       }
       const runEnv = { ...env, ...(options.apiKey ? { DEEPSEEK_API_KEY: options.apiKey } : {}) };
+      // Reserve the full process timeout; preparation must not borrow reporting time.
+      if (options.deadline !== undefined && Date.now() + 300_000 >= options.deadline)
+        throw new Error("Insufficient time for review");
       agentStarted = true;
       const output = await dependencies.run(
         options.binary,
@@ -310,7 +314,8 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
     } catch (error) {
       failed = true;
       if (options.signal?.aborted) throw new ReviewFailure("cancelled");
-      if (error instanceof ReviewFailure) throw error;
+      if (error instanceof ReviewFailure && (agentStarted || error.reason === "cancelled"))
+        throw error;
       if (error instanceof ProcessStartFailure)
         throw new Error("OpenCode review failed; no review was produced");
       if (agentStarted) throw new ReviewFailure("agent_failed");

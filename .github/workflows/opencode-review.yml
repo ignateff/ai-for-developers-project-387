@@ -29,6 +29,9 @@ jobs:
       checks: read
       statuses: read
     steps:
+      - name: Start review time budget
+        id: clock
+        run: echo "started=$(date +%s)000" >> "$GITHUB_OUTPUT"
       - name: Checkout trusted default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -45,6 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OPENCODE_REVIEW_APP_IDS: ${{ vars.OPENCODE_REVIEW_APP_IDS }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENCODE_REVIEW_STARTED_AT: ${{ steps.clock.outputs.started }}
       - name: Identify this review result
         id: report
         if: ${{ !cancelled() && steps.workflow.outputs.report == 'true' }}
