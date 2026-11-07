@@ -171,10 +171,10 @@ export async function reviewWorkflow(
     for (const match of input.matchAll(/\]\((?!https?:\/\/|#)([^\s)]+\.md)(?:#[^\s)]*)?\)/gi))
       if (origin.toLowerCase() === "ignateff/ai-for-developers-project-387")
         documentLinks.add(match[1]);
-      else
-        limitations.push(
-          `A relative document link in ${origin} could not be loaded without a pinned repository ref.`,
-        );
+      else {
+        const warning = `A relative document link in ${origin} could not be loaded without a pinned repository ref.`;
+        if (!limitations.includes(warning)) limitations.push(warning);
+      }
     for (const match of input.matchAll(
       /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:blob|tree)\/[^\s)\]>]+/gi,
     ))
@@ -490,7 +490,45 @@ export async function reviewWorkflow(
     apiKey: env.DEEPSEEK_API_KEY,
     context: JSON.parse(serialized),
   });
-  result.limitations.push(...limitations);
+  // Reserve space for collector evidence and the omissions notice, including the
+  // publisher's escaping overhead. Never hide malformed model output by trimming it.
+  if (result.limitations.every((s) => typeof s === "string" && s.trim() && s.length <= 12000)) {
+    const safeLength = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/@/g, "@\u200b")
+        .replace(/[\r\n]+/g, " ").length;
+    const fixed =
+      1000 +
+      repository.length * 2 +
+      safeLength(result.summary) +
+      result.findings.reduce(
+        (n, f) =>
+          n + safeLength(f.file) + safeLength(f.conditions) + safeLength(f.consequence) + 40,
+        0,
+      );
+    const notice = "Additional review limitations were omitted to fit publication limits.";
+    const ordered = [
+      ...result.limitations.filter((s) => s.startsWith("Requirements unavailable:")),
+      ...new Set(limitations),
+      ...result.limitations.filter((s) => !s.startsWith("Requirements unavailable:")),
+    ];
+    const kept: string[] = [];
+    let size = fixed + safeLength(notice) + 15;
+    for (const item of ordered) {
+      const cost = safeLength(item) + 15;
+      if (kept.length < 99 && size + cost <= 60000) {
+        kept.push(item);
+        size += cost;
+      }
+    }
+    if (kept.length < ordered.length) kept.push(notice);
+    result.limitations = kept;
+  } else {
+    result.limitations.push(...limitations);
+  }
   await writeFile(join(root, "review.json"), JSON.stringify(result), { flag: "wx", mode: 0o600 });
   console.log("OpenCode review: result saved for publication");
 }
