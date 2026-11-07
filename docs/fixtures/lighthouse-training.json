@@ -1,0 +1,9 @@
+{
+  "training": true,
+  "description": "Synthetic educational example, not a measurement or confirmed application defect",
+  "requestedUrl": "https://call-calendar-k7f2.fly.dev/",
+  "audits": {
+    "largest-contentful-paint": { "numericValue": 5000, "numericUnit": "millisecond" },
+    "cumulative-layout-shift": { "numericValue": 0.02, "numericUnit": "unitless" }
+  }
+}
