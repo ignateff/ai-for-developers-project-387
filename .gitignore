@@ -13,3 +13,5 @@ test-results/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+.audit/
