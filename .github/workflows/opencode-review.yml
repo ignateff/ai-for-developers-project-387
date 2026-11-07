@@ -22,8 +22,8 @@ jobs:
       artifact: ${{ steps.report.outputs.artifact }}
     permissions:
       contents: read
-      issues: write
-      pull-requests: read
+      issues: read
+      pull-requests: write
       # Read CI evidence for the pinned head: workflow runs, check runs and commit statuses.
       actions: read
       checks: read
@@ -68,8 +68,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      issues: write
-      pull-requests: read
+      issues: read
+      pull-requests: write
     steps:
       - name: Checkout trusted default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
