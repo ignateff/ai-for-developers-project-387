@@ -20,6 +20,8 @@ test.each([
   "crowded essential context",
   "no room for essential evidence",
   "oversized findings",
+  "exact limitation capacity",
+  "unavailable linked source",
 ])("review publication handles %s", async (scenario) => {
   const dir = await mkdtemp(join(tmpdir(), "review-limitations-"));
   const sha = "a".repeat(40);
@@ -38,6 +40,9 @@ test.each([
       (scenario === "oversized collector warning" ? `\n[long](${"x".repeat(13000)}.md)` : "") +
       (scenario === "crowded essential context"
         ? Array.from({ length: 12 }, (_, i) => `\n[long](${"x".repeat(1100)}${i}.md)`).join("")
+        : "") +
+      (scenario === "unavailable linked source"
+        ? "\nhttps://github.com/ignateff/ai-for-developers-project-386/issues/13"
         : ""),
     user: { type: "User", login: "ignateff" },
     base: { sha: base, repo: { id: 1, full_name: repository } },
@@ -66,6 +71,7 @@ test.each([
         title: "Requirements",
         body: Array.from({ length: 100 }, (_, i) => `[link](doc${i}.md)`).join("\n"),
       });
+    if (path.endsWith("/issues/13")) return new Response(null, { status: 404 });
     if (path.endsWith("/issues/7/comments") && init?.method === "POST") {
       comments.push(JSON.parse(String(init.body)).body);
       return Response.json({});
@@ -165,9 +171,14 @@ test.each([
                 ],
           limitations: [
             ...Array.from(
-              { length: 99 },
+              {
+                length:
+                  scenario === "exact limitation capacity"
+                    ? 100 - snapshot.agreement.limitations.length
+                    : 99,
+              },
               (_, i) =>
-                `${scenario.startsWith("malicious") ? "Requirements unavailable:" : "Model limitation"} ${i}: ${"x".repeat(scenario.startsWith("malicious") ? 5 : 650)}`,
+                `${scenario.startsWith("malicious") ? "Requirements unavailable:" : "Model limitation"} ${i}: ${"x".repeat(scenario.startsWith("malicious") || scenario === "exact limitation capacity" ? 5 : 650)}`,
             ),
           ],
         };
@@ -179,6 +190,19 @@ test.each([
       },
     });
     await reviewWorkflow("run", env, { fetch: api, review });
+    const savedReport = JSON.parse(
+      await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+    );
+    if (scenario === "oversized collector warning") {
+      expect(savedReport.limitations).toContainEqual(expect.stringContaining("x".repeat(13000)));
+      expect(savedReport.limitations).toContainEqual(
+        expect.stringContaining("Model limitation 98:"),
+      );
+    }
+    if (scenario === "baseline")
+      expect(savedReport.limitations).toContainEqual(
+        expect.stringContaining("Model limitation 98:"),
+      );
     if (scenario === "oversized findings" || scenario === "no room for essential evidence") {
       const saved = JSON.parse(
         await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
@@ -197,7 +221,23 @@ test.each([
         JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
     });
     expect(comments).toHaveLength(1);
-    if (scenario === "oversized findings" || scenario === "no room for essential evidence") {
+    if (scenario === "exact limitation capacity") {
+      expect(comments[0]).not.toMatch(/limitations.*(?:omitted|truncated)/i);
+      expect(comments[0].match(/- Limitation:/g)).toHaveLength(100);
+      return;
+    }
+    if (
+      scenario === "oversized findings" ||
+      scenario === "no room for essential evidence" ||
+      scenario === "oversized collector warning" ||
+      scenario === "crowded essential context"
+    ) {
+      if (scenario === "crowded essential context")
+        expect(
+          savedReport.limitations.filter((s: string) =>
+            s.includes("was unavailable at its pinned ref"),
+          ),
+        ).toHaveLength(12);
       expect(comments[0]).toMatch(/findings.*(?:not included|not displayed)/i);
       expect(comments[0]).toContain("review-1-1");
       expect(comments[0]).toMatch(/artifact/i);
@@ -209,6 +249,10 @@ test.each([
         "Requirements unavailable: No linked requirements could be loaded.",
       );
     else expect(comments[0]).toContain("relative document link");
+    if (scenario === "unavailable linked source")
+      expect(comments[0]).toContain(
+        "Linked issue ignateff/ai-for-developers-project-386#13 was unavailable.",
+      );
     expect(comments[0]).toContain("Only changed files");
     if (scenario === "malicious model priority" || scenario === "crowded essential context") {
       expect(comments[0]).toContain("Agreement is unconfirmed");
@@ -217,8 +261,6 @@ test.each([
     }
     if (scenario === "crowded essential context") expect(comments[0]).toContain("Confirmed defect");
     else expect(comments[0]).toContain("booking.ts:1 — When booking; Confirmed defect");
-    if (scenario === "oversized collector warning")
-      expect(comments[0]).toMatch(/collector.*truncated/i);
     expect(comments[0]).toMatch(/limitations.*(?:omitted|truncated)/i);
     expect(comments[0].length).toBeLessThanOrEqual(60000);
   } finally {

@@ -216,7 +216,7 @@ export async function reviewWorkflow(
     try {
       baseDocs.push({ path: name, sha: pr.base.sha, body: text(await source(name, pr.base.sha)) });
     } catch {
-      limitations.push(`Trusted base document ${name} was unavailable.`);
+      essential(`Trusted base document ${name} was unavailable.`);
     }
   }
   const materials = [];
@@ -227,7 +227,7 @@ export async function reviewWorkflow(
     visited.add(key);
     const issue = await optional(`issues/${ref.issue}`, ref.repo);
     if (!issue || typeof issue !== "object" || typeof issue.body !== "string") {
-      limitations.push(`Linked issue ${ref.repo}#${ref.issue} was unavailable.`);
+      essential(`Linked issue ${ref.repo}#${ref.issue} was unavailable.`);
     } else {
       const issueBody = text(issue.body);
       materials.push({
@@ -240,7 +240,7 @@ export async function reviewWorkflow(
     if (ref.comment) {
       const comment = await optional(`issues/comments/${ref.comment}`, ref.repo);
       if (!comment || typeof comment.body !== "string") {
-        limitations.push(`Linked comment ${ref.repo}#issuecomment-${ref.comment} was unavailable.`);
+        essential(`Linked comment ${ref.repo}#issuecomment-${ref.comment} was unavailable.`);
         continue;
       }
       const login = comment.user?.login;
@@ -280,7 +280,7 @@ export async function reviewWorkflow(
     }
   }
   if (refs.size > visited.size)
-    limitations.push("Linked GitHub references exceeded the collection limit.");
+    essential("Linked GitHub references exceeded the collection limit.");
   // A branch may contain slashes, so only a full commit SHA identifies the
   // boundary between a blob URL's ref and path without guessing.
   for (const link of [...documentLinks].slice(0, 12)) {
@@ -298,9 +298,7 @@ export async function reviewWorkflow(
       if (parts.some((part) => /[/\\]/.test(part))) throw new Error();
       path = parts.join("/");
     } catch {
-      limitations.push(
-        `Linked repository document ${link} has an invalid or ambiguous encoded path.`,
-      );
+      essential(`Linked repository document ${link} has an invalid or ambiguous encoded path.`);
     }
     const ref =
       project === "387" &&
@@ -315,10 +313,10 @@ export async function reviewWorkflow(
       try {
         content = text(await source(path, ref, `ignateff/ai-for-developers-project-${project}`));
       } catch {
-        limitations.push(`Linked repository document ${link} was unavailable at its pinned ref.`);
+        essential(`Linked repository document ${link} was unavailable at its pinned ref.`);
       }
     } else
-      limitations.push(
+      essential(
         `Linked repository document ${link} could not be loaded: the ref or path is ambiguous, unsafe, or not pinned to the required commit.`,
       );
     if (content !== null)
@@ -338,7 +336,7 @@ export async function reviewWorkflow(
     });
   }
   if (documentLinks.size > 12)
-    limitations.push("Linked repository documents exceeded the collection limit.");
+    essential("Linked repository documents exceeded the collection limit.");
   essential(
     "Agreement is unconfirmed unless the PR explicitly links the source and explicit approval of requirements by an eligible human is established from its text.",
     "An eligible approver is a human owner or a human with current write, maintain, or admin permission in ignateff/ai-for-developers-project-387. A bot, ambiguous 'ok', issue closure, ready-for-agent label, link alone, or permissions alone do not prove approval.",
@@ -499,7 +497,12 @@ export async function reviewWorkflow(
     apiKey: env.DEEPSEEK_API_KEY,
     context: JSON.parse(serialized),
   });
+  const missingRequirements =
+    context.requirements.availability === "unavailable"
+      ? `Requirements unavailable: ${context.requirements.reason}`
+      : undefined;
   let publicationLimit = false;
+  let publicationLimitations: string[] | undefined;
   // Never hide malformed model output by trimming it.
   if (result.limitations.every((s) => typeof s === "string" && s.trim() && s.length <= 12000)) {
     const notice = "Additional review limitations were omitted to fit publication limits.";
@@ -507,27 +510,26 @@ export async function reviewWorkflow(
       env.OPENCODE_REVIEW_ARTIFACT ?? `review-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
     const fits = (items: string[]) =>
       items.length <= 100 &&
+      items.every((item) => item.length <= 12000) &&
       formatReviewBody(repository, sha, artifact, {
         summary: result.summary,
         findings: result.findings,
         limitations: items,
       }).length <= reviewBodyLimit;
-    const core = [
-      ...(context.requirements.availability === "unavailable"
-        ? [`Requirements unavailable: ${context.requirements.reason}`]
-        : []),
-      ...essentialLimitations,
-    ];
-    const collected = [...new Set(limitations)]
-      .filter((s) => !core.includes(s))
-      .map((s) => (s.length > 1000 ? `${s.slice(0, 950)} [collector warning truncated]` : s));
+    const core = [...(missingRequirements ? [missingRequirements] : []), ...essentialLimitations];
+    const collected = [...new Set(limitations)].filter((s) => !core.includes(s));
     const uniqueCore = [...new Set(core)];
     const ordered = [...uniqueCore, ...collected, ...result.limitations];
     const kept: string[] = [];
     let omitted = false;
-    if (!fits([])) publicationLimit = true;
+    if (!fits([]) || uniqueCore.some((s) => s.length > 12000)) publicationLimit = true;
+    const fitsComplete = ordered.every((s) => s.length <= 12000) && fits(ordered);
     for (const [index, item] of ordered.entries()) {
       if (publicationLimit) break;
+      if (fitsComplete) {
+        kept.push(item);
+        continue;
+      }
       if (fits([...kept, item, notice])) {
         kept.push(item);
       } else {
@@ -541,16 +543,23 @@ export async function reviewWorkflow(
     if (omitted && !publicationLimit) {
       kept.push(notice);
     }
-    result.limitations = publicationLimit ? ordered : kept;
+    publicationLimitations = publicationLimit ? undefined : kept;
   } else {
-    result.limitations.push(...limitations);
+    // Leave invalid model output for the publisher to reject.
   }
   await writeFile(
     join(root, "review.json"),
     JSON.stringify({
       summary: result.summary,
       findings: result.findings,
-      limitations: result.limitations,
+      limitations: [
+        ...result.limitations,
+        ...limitations,
+        ...(missingRequirements && !result.limitations.includes(missingRequirements)
+          ? [missingRequirements]
+          : []),
+      ],
+      ...(publicationLimitations ? { publicationLimitations } : {}),
       ...(publicationLimit ? { publicationLimit: true } : {}),
     }),
     { flag: "wx", mode: 0o600 },

@@ -2,6 +2,7 @@ export type Report =
   | {
       summary: string;
       limitations: string[];
+      publicationLimitations?: string[];
       findings: { file: string; line: number; conditions: string; consequence: string }[];
       publicationLimit?: true;
     }
@@ -33,14 +34,16 @@ export function formatReviewBody(
       ? [`**Review stopped: ${report.failure}. Human attention required.**`]
       : report.publicationLimit
         ? [
-            `**Human attention required: findings are not included in this comment because the complete review exceeds the publication size limit. Download artifact \`${artifact}\` from the Actions run linked above and inspect its review.json for the complete findings and limitations.**`,
+            `**Human attention required: findings are not included in this comment because the review or essential context exceeds publication limits. Download artifact \`${artifact}\` from the Actions run linked above and inspect its review.json for the complete findings and limitations.**`,
           ]
         : [
             "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
             "",
             safe(report.summary),
             "",
-            ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
+            ...(report.publicationLimitations ?? report.limitations).map(
+              (s) => `- Limitation: ${safe(s)}`,
+            ),
             ...report.findings.map(
               (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
             ),
@@ -62,6 +65,8 @@ export async function publishReview(options: {
   const { repository, token, authorId, number, sha, artifact, report } = options;
   const text = (value: unknown): value is string =>
     typeof value === "string" && value.trim().length > 0 && value.length <= 12000;
+  const nonempty = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
   if (
     !/^[\w-]+\/[\w.-]+$/.test(repository) ||
     !token ||
@@ -77,8 +82,11 @@ export async function publishReview(options: {
       ? ["infra", "timeout", "agent_failed"].includes(report.failure)
       : text(report.summary) &&
         Array.isArray(report.limitations) &&
-        (report.publicationLimit === true || report.limitations.length <= 100) &&
-        report.limitations.every(text) &&
+        report.limitations.every(nonempty) &&
+        (report.publicationLimit === true ||
+          (Array.isArray(report.publicationLimitations ?? report.limitations) &&
+            (report.publicationLimitations ?? report.limitations).length <= 100 &&
+            (report.publicationLimitations ?? report.limitations).every(text))) &&
         Array.isArray(report.findings) &&
         report.findings.length <= 100 &&
         report.findings.every(
