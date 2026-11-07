@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.7.0...v0.8.0) (2026-11-07)
+
+
+### Features
+
+* **review:** prepare independent PR review ([4835485](https://github.com/ignateff/ai-for-developers-project-387/commit/4835485b61d4ce7b619b2701be6e27a93b5eebcb)), closes [#43](https://github.com/ignateff/ai-for-developers-project-387/issues/43)
+
 ## [0.7.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.6.0...v0.7.0) (2026-11-06)
 
 
