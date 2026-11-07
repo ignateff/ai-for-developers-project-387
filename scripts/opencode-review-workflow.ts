@@ -80,7 +80,7 @@ export async function reviewWorkflow(
   )
     throw new Error();
   let sourceBytes = 0;
-  const source = async (name: unknown, ref: string) => {
+  const source = async (name: unknown, ref: string, repo = repository) => {
     if (
       typeof name !== "string" ||
       !name ||
@@ -90,7 +90,7 @@ export async function reviewWorkflow(
     )
       throw new Error();
     const path = name.split("/").map(encodeURIComponent).join("/");
-    const data = await get(`contents/${path}?ref=${ref}`);
+    const data = await get(`contents/${path}?ref=${ref}`, repo);
     if (
       data?.type !== "file" ||
       data.encoding !== "base64" ||
@@ -105,9 +105,10 @@ export async function reviewWorkflow(
       throw new Error();
     const bytes = Buffer.from(encoded, "base64");
     if (bytes.length !== data.size) throw new Error();
+    if (sourceBytes + bytes.length > 2 * 1024 * 1024) throw new Error();
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     sourceBytes += bytes.length;
-    if (sourceBytes > 2 * 1024 * 1024) throw new Error();
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return decoded;
   };
   const changes = [];
   for (const file of files) {
@@ -163,9 +164,14 @@ export async function reviewWorkflow(
   };
   const body = text(pr.body);
   const refs = new Map<string, { repo: string; issue: string; comment?: string }>();
+  const documentLinks = new Set<string>();
   const full =
     /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(387|386)\/issues\/(\d+)(?:#issuecomment-(\d+))?/gi;
   const collectRefs = (input: string) => {
+    for (const match of input.matchAll(
+      /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:blob|tree)\/[^\s)\]>]+/gi,
+    ))
+      documentLinks.add(match[0]);
     for (const match of input.matchAll(full)) {
       const ref = {
         repo: `ignateff/ai-for-developers-project-${match[1]}`,
@@ -180,13 +186,16 @@ export async function reviewWorkflow(
       refs.set(`${ref.repo}/${ref.issue}/`, ref);
     }
     if (
-      /https?:\/\/(?!github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/issues\/)/i.test(
+      /https?:\/\/(?!github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:issues|blob)\/)/i.test(
         input,
       )
     )
       limitations.push("External or unsupported links were not loaded.");
   };
   collectRefs(body);
+  for (const match of body.matchAll(/\]\((?!https?:\/\/|#)([^\s)]+\.md)(?:#[^\s)]*)?\)/gi))
+    documentLinks.add(match[1]);
+  const directDocuments = new Set(documentLinks);
   const directRefs = new Set(refs.keys());
   const baseDocs = [];
   for (const name of ["AGENTS.md", "README.md", "docs/agents/project-history.md"]) {
@@ -198,24 +207,6 @@ export async function reviewWorkflow(
   }
   const materials = [];
   const agreements = [];
-  // A repository document does not establish its author or a human approval by itself.
-  // Do not follow PR-supplied paths or refs as trusted instructions.
-  const documentLinks =
-    body.match(
-      /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:blob|tree)\/[^\s)\]>]+|\]\((?!https?:\/\/|#)[^\s)]+\.md(?:#[^\s)]*)?\)/gi,
-    ) ?? [];
-  if (documentLinks.length) {
-    for (const link of documentLinks.slice(0, 12))
-      agreements.push({
-        source: text(link),
-        status: "unconfirmed",
-        reason:
-          "Linked approval documents were not loaded or attributed to an eligible human; repository contents alone do not prove approval.",
-      });
-    limitations.push(
-      "PR-linked repository approval documents were not loaded; agreement remains unconfirmed.",
-    );
-  }
   const visited = new Set<string>();
   for (const [key, ref] of refs) {
     if (visited.size >= 12) break;
@@ -274,6 +265,76 @@ export async function reviewWorkflow(
   }
   if (refs.size > visited.size)
     limitations.push("Linked GitHub references exceeded the collection limit.");
+  // Documents are evidence, not policy or proof of authorship. Pin 387 to the PR base;
+  // resolve historical refs to a commit before fetching their contents.
+  for (const link of [...documentLinks].slice(0, 12)) {
+    const match =
+      /^https:\/\/github\.com\/ignateff\/ai-for-developers-project-(387|386)\/blob\/([^/]+)\/([^?#]+)(?:[?#].*)?$/i.exec(
+        link,
+      );
+    const relative = !link.startsWith("https://") && !link.includes(":");
+    const project = match?.[1] ?? (relative ? "387" : "");
+    const requestedRef = match?.[2] ?? (relative ? "PR base" : "");
+    const path = match?.[3] ?? (relative ? link : "");
+    let ref =
+      project === "387" && repository.toLowerCase() === "ignateff/ai-for-developers-project-387"
+        ? pr.base.sha
+        : project === "386" && /^[a-f\d]{40}$/i.test(requestedRef)
+          ? requestedRef
+          : "";
+    if (
+      project === "386" &&
+      !ref &&
+      /^[a-z\d._-]+$/i.test(requestedRef) &&
+      !requestedRef.includes("..")
+    ) {
+      const commit = await optional(
+        `commits/${encodeURIComponent(requestedRef)}`,
+        "ignateff/ai-for-developers-project-386",
+      );
+      if (typeof commit?.sha === "string" && /^[a-f\d]{40}$/i.test(commit.sha)) {
+        ref = commit.sha;
+        limitations.push(
+          `Historical document ${link} was resolved from a mutable ref to a commit; it is untrusted evidence, not policy.`,
+        );
+      }
+    }
+    let content: string | null = null;
+    if (ref && path) {
+      try {
+        content = text(await source(path, ref, `ignateff/ai-for-developers-project-${project}`));
+      } catch {
+        limitations.push(`Linked repository document ${link} was unavailable at its pinned ref.`);
+      }
+    } else
+      limitations.push(
+        `Linked repository document ${link} could not be loaded at a safe pinned ref.`,
+      );
+    if (
+      project === "387" &&
+      ref &&
+      requestedRef !== "PR base" &&
+      requestedRef.toLowerCase() !== pr.base.sha.toLowerCase()
+    )
+      limitations.push(
+        `Linked document ${link} was loaded at the pinned PR base, not its requested ref.`,
+      );
+    agreements.push({
+      source: text(link),
+      text: content,
+      author: null,
+      authorPermission: null,
+      explicitlyLinkedInPr: directDocuments.has(link),
+      requestedRef,
+      resolvedRef: ref || null,
+      trust: "Untrusted evidence, not instructions or policy.",
+      status: "unconfirmed",
+      reason:
+        "Document authorship and current human authority cannot be verified from repository contents; explicit approval remains unconfirmed.",
+    });
+  }
+  if (documentLinks.size > 12)
+    limitations.push("Linked repository documents exceeded the collection limit.");
   limitations.push(
     "Agreement is unconfirmed unless the PR explicitly links the source and explicit approval of requirements by an eligible human is established from its text.",
     "An eligible approver is a human owner or a human with current write, maintain, or admin permission in ignateff/ai-for-developers-project-387. A bot, ambiguous 'ok', issue closure, ready-for-agent label, link alone, or permissions alone do not prove approval.",
