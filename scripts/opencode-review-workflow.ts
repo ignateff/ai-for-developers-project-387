@@ -348,7 +348,8 @@ export async function reviewWorkflow(
         return {
           items,
           first,
-          complete: total === undefined || (Number.isSafeInteger(total) && total === items.length),
+          complete:
+            field !== "check_runs" || (Number.isSafeInteger(total) && total === items.length),
         };
       }
     }
@@ -388,7 +389,7 @@ export async function reviewWorkflow(
         typeof c.name === "string" &&
         c.name.length > 0 &&
         checkStates.includes(c.status) &&
-        (c.status === "completed" ? conclusions.includes(c.conclusion) : c.conclusion == null),
+        (c.status === "completed" ? conclusions.includes(c.conclusion) : c.conclusion === null),
     );
   const validStatuses =
     Array.isArray(statuses.statuses) &&

@@ -95,6 +95,11 @@ test.each([
     { state: "success", statuses: [] },
   ],
   [
+    { total_count: 1, check_runs: [{ name: "one", status: "in_progress" }] },
+    { state: "success", statuses: [] },
+  ],
+  [{ check_runs: [] }, { state: "success", statuses: [] }],
+  [
     { total_count: 0, check_runs: [] },
     { state: "success", statuses: [{}] },
   ],
@@ -208,8 +213,8 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
           total_count: 101,
           check_runs:
             url.searchParams.get("page") === "1"
-              ? Array(100).fill({ name: "pending", status: "in_progress" })
-              : [{ name: "last", status: "completed" }],
+              ? Array(100).fill({ name: "pending", status: "in_progress", conclusion: null })
+              : [{ name: "last", status: "completed", conclusion: "success" }],
         });
       if (path.endsWith("/status")) return Response.json({ state: "pending", statuses: [] });
       return Response.json([]);
@@ -248,6 +253,7 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
       text: "ok",
     });
     expect(snapshot.agreement.limitations.join(" ")).toContain("External or unsupported");
+    expect(snapshot.agreement.limitations.join(" ")).not.toContain("CI context is incomplete");
     expect(snapshot.agreement.limitations.join(" ")).toContain("relative document link");
     expect(requested.some((url) => url.includes("/contents/docs/historical.md"))).toBe(false);
     expect(snapshot.ci.checks).toHaveLength(101);
