@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { installRuntime } from "./opencode-install.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
+import { formatReviewBody, reviewBodyLimit } from "./opencode-review-publish.ts";
 
 export async function reviewWorkflow(
   mode: string,
@@ -490,41 +491,51 @@ export async function reviewWorkflow(
     apiKey: env.DEEPSEEK_API_KEY,
     context: JSON.parse(serialized),
   });
-  // Reserve space for collector evidence and the omissions notice, including the
-  // publisher's escaping overhead. Never hide malformed model output by trimming it.
+  // Never hide malformed model output by trimming it.
   if (result.limitations.every((s) => typeof s === "string" && s.trim() && s.length <= 12000)) {
-    const safeLength = (s: string) =>
-      s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/@/g, "@\u200b")
-        .replace(/[\r\n]+/g, " ").length;
-    const fixed =
-      1000 +
-      repository.length * 2 +
-      safeLength(result.summary) +
-      result.findings.reduce(
-        (n, f) =>
-          n + safeLength(f.file) + safeLength(f.conditions) + safeLength(f.consequence) + 40,
-        0,
-      );
     const notice = "Additional review limitations were omitted to fit publication limits.";
-    const ordered = [
-      ...result.limitations.filter((s) => s.startsWith("Requirements unavailable:")),
-      ...new Set(limitations),
-      ...result.limitations.filter((s) => !s.startsWith("Requirements unavailable:")),
+    const artifact =
+      env.OPENCODE_REVIEW_ARTIFACT ?? `review-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
+    const fits = (items: string[]) =>
+      items.length <= 100 &&
+      formatReviewBody(repository, sha, artifact, { ...result, limitations: items }).length <=
+        reviewBodyLimit;
+    if (!fits([]))
+      throw new Error(
+        "Review findings and summary exceed the publication size limit; findings were not discarded.",
+      );
+    const core = [
+      ...(context.requirements.availability === "unavailable"
+        ? [`Requirements unavailable: ${context.requirements.reason}`]
+        : []),
+      ...limitations.filter((s) =>
+        /^(Only changed files|CI context|Previous review|CI or previous review|Some context text|Optional context text)/.test(
+          s,
+        ),
+      ),
     ];
+    const collected = [...new Set(limitations)]
+      .filter((s) => !core.includes(s))
+      .map((s) => (s.length > 1000 ? `${s.slice(0, 950)} [collector warning truncated]` : s));
+    const ordered = [...new Set(core), ...collected, ...result.limitations];
     const kept: string[] = [];
-    let size = fixed + safeLength(notice) + 15;
-    for (const item of ordered) {
-      const cost = safeLength(item) + 15;
-      if (kept.length < 99 && size + cost <= 60000) {
+    let omitted = false;
+    for (const [index, item] of ordered.entries()) {
+      if (fits([...kept, item, notice])) {
         kept.push(item);
-        size += cost;
+      } else {
+        if (index < new Set(core).size)
+          throw new Error(
+            "Core collector evidence and findings exceed the publication size limit; findings were not discarded.",
+          );
+        omitted = true;
       }
     }
-    if (kept.length < ordered.length) kept.push(notice);
+    if (omitted) {
+      if (!fits([...kept, notice]))
+        throw new Error("Review findings leave no room for the publication limitations notice.");
+      kept.push(notice);
+    }
     result.limitations = kept;
   } else {
     result.limitations.push(...limitations);

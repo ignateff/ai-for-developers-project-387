@@ -1,10 +1,47 @@
-type Report =
+export type Report =
   | {
       summary: string;
       limitations: string[];
       findings: { file: string; line: number; conditions: string; consequence: string }[];
     }
   | { failure: "infra" | "timeout" | "agent_failed" };
+
+export const reviewBodyLimit = 60000;
+
+export function formatReviewBody(
+  repository: string,
+  sha: string,
+  artifact: string,
+  report: Report,
+) {
+  const marker = `<!-- opencode-review-report:${artifact} -->`;
+  const safe = (s: string) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/@/g, "@\u200b")
+      .replace(/[\r\n]+/g, " ");
+  return [
+    marker,
+    `## OpenCode review`,
+    `Head: \`${sha}\``,
+    `Actions logs: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
+    "",
+    ...("failure" in report
+      ? [`**Review stopped: ${report.failure}. Human attention required.**`]
+      : [
+          "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
+          "",
+          safe(report.summary),
+          "",
+          ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
+          ...report.findings.map(
+            (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
+          ),
+        ]),
+  ].join("\n");
+}
 
 /** Publication is separate from model invocation and safe to retry with the same artifact. */
 export async function publishReview(options: {
@@ -88,34 +125,9 @@ export async function publishReview(options: {
     if (comments.length < 100) break;
     if (page === 1000) throw new Error();
   }
-  const safe = (s: string) =>
-    s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/@/g, "@\u200b")
-      .replace(/[\r\n]+/g, " ");
-  const lines = [
-    marker,
-    `## OpenCode review`,
-    `Head: \`${sha}\``,
-    `Actions logs: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
-    "",
-    ...("failure" in report
-      ? [`**Review stopped: ${report.failure}. Human attention required.**`]
-      : [
-          "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
-          "",
-          safe(report.summary),
-          "",
-          ...report.limitations.map((s) => `- Limitation: ${safe(s)}`),
-          ...report.findings.map(
-            (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
-          ),
-        ]),
-  ];
-  const body = lines.join("\n");
-  if (body.length > 60000) throw new Error();
+  const body = formatReviewBody(repository, sha, artifact, report);
+  if (body.length > reviewBodyLimit)
+    throw new Error("Review body exceeds the publication size limit; findings were not discarded.");
   await assertHead();
   await request(`issues/${number}/comments`, "POST", body);
 }

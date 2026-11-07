@@ -12,7 +12,13 @@ import { runBudgetCli } from "./opencode-budget-cli.ts";
 import { parse } from "yaml";
 import { createReviewAdapter } from "./opencode-review.ts";
 
-test("repeated external issue links and many model limitations still produce a publishable review", async () => {
+test.each([
+  "baseline",
+  "oversized collector warning",
+  "malicious model priority",
+  "malicious missing requirements",
+  "oversized findings",
+])("review publication handles %s", async (scenario) => {
   const dir = await mkdtemp(join(tmpdir(), "review-limitations-"));
   const sha = "a".repeat(40);
   const base = "b".repeat(40);
@@ -23,7 +29,11 @@ test("repeated external issue links and many model limitations still produce a p
     state: "open",
     draft: false,
     changed_files: 1,
-    body: "https://github.com/ignateff/ai-for-developers-project-386/issues/12",
+    body:
+      (scenario === "malicious missing requirements"
+        ? "No linked issue"
+        : "https://github.com/ignateff/ai-for-developers-project-386/issues/12") +
+      (scenario === "oversized collector warning" ? `\n[long](${"x".repeat(13000)}.md)` : ""),
     user: { type: "User", login: "ignateff" },
     base: { sha: base, repo: { id: 1, full_name: repository } },
     head: { sha, repo: { id: 1, full_name: repository } },
@@ -93,7 +103,10 @@ test("repeated external issue links and many model limitations still produce a p
             .flatMap((content) => content.split("\n").map((line) => JSON.parse(line)))
             .join(""),
         );
-        expect(JSON.stringify(snapshot.agreement).match(/relative document link/g)).toHaveLength(1);
+        if (scenario !== "malicious missing requirements")
+          expect(JSON.stringify(snapshot.agreement).match(/relative document link/g)).toHaveLength(
+            1,
+          );
         const reads = files.map((name, i) =>
           JSON.stringify({
             type: "tool_use",
@@ -111,11 +124,29 @@ test("repeated external issue links and many model limitations still produce a p
           }),
         );
         const report = {
-          summary: "No confirmed defects",
-          findings: [],
+          summary: "Review completed",
+          findings:
+            scenario === "oversized findings"
+              ? Array.from({ length: 6 }, (_, i) => ({
+                  file: "booking.ts",
+                  line: i + 1,
+                  conditions: "x".repeat(11000),
+                  consequence: "Confirmed defect",
+                }))
+              : [
+                  {
+                    file: "booking.ts",
+                    line: 1,
+                    conditions: "When booking",
+                    consequence: "Confirmed defect",
+                  },
+                ],
           limitations: [
-            ...Array.from({ length: 99 }, (_, i) => `Model limitation ${i}: ${"x".repeat(650)}`),
-            "Requirements unavailable: missing critical context",
+            ...Array.from(
+              { length: 99 },
+              (_, i) =>
+                `${scenario.startsWith("malicious") ? "Requirements unavailable:" : "Model limitation"} ${i}: ${"x".repeat(scenario.startsWith("malicious") ? 5 : 650)}`,
+            ),
           ],
         };
         return [
@@ -125,6 +156,13 @@ test("repeated external issue links and many model limitations still produce a p
         ].join("\n");
       },
     });
+    if (scenario === "oversized findings") {
+      await expect(reviewWorkflow("run", env, { fetch: api, review })).rejects.toThrow(
+        /findings.*publication.*limit/i,
+      );
+      expect(comments).toHaveLength(0);
+      return;
+    }
     await reviewWorkflow("run", env, { fetch: api, review });
     await publishWorkflow({
       env,
@@ -134,9 +172,15 @@ test("repeated external issue links and many model limitations still produce a p
         JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
     });
     expect(comments).toHaveLength(1);
-    expect(comments[0]).toContain("relative document link");
+    if (scenario === "malicious missing requirements")
+      expect(comments[0]).toContain(
+        "Requirements unavailable: No linked requirements could be loaded.",
+      );
+    else expect(comments[0]).toContain("relative document link");
     expect(comments[0]).toContain("Only changed files");
-    expect(comments[0]).toContain("Requirements unavailable: missing critical context");
+    expect(comments[0]).toContain("booking.ts:1 — When booking; Confirmed defect");
+    if (scenario === "oversized collector warning")
+      expect(comments[0]).toMatch(/collector.*truncated/i);
     expect(comments[0]).toMatch(/limitations.*(?:omitted|truncated)/i);
     expect(comments[0].length).toBeLessThanOrEqual(60000);
   } finally {
