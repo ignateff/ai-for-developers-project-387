@@ -31,6 +31,12 @@ jobs:
       - name: Start review time budget
         id: clock
         run: echo "started=$(date +%s)000" >> "$GITHUB_OUTPUT"
+      - name: Verify PR comment permissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          comment_id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/issues/58/comments" -f 'body=<!-- temporary-review-permission-probe -->' --jq '.id')
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id"
       - name: Run independent reviewer
         id: review
         run: mise run opencode:budget review
