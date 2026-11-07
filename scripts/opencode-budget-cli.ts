@@ -5,6 +5,7 @@ import { prepareCommand, runCommand } from "./opencode-command.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
 import { installRuntime } from "./opencode-install.ts";
+import { ReviewFailure } from "./opencode-review-failure.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
 const authorId = 41898282;
@@ -16,6 +17,7 @@ export async function runBudgetCli(options: {
   authorId: number;
   prepare?: (signal?: AbortSignal) => Promise<void>;
   model?: (identity: { number?: number; sha?: string }, signal?: AbortSignal) => Promise<void>;
+  review?: typeof reviewSnapshot;
 }) {
   const { kind, env } = options;
   const event = JSON.parse(await readFile(env.GITHUB_EVENT_PATH ?? "", "utf8"));
@@ -38,6 +40,7 @@ export async function runBudgetCli(options: {
         ? 0
         : Date.now() + 12 * 60_000;
   const controller = new AbortController();
+  let modelActive = false;
   const bounded = async (action: () => Promise<void>) => {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new Error("Review preparation deadline exceeded");
@@ -47,8 +50,11 @@ export async function runBudgetCli(options: {
         action(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
+            const failure = modelActive
+              ? new ReviewFailure("timeout")
+              : new Error("Review preparation deadline exceeded");
             controller.abort();
-            reject(new Error("Review preparation deadline exceeded"));
+            reject(failure);
           }, remaining);
         }),
       ]);
@@ -97,7 +103,14 @@ export async function runBudgetCli(options: {
             }),
           review: (reviewOptions) => {
             enoughTime();
-            return reviewSnapshot({ ...reviewOptions, deadline, signal: controller.signal });
+            return (options.review ?? reviewSnapshot)({
+              ...reviewOptions,
+              deadline,
+              signal: controller.signal,
+              onModelStateChange: (active) => {
+                modelActive = active;
+              },
+            });
           },
         });
     });
