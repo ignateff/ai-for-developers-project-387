@@ -8,9 +8,6 @@ on:
 
 jobs:
   review:
-    # Explicit human authorization is required before enabling real review runs.
-    # jactionlint ignore=constant-condition
-    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:

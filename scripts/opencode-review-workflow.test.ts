@@ -407,7 +407,7 @@ test("production review admits then calls runtime with changed file contents pin
   }
 });
 
-test("disabled review model job spends inside the rerun job without holding the budget queue", () => {
+test("review model job spends inside the rerun job without holding the budget queue", () => {
   const workflow = parse(readFileSync(".github/workflows/opencode-review.yml", "utf8"));
   const job = workflow.jobs.review;
   expect(job.permissions).toMatchObject({ issues: "read", "pull-requests": "write" });
@@ -415,7 +415,7 @@ test("disabled review model job spends inside the rerun job without holding the 
     issues: "read",
     "pull-requests": "write",
   });
-  expect(job.if).toBe("${{ false }}");
+  expect(job.if).toBeUndefined();
   expect(job.concurrency.group).toBe("opencode-review-${{ github.event.pull_request.number }}");
   expect(job.concurrency["cancel-in-progress"]).toBe(true);
   const model = job.steps.findIndex((s: { id?: string }) => s.id === "workflow");

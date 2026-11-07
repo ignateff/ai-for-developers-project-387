@@ -255,3 +255,7 @@ run = '''target=$(node scripts/dev-target.mjs); API_PROXY_TARGET=${target:-http:
 port = { expect = [5173], bump = true }
 depends = ["api"]
 ready_cmd = "curl -fsS http://127.0.0.1:$PORT/ > /dev/null"
+
+[tasks."opencode:actions-budget"]
+description = "Check command admission against Actions history"
+run = "pnpm run opencode:actions-budget"
