@@ -1,0 +1,32 @@
+name: Budget visibility experiment
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  actions: read
+jobs:
+  trial:
+    name: budget-trial-pr-${{ github.event.pull_request.number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: budget-experiment-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - name: Admit experiment
+        run: echo 'Admitted test attempt; no model is used.'
+      - name: Inspect live attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          for n in 1 2 3 4 5; do
+            echo "Observation $n"
+            gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs" --jq '.jobs[] | {name,status,steps:[.steps[] | {name,status,conclusion}]}'
+            sleep 3
+          done
+      - name: Allow cancellation test
+        run: sleep 45
