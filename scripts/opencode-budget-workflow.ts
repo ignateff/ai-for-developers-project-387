@@ -6,6 +6,10 @@ type RecordValue = Record<string, any>;
 const obj = (value: unknown): RecordValue =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as RecordValue) : {};
 const positive = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) > 0;
+const approvedReviewBots = new Map<number, string>([
+  [219766164, "opencode-agent[bot]"],
+  [351107404, "calendar-release-ignateff-bot[bot]"],
+]);
 
 export type Options = {
   kind: "command" | "review";
@@ -127,7 +131,12 @@ export function createBudgetWorkflow(deps: Dependencies) {
         if (options.kind === "review") {
           if (pr.draft !== false) return { status: "skipped" };
           if (author.type === "Bot") {
-            if (!positive(author.id) || !options.allowedAppIds?.includes(author.id))
+            if (
+              !positive(author.id) ||
+              !options.allowedAppIds?.includes(author.id) ||
+              !approvedReviewBots.has(author.id) ||
+              approvedReviewBots.get(author.id) !== author.login
+            )
               return { status: "skipped" };
           } else if (
             author.type !== "User" ||

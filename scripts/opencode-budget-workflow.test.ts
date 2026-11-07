@@ -699,49 +699,66 @@ test("timeout after admission consumes the attempt without exposing diagnostics"
 });
 
 test.each([
-  [55, "completed"],
-  [56, "skipped"],
-] as const)("review bot %s is accepted only by numeric allowlist", async (id, status) => {
-  let body = "";
-  const api: typeof fetch = async (input, init) => {
-    if (String(input).includes("/pulls/"))
-      return Response.json({
-        number: 7,
-        state: "open",
-        draft: false,
-        user: { type: "Bot", login: "agent[bot]", id },
-        base: { repo: { id: 1, full_name: "owner/repo" } },
-        head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
-      });
-    if (init?.method === "POST" || init?.method === "PATCH") {
-      body = JSON.parse(String(init.body)).body;
-      return Response.json({ id: 10, user: { id: 42 }, body });
-    }
-    return Response.json([]);
-  };
-  let calls = 0;
-  const run = createBudgetWorkflow({
-    fetch: api,
-    prepare: async () => {},
-    model: async () => {
-      calls++;
-    },
-  });
-  const result = await run({
-    kind: "review",
-    eventName: "pull_request",
-    event: {
-      action: "opened",
-      repository: { full_name: "owner/repo" },
-      pull_request: { number: 7 },
-    },
-    repository: "owner/repo",
-    owner: "owner",
-    token: "token",
-    authorId: 42,
-    allowedAppIds: [55],
-    actionsUrl: "",
-  });
-  expect(result.status).toBe(status);
-  expect(calls).toBe(status === "completed" ? 1 : 0);
-});
+  ["opencode-agent[bot]", 219766164, [219766164], "completed"],
+  ["calendar-release-ignateff-bot[bot]", 351107404, [351107404], "completed"],
+  ["opencode-agent[bot]", 219766164, undefined, "skipped"],
+  ["opencode-agent[bot]", 219766164, [], "skipped"],
+  ["agent[bot]", 219766164, [219766164], "skipped"],
+  ["calendar-release-ignateff-bot[bot]", 219766164, [219766164, 351107404], "skipped"],
+  ["opencode-agent[bot]", 351107404, [219766164, 351107404], "skipped"],
+  ["opencode-agent[bot]", 55, [55], "skipped"],
+  ["OPENCODE-AGENT[bot]", 219766164, [219766164], "skipped"],
+] as const)(
+  "review bot %s / %s requires its exact approved pair and opt-in",
+  async (login, id, allowedAppIds, status) => {
+    let body = "";
+    let budgetCalls = 0;
+    let preparations = 0;
+    const api: typeof fetch = async (input, init) => {
+      if (String(input).includes("/pulls/"))
+        return Response.json({
+          number: 7,
+          state: "open",
+          draft: false,
+          user: { type: "Bot", login, id },
+          base: { repo: { id: 1, full_name: "owner/repo" } },
+          head: { repo: { id: 1, full_name: "owner/repo" }, sha: "a".repeat(40) },
+        });
+      budgetCalls++;
+      if (init?.method === "POST" || init?.method === "PATCH") {
+        body = JSON.parse(String(init.body)).body;
+        return Response.json({ id: 10, user: { id: 42 }, body });
+      }
+      return Response.json([]);
+    };
+    let calls = 0;
+    const run = createBudgetWorkflow({
+      fetch: api,
+      prepare: async () => {
+        preparations++;
+      },
+      model: async () => {
+        calls++;
+      },
+    });
+    const result = await run({
+      kind: "review",
+      eventName: "pull_request",
+      event: {
+        action: "opened",
+        repository: { full_name: "owner/repo" },
+        pull_request: { number: 7 },
+      },
+      repository: "owner/repo",
+      owner: "owner",
+      token: "token",
+      authorId: 42,
+      allowedAppIds: allowedAppIds ? [...allowedAppIds] : undefined,
+      actionsUrl: "",
+    });
+    expect(result.status).toBe(status);
+    expect(calls).toBe(status === "completed" ? 1 : 0);
+    expect(preparations).toBe(status === "completed" ? 1 : 0);
+    if (status === "skipped") expect(budgetCalls).toBe(0);
+  },
+);
