@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    if: ${{ github.event.pull_request.number == 58 && github.event.pull_request.user.login == 'ignateff' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'experiment/budget-actions-visibility' && !github.event.pull_request.draft }}
+    if: ${{ github.event.action == 'ready_for_review' && github.event.pull_request.number == 58 && github.event.pull_request.user.login == 'ignateff' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'experiment/budget-actions-visibility' && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -57,3 +57,37 @@ jobs:
           OPENCODE_PR_NUMBER: ${{ steps.review.outputs.number }}
           OPENCODE_HEAD_SHA: ${{ steps.review.outputs.sha }}
           OPENCODE_REVIEW_ARTIFACT: review-${{ github.run_id }}-${{ github.run_attempt }}
+  model-probe:
+    if: ${{ github.event.action == 'synchronize' && github.event.pull_request.number == 58 && github.event.pull_request.user.login == 'ignateff' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'experiment/budget-actions-visibility' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout explicitly trusted experiment
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install project tooling
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: 2026.10.23
+      - name: Probe reviewer with minimal context
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { installRuntime } from './scripts/opencode-install.ts';
+          import { reviewSnapshot } from './scripts/opencode-review.ts';
+          const binary = await installRuntime({ directory: `${process.env.RUNNER_TEMP}/review-probe` });
+          const context = {
+            requirements: { availability: 'available', text: 'An occupied slot must not be offered for booking.' },
+            agreement: null,
+            baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40),
+            changes: [{ filename: 'example.ts', patch: '- return !booked;\n+ return true;' }],
+            ci: { status: 'not run' }, previousReview: [], isRelease: false,
+          };
+          const result = await reviewSnapshot({ binary, context, apiKey: process.env.DEEPSEEK_API_KEY });
+          console.log(JSON.stringify(result));
+          NODE
