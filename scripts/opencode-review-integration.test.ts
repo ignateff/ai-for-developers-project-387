@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, vi } from "vitest";
@@ -10,6 +10,181 @@ import { ReviewFailure } from "./opencode-review-failure.ts";
 import { publishReview } from "./opencode-review-publish.ts";
 import { runBudgetCli } from "./opencode-budget-cli.ts";
 import { parse } from "yaml";
+import { createReviewAdapter } from "./opencode-review.ts";
+
+test.each([false, true])(
+  "missing requirements with long base documents can be published (release: %s)",
+  async (isRelease) => {
+    const dir = await mkdtemp(join(tmpdir(), "review-missing-requirements-"));
+    const sha = "a".repeat(40);
+    const base = "b".repeat(40);
+    const repository = "ignateff/ai-for-developers-project-387";
+    const document = "Trusted base document evidence ".repeat(600);
+    const comments: { id: number; user: { id: number }; body: string }[] = [];
+    const pr = {
+      number: 7,
+      state: "open",
+      draft: false,
+      changed_files: 1,
+      body: "No linked issue",
+      user: isRelease
+        ? { type: "Bot", login: "calendar-release-ignateff-bot[bot]", id: 351107404 }
+        : { type: "User", login: "ignateff" },
+      base: { sha: base, repo: { id: 1, full_name: repository } },
+      head: { sha, repo: { id: 1, full_name: repository } },
+    };
+    const api: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith("/pulls/7")) return Response.json(pr);
+      if (path.endsWith("/pulls/7/files"))
+        return Response.json([{ filename: "booking.ts", status: "added" }]);
+      if (path.includes("/contents/")) {
+        const content = path.endsWith("/booking.ts") ? "source" : document;
+        return Response.json({
+          type: "file",
+          encoding: "base64",
+          content: Buffer.from(content).toString("base64"),
+          size: Buffer.byteLength(content),
+        });
+      }
+      if (path.endsWith("/issues/7/comments") && init?.method === "POST") {
+        const comment = {
+          id: comments.length + 1,
+          user: { id: 42 },
+          body: JSON.parse(String(init.body)).body,
+        };
+        comments.push(comment);
+        return Response.json(comment, { status: 201 });
+      }
+      if (path.endsWith("/issues/7/comments")) return Response.json(comments);
+      if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+      if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+      return Response.json([]);
+    };
+    const env = {
+      RUNNER_TEMP: dir,
+      GITHUB_RUN_ID: "1",
+      GITHUB_RUN_ATTEMPT: "1",
+      GITHUB_REPOSITORY: repository,
+      GH_TOKEN: "fixture-token",
+      DEEPSEEK_API_KEY: "fixture-key",
+      OPENCODE_PR_NUMBER: "7",
+      OPENCODE_HEAD_SHA: sha,
+      OPENCODE_REVIEW_ARTIFACT: "review-1-1",
+    };
+    try {
+      const review = createReviewAdapter({
+        verify: async () => {},
+        run: async (_binary, args, options) => {
+          if (args[0] === "debug") {
+            const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT!);
+            return JSON.stringify({
+              name: "reviewer",
+              permission: Object.entries(config.permission).map(([permission, action]) => ({
+                permission,
+                action,
+                pattern: "*",
+              })),
+            });
+          }
+          const files = (await readdir(options.cwd))
+            .filter((name) => name.startsWith("snapshot-"))
+            .sort();
+          const contents = await Promise.all(
+            files.map((name) => readFile(join(options.cwd, name), "utf8")),
+          );
+          const snapshot = JSON.parse(
+            contents
+              .flatMap((content) => content.split("\n").map((line) => JSON.parse(line)))
+              .join(""),
+          );
+          expect(snapshot.isRelease).toBe(isRelease);
+          expect(snapshot.requirements).toMatchObject({
+            availability: "unavailable",
+            reason: "No linked requirements could be loaded.",
+          });
+          expect(snapshot.requirements.description).toBe("No linked issue");
+          expect(snapshot.requirements.baseDocs).toContainEqual({
+            path: "AGENTS.md",
+            sha: base,
+            body: document,
+          });
+          expect(snapshot.requirements.reason).not.toContain(document);
+          const reads = files.map((name, i) =>
+            JSON.stringify({
+              type: "tool_use",
+              part: {
+                tool: "read",
+                state: {
+                  status: "completed",
+                  input: { filePath: name },
+                  output: `<content>\n${contents[i]
+                    .split("\n")
+                    .map((line, n) => `${n + 1}: ${line}`)
+                    .join("\n")}\n</content>`,
+                },
+              },
+            }),
+          );
+          return [
+            ...reads,
+            JSON.stringify({
+              type: "text",
+              part: {
+                text: JSON.stringify({
+                  summary: "No confirmed defects",
+                  limitations: [],
+                  findings: [],
+                }),
+              },
+            }),
+            JSON.stringify({ type: "step_finish", part: { reason: "stop" } }),
+          ].join("\n");
+        },
+      });
+      const run = createProductionWorkflow({
+        fetch: api,
+        prepare: async () => {
+          await mkdir(join(dir, "opencode-review-1-1"));
+          await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+        },
+        model: async () => {
+          await reviewWorkflow("run", env, { fetch: api, review });
+        },
+      });
+      const result = await run({
+        kind: "review",
+        eventName: "pull_request",
+        event: {
+          action: "opened",
+          repository: { full_name: repository },
+          pull_request: { number: 7 },
+        },
+        repository,
+        owner: "ignateff",
+        token: "fixture-token",
+        authorId: 42,
+        allowedAppIds: [351107404],
+        actionsUrl: `https://github.com/${repository}/actions/runs/1`,
+      });
+      expect(result.status).toBe("completed");
+      const reportPath = join(dir, "opencode-review-1-1", "review.json");
+      await publishWorkflow({
+        env,
+        fetch: api,
+        authorId: 42,
+        readReport: async () => JSON.parse(await readFile(reportPath, "utf8")),
+      });
+      const report = comments.find((comment) => comment.body.includes("opencode-review-report"));
+      expect(report?.body).toContain(
+        "Requirements unavailable: No linked requirements could be loaded.",
+      );
+      expect(report?.body).not.toContain(document);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 test("a review that runs out of preparation time reports infrastructure failure without starting the model", async () => {
   vi.useFakeTimers();

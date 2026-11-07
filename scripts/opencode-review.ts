@@ -15,7 +15,12 @@ type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string
 export type ReviewContext = {
   requirements:
     | { availability: "available"; text: string }
-    | { availability: "unavailable"; reason?: string };
+    | {
+        availability: "unavailable";
+        reason?: string;
+        description?: string;
+        baseDocs?: { path: string; sha: string; body: string }[];
+      };
   agreement: JsonValue;
   baseSha: string;
   headSha: string;

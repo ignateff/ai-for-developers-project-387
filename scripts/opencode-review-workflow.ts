@@ -435,9 +435,9 @@ export async function reviewWorkflow(
         }
       : {
           availability: "unavailable" as const,
-          reason:
-            "No linked requirements could be loaded; context: " +
-            JSON.stringify({ description: body, baseDocs }),
+          reason: "No linked requirements could be loaded.",
+          description: body,
+          baseDocs,
         },
     agreement: { sources: agreements, limitations },
     baseSha: pr.base.sha,
