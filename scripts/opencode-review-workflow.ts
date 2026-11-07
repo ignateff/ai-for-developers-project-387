@@ -141,10 +141,25 @@ export async function reviewWorkflow(
     }
   };
   let truncated = false;
+  let aggregateTruncated = false;
+  // Account for JSON escaping twice: requirements are themselves serialized inside the snapshot.
+  let textBudget = 256 * 1024;
   const text = (value: unknown) => {
     if (typeof value !== "string") return "";
     if (value.length > 30000) truncated = true;
-    return value.slice(0, 30000);
+    const candidate = value.slice(0, 30000);
+    const cost = (s: string) => Buffer.byteLength(JSON.stringify(JSON.stringify(s)));
+    let low = 0;
+    let high = candidate.length;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (cost(candidate.slice(0, mid)) <= textBudget) low = mid;
+      else high = mid - 1;
+    }
+    if (low < candidate.length) aggregateTruncated = true;
+    const result = candidate.slice(0, low);
+    textBudget = Math.max(0, textBudget - cost(result));
+    return result;
   };
   const body = text(pr.body);
   const refs = new Map<string, { repo: string; issue: string; comment?: string }>();
@@ -183,6 +198,24 @@ export async function reviewWorkflow(
   }
   const materials = [];
   const agreements = [];
+  // A repository document does not establish its author or a human approval by itself.
+  // Do not follow PR-supplied paths or refs as trusted instructions.
+  const documentLinks =
+    body.match(
+      /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/(?:blob|tree)\/[^\s)\]>]+|\]\((?!https?:\/\/|#)[^\s)]+\.md(?:#[^\s)]*)?\)/gi,
+    ) ?? [];
+  if (documentLinks.length) {
+    for (const link of documentLinks.slice(0, 12))
+      agreements.push({
+        source: text(link),
+        status: "unconfirmed",
+        reason:
+          "Linked approval documents were not loaded or attributed to an eligible human; repository contents alone do not prove approval.",
+      });
+    limitations.push(
+      "PR-linked repository approval documents were not loaded; agreement remains unconfirmed.",
+    );
+  }
   const visited = new Set<string>();
   for (const [key, ref] of refs) {
     if (visited.size >= 12) break;
@@ -243,6 +276,7 @@ export async function reviewWorkflow(
     limitations.push("Linked GitHub references exceeded the collection limit.");
   limitations.push(
     "Agreement is unconfirmed unless the PR explicitly links the source and explicit approval of requirements by an eligible human is established from its text.",
+    "An eligible approver is a human owner or a human with current write, maintain, or admin permission in ignateff/ai-for-developers-project-387. A bot, ambiguous 'ok', issue closure, ready-for-agent label, link alone, or permissions alone do not prove approval.",
   );
   const pages = async (path: string, field?: string) => {
     const items: any[] = [];
@@ -345,19 +379,26 @@ export async function reviewWorkflow(
     isRelease,
   };
   if (truncated) limitations.push("Some context text was truncated at 30000 characters.");
+  if (aggregateTruncated)
+    limitations.push(
+      "Optional context text exceeded the aggregate size budget and was truncated; omitted evidence cannot establish approval or completeness.",
+    );
   const current = await get(`pulls/${number}`);
   if (current?.head?.sha !== sha || current?.base?.sha !== pr.base.sha) throw new Error();
   const binary = await readFile(join(root, "binary"), "utf8");
+  const serialized = JSON.stringify(context)
+    .split(JSON.stringify(token).slice(1, -1))
+    .join("[REDACTED]")
+    .split(JSON.stringify(env.DEEPSEEK_API_KEY).slice(1, -1))
+    .join("[REDACTED]");
+  if (Buffer.byteLength(serialized) > 4 * 1024 * 1024)
+    throw new Error(
+      "Review context exceeds the size limit; mandatory change evidence cannot be safely truncated.",
+    );
   const result = await (deps.review ?? reviewSnapshot)({
     binary,
     apiKey: env.DEEPSEEK_API_KEY,
-    context: JSON.parse(
-      JSON.stringify(context)
-        .split(JSON.stringify(token).slice(1, -1))
-        .join("[REDACTED]")
-        .split(JSON.stringify(env.DEEPSEEK_API_KEY).slice(1, -1))
-        .join("[REDACTED]"),
-    ),
+    context: JSON.parse(serialized),
   });
   result.limitations.push(...limitations);
   await writeFile(join(root, "review.json"), JSON.stringify(result), { flag: "wx", mode: 0o600 });
