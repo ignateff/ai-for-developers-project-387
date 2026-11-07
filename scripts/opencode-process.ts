@@ -28,6 +28,17 @@ export function runIsolatedProcess(
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    let diagnosticOut = 0;
+    let diagnosticErr = 0;
+    const diagnosticStart = Date.now();
+    const diagnosticTimer =
+      args[0] === "run"
+        ? setInterval(() => {
+            console.log(
+              `[DEBUG-review-progress] elapsed_ms=${Date.now() - diagnosticStart} stdout_bytes=${diagnosticOut} stderr_bytes=${diagnosticErr}`,
+            );
+          }, 20000)
+        : undefined;
     let reason: ProcessFailure["reason"] | undefined;
     let size = 0;
     const chunks: Buffer[] = [];
@@ -46,6 +57,8 @@ export function runIsolatedProcess(
     if (options.signal?.aborted) abort();
     const timer = setTimeout(() => kill("timeout"), options.timeout);
     const receive = (data: Buffer, stdout: boolean) => {
+      if (stdout) diagnosticOut += data.length;
+      else diagnosticErr += data.length;
       size += data.length;
       if (size > options.maxBuffer) kill("output");
       else if (stdout) chunks.push(data);
@@ -57,6 +70,7 @@ export function runIsolatedProcess(
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      if (diagnosticTimer) clearInterval(diagnosticTimer);
       options.signal?.removeEventListener("abort", abort);
       if (reason || code !== 0) reject(new ProcessFailure(reason ?? "exit"));
       else resolve(Buffer.concat(chunks).toString("utf8"));

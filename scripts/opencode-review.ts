@@ -278,6 +278,9 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
       // Reserve the full process timeout; preparation must not borrow reporting time.
       if (options.deadline !== undefined && Date.now() + 300_000 >= options.deadline)
         throw new Error("Insufficient time for review");
+      console.log(
+        `[DEBUG-review-progress] snapshot_bytes=${Buffer.byteLength(context)} snapshot_files=${files.size}`,
+      );
       agentStarted = true;
       options.onModelStateChange?.(true);
       let output: string;
