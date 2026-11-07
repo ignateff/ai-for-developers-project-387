@@ -132,7 +132,6 @@ export async function reviewWorkflow(
   // Optional context is untrusted evidence, never a reason to broaden API access.
   const limitations = [
     "Only changed files were collected at pinned base/head; the full repository was not collected.",
-    "Trusted base documentation and links nested in referenced materials were not collected.",
   ];
   const optional = async (path: string, repo = repository) => {
     try {
@@ -151,38 +150,54 @@ export async function reviewWorkflow(
   const refs = new Map<string, { repo: string; issue: string; comment?: string }>();
   const full =
     /https:\/\/github\.com\/ignateff\/ai-for-developers-project-(387|386)\/issues\/(\d+)(?:#issuecomment-(\d+))?/gi;
-  for (const match of body.matchAll(full)) {
-    const ref = {
-      repo: `ignateff/ai-for-developers-project-${match[1]}`,
-      issue: match[2],
-      comment: match[3],
-    };
-    refs.set(`${ref.repo}/${ref.issue}/${ref.comment ?? ""}`, ref);
-  }
-  const withoutUrls = body.replace(/https?:\/\/[^\s)\]>]+/gi, " ");
-  for (const match of withoutUrls.matchAll(/(?:^|[^\w/])#([1-9]\d*)\b/g)) {
-    const ref = { repo: "ignateff/ai-for-developers-project-387", issue: match[1] };
-    refs.set(`${ref.repo}/${ref.issue}/`, ref);
-  }
-  if (refs.size > 12) limitations.push("Linked GitHub references exceeded the collection limit.");
-  if (
-    /https?:\/\/(?!github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/issues\/)/i.test(
-      body,
+  const collectRefs = (input: string) => {
+    for (const match of input.matchAll(full)) {
+      const ref = {
+        repo: `ignateff/ai-for-developers-project-${match[1]}`,
+        issue: match[2],
+        comment: match[3],
+      };
+      refs.set(`${ref.repo}/${ref.issue}/${ref.comment ?? ""}`, ref);
+    }
+    const withoutUrls = input.replace(/https?:\/\/[^\s)\]>]+/gi, " ");
+    for (const match of withoutUrls.matchAll(/(?:^|[^\w/])#([1-9]\d*)\b/g)) {
+      const ref = { repo: "ignateff/ai-for-developers-project-387", issue: match[1] };
+      refs.set(`${ref.repo}/${ref.issue}/`, ref);
+    }
+    if (
+      /https?:\/\/(?!github\.com\/ignateff\/ai-for-developers-project-(?:387|386)\/issues\/)/i.test(
+        input,
+      )
     )
-  )
-    limitations.push("External or unsupported links were not loaded.");
+      limitations.push("External or unsupported links were not loaded.");
+  };
+  collectRefs(body);
+  const directRefs = new Set(refs.keys());
+  const baseDocs = [];
+  for (const name of ["AGENTS.md", "README.md", "docs/agents/project-history.md"]) {
+    try {
+      baseDocs.push({ path: name, sha: pr.base.sha, body: text(await source(name, pr.base.sha)) });
+    } catch {
+      limitations.push(`Trusted base document ${name} was unavailable.`);
+    }
+  }
   const materials = [];
   const agreements = [];
-  for (const ref of [...refs.values()].slice(0, 12)) {
+  const visited = new Set<string>();
+  for (const [key, ref] of refs) {
+    if (visited.size >= 12) break;
+    visited.add(key);
     const issue = await optional(`issues/${ref.issue}`, ref.repo);
     if (!issue || typeof issue !== "object" || typeof issue.body !== "string") {
       limitations.push(`Linked issue ${ref.repo}#${ref.issue} was unavailable.`);
-    } else
+    } else {
       materials.push({
         source: `${ref.repo}#${ref.issue}`,
         title: text(issue.title),
         body: text(issue.body),
       });
+      collectRefs(text(issue.body));
+    }
     if (ref.comment) {
       const comment = await optional(`issues/comments/${ref.comment}`, ref.repo);
       if (!comment || typeof comment.body !== "string") {
@@ -201,41 +216,82 @@ export async function reviewWorkflow(
           : null;
       const belongs =
         comment.issue_url === `https://api.github.com/repos/${ref.repo}/issues/${ref.issue}`;
+      const eligible =
+        belongs &&
+        validLogin &&
+        comment.user?.type === "User" &&
+        ["admin", "maintain", "write"].includes(permission?.permission);
+      collectRefs(text(comment.body));
       // Permission and explicit wording are evidence for the reviewer, not a semantic approval verdict.
       agreements.push({
         source: `${ref.repo}#${ref.issue}#issuecomment-${ref.comment}`,
         author: validLogin ? login : null,
         text: text(comment.body),
         authorPermission: permission?.permission ?? null,
+        eligible: Boolean(eligible),
+        explicitlyLinkedInPr: directRefs.has(key),
         status: "unconfirmed",
-        reason:
-          belongs && ["admin", "maintain", "write"].includes(permission?.permission)
-            ? "Human authority verified; explicit approval of requirements must be assessed from the text."
+        reason: !directRefs.has(key)
+          ? "This evidence was not explicitly linked in the PR description."
+          : eligible
+            ? "Eligible human author; explicit approval of requirements must be established from the text."
             : "Comment identity or current human authority could not be verified.",
       });
     }
   }
+  if (refs.size > visited.size)
+    limitations.push("Linked GitHub references exceeded the collection limit.");
   limitations.push(
-    "Agreement is unconfirmed unless explicit human approval of requirements is established from the linked evidence.",
+    "Agreement is unconfirmed unless the PR explicitly links the source and explicit approval of requirements by an eligible human is established from its text.",
   );
-  const checks = await optional(`commits/${sha}/check-runs?per_page=100`);
-  const statuses = await optional(`commits/${sha}/status?per_page=100`);
-  const reviews = await optional(`pulls/${number}/reviews?per_page=100`);
-  const reviewComments = await optional(`pulls/${number}/comments?per_page=100`);
-  const issueComments = await optional(`issues/${number}/comments?per_page=100`);
+  const pages = async (path: string, field?: string) => {
+    const items: any[] = [];
+    let first: any = null;
+    for (let page = 1; page <= 3; page++) {
+      const response = await optional(`${path}?per_page=100&page=${page}`);
+      if (page === 1) first = response;
+      const list = field ? response?.[field] : response;
+      if (!Array.isArray(list) || list.length > 100) return { items: null, first, complete: false };
+      items.push(...list);
+      if (list.length < 100) {
+        const total = field === "check_runs" ? first?.total_count : undefined;
+        return {
+          items,
+          first,
+          complete: total === undefined || (Number.isSafeInteger(total) && total === items.length),
+        };
+      }
+    }
+    return { items, first, complete: false };
+  };
+  const [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages] =
+    await Promise.all([
+      pages(`commits/${sha}/check-runs`, "check_runs"),
+      pages(`commits/${sha}/status`, "statuses"),
+      pages(`pulls/${number}/reviews`),
+      pages(`pulls/${number}/comments`),
+      pages(`issues/${number}/comments`),
+    ]);
+  const checks = { check_runs: checkPages.items };
+  const statuses = { statuses: statusPages.items, state: statusPages.first?.state };
+  const reviews = reviewPages.items;
+  const reviewComments = reviewCommentPages.items;
+  const issueComments = issueCommentPages.items;
   if (!Array.isArray(checks?.check_runs) || !Array.isArray(statuses?.statuses))
     limitations.push("CI context is incomplete or unavailable; pending checks are not successful.");
   if (!Array.isArray(reviews) || !Array.isArray(reviewComments) || !Array.isArray(issueComments))
     limitations.push("Previous review or discussion context is incomplete or unavailable.");
   if (
-    [reviews, reviewComments, issueComments, checks?.check_runs, statuses?.statuses].some(
-      (x) => Array.isArray(x) && x.length >= 100,
+    [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages].some(
+      (x) => !x.complete,
     )
   )
-    limitations.push("CI or previous review context may be truncated at 100 items per endpoint.");
+    limitations.push(
+      "CI or previous review context is incomplete or exceeded the 300 item per endpoint limit.",
+    );
   const comments = (value: unknown) =>
     Array.isArray(value)
-      ? value.slice(0, 100).map((c) => ({
+      ? value.map((c) => ({
           author: text(c?.user?.login),
           body: text(c?.body),
           path: text(c?.path),
@@ -251,11 +307,13 @@ export async function reviewWorkflow(
     requirements: materials.length
       ? {
           availability: "available" as const,
-          text: JSON.stringify({ description: body, materials }),
+          text: JSON.stringify({ description: body, materials, baseDocs }),
         }
       : {
           availability: "unavailable" as const,
-          reason: "No linked requirements could be loaded; PR description: " + body,
+          reason:
+            "No linked requirements could be loaded; context: " +
+            JSON.stringify({ description: body, baseDocs }),
         },
     agreement: { sources: agreements, limitations },
     baseSha: pr.base.sha,
@@ -263,16 +321,16 @@ export async function reviewWorkflow(
     changes,
     ci: {
       checks: Array.isArray(checks?.check_runs)
-        ? checks.check_runs.slice(0, 100).map((c: any) => ({
+        ? checks.check_runs.map((c: any) => ({
             name: text(c?.name),
             status: text(c?.status),
             conclusion: text(c?.conclusion),
             url: text(c?.html_url),
           }))
         : null,
-      status: text(statuses?.state),
+      status: statusPages.complete ? text(statuses?.state) : null,
       statuses: Array.isArray(statuses?.statuses)
-        ? statuses.statuses.slice(0, 100).map((s: any) => ({
+        ? statuses.statuses.map((s: any) => ({
             context: text(s?.context),
             state: text(s?.state),
             url: text(s?.target_url),
