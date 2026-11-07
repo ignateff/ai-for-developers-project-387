@@ -13,8 +13,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      issues: write
-      pull-requests: read
+      issues: read
+      pull-requests: write
       actions: read
       checks: read
       statuses: read
