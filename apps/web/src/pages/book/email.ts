@@ -1,6 +1,6 @@
+const multiCharacterLocalPart = /^(?!.*\.\.)[^\s@.][^\s@]*[^\s@.]@[^\s@.]+(?:\.[^\s@.]+)+$/u;
+const singleCharacterLocalPart = /^(?!.*\.\.)[^\s@.]@[^\s@.]+(?:\.[^\s@.]+)+$/u;
+
 export function isValidEmail(email: string) {
-  return (
-    /^(?!.*\.\.)[^\s@.][^\s@]*[^\s@.]@[^\s@.]+(?:\.[^\s@.]+)+$/u.test(email) ||
-    /^(?!.*\.\.)[^\s@.]@[^\s@.]+(?:\.[^\s@.]+)+$/u.test(email)
-  );
+  return multiCharacterLocalPart.test(email) || singleCharacterLocalPart.test(email);
 }
