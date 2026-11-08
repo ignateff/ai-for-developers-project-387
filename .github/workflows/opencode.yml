@@ -1,4 +1,4 @@
-name: opencode
+name: Opencode
 
 # Classification runs outside the command queue; only matching jobs are serialized.
 # jactionlint ignore=concurrency-limits
