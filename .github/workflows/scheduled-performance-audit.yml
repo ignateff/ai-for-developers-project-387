@@ -2,7 +2,7 @@ name: Scheduled Performance Audit
 
 on:
   schedule:
-    - cron: "18 13 * * *" # 16:18 Europe/Moscow (UTC+3)
+    - cron: "07 14 * * *" # 17:07 Europe/Moscow (UTC+3)
   workflow_dispatch:
     inputs:
       app_url:
