@@ -81,7 +81,10 @@ guessed. An outdated cancelled run is not a timeout. A runner forcibly stopped
 or a failed publisher may leave no comment: check logs and artifact availability.
 After resolving the cause, choose a publication-only retry if available; a retry
 that can call the model spends a new attempt and still needs authorization.
-Never bypass trust or manually remove an active budget lock to recover a run.
+Never bypass trust or manually remove an active budget lock to recover a run. A
+preparation failure is logged with its fixed OpenCode reason when one is
+available (for example the bounded archive download failure); raw network, HTTP,
+filesystem and API details are not printed.
 
 The full `mise run check` includes workflow lint and local adapter tests; mock
 providers and runtime tests are not evidence of real GitHub permissions or

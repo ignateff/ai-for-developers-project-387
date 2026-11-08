@@ -546,6 +546,97 @@ test("a review that runs out of preparation time reports infrastructure failure 
   }
 });
 
+test.each([
+  {
+    error:
+      "OpenCode archive download failed after 3 attempt(s) (network, HTTP, size limit, or timeout)",
+    expected:
+      "OpenCode diagnostics: preparation failed; OpenCode archive download failed after 3 attempt(s) (network, HTTP, size limit, or timeout)",
+  },
+  {
+    error: "private-network-error /home/runner/secret",
+    expected:
+      "OpenCode diagnostics: preparation failed; OpenCode runtime preparation failed; fix is not confirmed",
+  },
+])("preparation failure logs only a fixed OpenCode reason (%#)", async ({ error, expected }) => {
+  const logs = vi.spyOn(console, "log").mockImplementation(() => {});
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  const dir = await mkdtemp(join(tmpdir(), "review-prepare-log-"));
+  const sha = "a".repeat(40);
+  const eventPath = join(dir, "event.json");
+  const env = {
+    RUNNER_TEMP: dir,
+    GITHUB_EVENT_PATH: eventPath,
+    GITHUB_OUTPUT: join(dir, "output"),
+    GITHUB_EVENT_NAME: "pull_request",
+    GITHUB_REPOSITORY: "owner/repo",
+    GITHUB_REPOSITORY_OWNER: "owner",
+    GITHUB_RUN_ID: "1",
+    GITHUB_RUN_ATTEMPT: "1",
+    GH_TOKEN: "token",
+    DEEPSEEK_API_KEY: "key",
+    OPENCODE_REVIEW_STARTED_AT: String(Date.now()),
+  };
+  const comments: any[] = [];
+  const api: typeof fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith("/pulls/7"))
+      return Response.json({
+        number: 7,
+        state: "open",
+        draft: false,
+        user: { type: "User", login: "owner" },
+        base: { repo: { id: 1, full_name: "owner/repo" } },
+        head: { sha, repo: { id: 1, full_name: "owner/repo" } },
+      });
+    if (init?.method === "POST") {
+      const comment = { id: 1, user: { id: 42 }, body: JSON.parse(String(init.body)).body };
+      comments.push(comment);
+      return Response.json(comment);
+    }
+    if (init?.method === "PATCH") {
+      comments[0].body = JSON.parse(String(init.body)).body;
+      return Response.json(comments[0]);
+    }
+    return Response.json(comments);
+  };
+  try {
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        action: "opened",
+        repository: { full_name: "owner/repo" },
+        pull_request: { number: 7 },
+      }),
+    );
+    const result = await runBudgetCli({
+      kind: "review",
+      env,
+      fetch: api,
+      authorId: 42,
+      prepare: async () => {
+        throw new Error(error);
+      },
+      model: async () => {
+        throw new Error("model must not start");
+      },
+    });
+    expect(result.status).toBe("infra");
+    const output = [...logs.mock.calls.flat(), ...errors.mock.calls.flat()].join("\n");
+    expect(output).toContain(expected);
+    expect(output).not.toContain("model must not start");
+    expect(output).not.toContain("private-network-error");
+    expect(output).not.toContain("/home/runner/secret");
+    expect(
+      JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
+    ).toEqual({ failure: "infra" });
+  } finally {
+    logs.mockRestore();
+    errors.mockRestore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("production CLI emits a failure artifact and workflow outputs for independent publication", async () => {
   const dir = await mkdtemp(join(tmpdir(), "review-cli-"));
   const sha = "a".repeat(40);

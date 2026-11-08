@@ -3,6 +3,7 @@ import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
+import { safeOpenCodeError } from "./opencode-error.ts";
 import { assertSafeProject, assertSafePullRequest } from "./opencode-discovery.ts";
 import { runGitHubHandler } from "./opencode-handler.ts";
 import { commandSkills, verifyCommandSkills } from "./opencode-skills.ts";
@@ -307,11 +308,9 @@ if (import.meta.main) {
     else if (process.argv[2] === "run") await runCommand(process.env);
     else throw new Error("OpenCode command requires prepare or run");
   } catch (error) {
-    const message =
-      error instanceof Error && error.message.startsWith("OpenCode ")
-        ? error.message
-        : "OpenCode command failed; preparation or execution is incomplete";
-    console.error(message);
+    console.error(
+      safeOpenCodeError(error, "OpenCode command failed; preparation or execution is incomplete"),
+    );
     process.exitCode = 1;
   }
 }

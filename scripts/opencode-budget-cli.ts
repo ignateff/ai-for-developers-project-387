@@ -5,6 +5,7 @@ import { prepareCommand, runCommand } from "./opencode-command.ts";
 import { reviewWorkflow } from "./opencode-review-workflow.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
 import { installRuntime } from "./opencode-install.ts";
+import { safeOpenCodeError } from "./opencode-error.ts";
 import { ReviewFailure } from "./opencode-review-failure.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
@@ -124,7 +125,19 @@ export async function runBudgetCli(options: {
         ? () =>
             bounded(async () => {
               console.log("OpenCode diagnostics: preparation started");
-              await prepare(controller.signal);
+              try {
+                await prepare(controller.signal);
+              } catch (error) {
+                if (!(error instanceof ReviewFailure) && !controller.signal.aborted) {
+                  console.error(
+                    `OpenCode diagnostics: preparation failed; ${safeOpenCodeError(
+                      error,
+                      "OpenCode runtime preparation failed; fix is not confirmed",
+                    )}`,
+                  );
+                }
+                throw error;
+              }
               console.log("OpenCode diagnostics: preparation complete");
             })
         : prepare,
