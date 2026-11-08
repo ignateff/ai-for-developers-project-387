@@ -1,4 +1,4 @@
-name: opencode-review
+name: Opencode review
 
 # Reviews cancel at job scope; publication retries must not cancel another review.
 # jactionlint ignore=concurrency-limits

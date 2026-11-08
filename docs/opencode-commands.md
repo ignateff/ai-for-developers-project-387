@@ -4,6 +4,14 @@ Scope: [issue #9](https://github.com/ignateff/ai-for-developers-project-387/issu
 Only `.github/workflows/opencode.yml` is involved. Automatic PR review and issue
 triage remain separate and unchanged.
 
+## Invocation and sharing
+
+The workflow listens for newly created `issue_comment` and
+`pull_request_review_comment` events. Its classifier accepts `/oc` and
+`/opencode` at a whitespace boundary; the upstream handler and authorization
+checks still decide whether the command can run. The command environment sets
+`share: "disabled"` and `SHARE=false`; it does not publish shared sessions.
+
 ## Trust boundary
 
 The workflow bootstraps its scripts from the repository's default branch, not the
@@ -121,13 +129,10 @@ can supply the public artifact instead; the same hard-coded checksum is mandator
 It never selects a PATH binary or uses model/GitHub credentials. Each run extracts
 a fresh executable; production installation has no floating runtime cache.
 
-Local tests cannot prove that the App accepts OIDC from the adapted workflow or
-that a real issue-to-PR run succeeds. Publishing changes and running a controlled
-GitHub test require separate authorization. Until that test is performed, keep
-the end-to-end acceptance criterion open; do not close issue #9 merely because
-local checks pass. Do not merge into the default branch merely to obtain a test.
-
-Likewise, workflow configuration tests cannot prove that GitHub granted the
-requested issue permission or that issue creation succeeded. Verify a controlled
-`/oc` publication on the default branch separately, and check the created issue
-and its links rather than relying on the Actions job's success status.
+Local tests alone cannot prove App/OIDC authorization or GitHub publication.
+A real command listed project skills in [issue #26](https://github.com/ignateff/ai-for-developers-project-387/issues/26#issuecomment-6665575831),
+and the agreed specification and ticket were published as [#33](https://github.com/ignateff/ai-for-developers-project-387/issues/33)
+and [#34](https://github.com/ignateff/ai-for-developers-project-387/issues/34).
+These observations do not establish every issue-to-PR or correction scenario.
+Check each created issue or PR, its links and actual CI results rather than
+relying on an Actions job's success status.

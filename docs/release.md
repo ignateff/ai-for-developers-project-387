@@ -38,7 +38,7 @@ enabled separately, with owner agreement, before it can run.
 
 ## Verification
 
-Inspect the **Release Please** run on the latest `main`. If a release PR is
+Inspect the **Release please** run on the latest `main`. If a release PR is
 created, review its proposed version against the latest published release, its
 notes and links against the relevant history, and its CI status. Report
 discrepancies rather than merging the PR. If no PR is created, explain whether

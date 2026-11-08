@@ -1,4 +1,4 @@
-name: Scheduled Performance Audit
+name: Scheduled performance audit
 
 on:
   schedule:
