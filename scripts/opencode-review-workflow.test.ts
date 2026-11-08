@@ -217,6 +217,18 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
               : [{ name: "last", status: "completed", conclusion: "success" }],
         });
       if (path.endsWith("/status")) return Response.json({ state: "pending", statuses: [] });
+      if (path.endsWith("/pulls/7/comments"))
+        return Response.json([
+          {
+            body: "old finding",
+            path: "src/a.ts",
+            line: 12,
+            original_line: 9,
+            side: "RIGHT",
+            commit_id: "c".repeat(40),
+            diff_hunk: "@@ -1 +1 @@",
+          },
+        ]);
       return Response.json([]);
     };
     let snapshot: any;
@@ -256,6 +268,14 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
     expect(snapshot.agreement.limitations.join(" ")).not.toContain("CI context is incomplete");
     expect(snapshot.agreement.limitations.join(" ")).toContain("relative document link");
     expect(requested.some((url) => url.includes("/contents/docs/historical.md"))).toBe(false);
+    expect(snapshot.previousReview.reviewComments[0]).toMatchObject({
+      path: "src/a.ts",
+      line: 12,
+      originalLine: 9,
+      side: "RIGHT",
+      commit: "c".repeat(40),
+      diffHunk: "@@ -1 +1 @@",
+    });
     expect(snapshot.ci.checks).toHaveLength(101);
     expect(snapshot.ci.status).toBe("pending");
     expect(requested.filter((url) => url.includes("/contents/AGENTS.md"))[0]).toContain(
@@ -345,6 +365,7 @@ test("production review admits then calls runtime with changed file contents pin
               calls++;
               expect(JSON.stringify(context.changes)).toContain("old source");
               expect(JSON.stringify(context.changes)).toContain("new source");
+              expect(JSON.stringify(context.requirements)).toContain("REVIEW.md");
               expect(context.baseSha).toBe(base);
               expect(context.headSha).toBe(sha);
               return { summary: "No confirmed defects", findings: [], limitations: ["fixture"] };
@@ -370,7 +391,7 @@ test("production review admits then calls runtime with changed file contents pin
     const result = await run(options);
     expect(result.status).toBe("completed");
     expect(calls).toBe(1);
-    expect(requestedRefs).toEqual([base, sha, base, base, base]);
+    expect(requestedRefs).toEqual([base, sha, base, base, base, base]);
     expect(comments[0].body).toContain('"review":1');
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
@@ -386,10 +407,15 @@ test("production review admits then calls runtime with changed file contents pin
   }
 });
 
-test("disabled review model job spends inside the rerun job without holding the budget queue", () => {
+test("review model job spends inside the rerun job without holding the budget queue", () => {
   const workflow = parse(readFileSync(".github/workflows/opencode-review.yml", "utf8"));
   const job = workflow.jobs.review;
-  expect(job.if).toBe("${{ false }}");
+  expect(job.permissions).toMatchObject({ issues: "read", "pull-requests": "write" });
+  expect(workflow.jobs.publish.permissions).toMatchObject({
+    issues: "read",
+    "pull-requests": "write",
+  });
+  expect(job.if).toBeUndefined();
   expect(job.concurrency.group).toBe("opencode-review-${{ github.event.pull_request.number }}");
   expect(job.concurrency["cancel-in-progress"]).toBe(true);
   const model = job.steps.findIndex((s: { id?: string }) => s.id === "workflow");

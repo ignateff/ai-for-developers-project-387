@@ -36,6 +36,55 @@ jobs:
       - run: mise run test:e2e:install
       - run: mise run check
 
+  head-browser:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Record and verify head SHA
+        id: revision
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/head-browser-evidence"
+          actual=$(git rev-parse HEAD)
+          printf '%s\n' "$actual" > "$RUNNER_TEMP/head-browser-evidence/head-sha.txt"
+          echo "sha=$actual" >> "$GITHUB_OUTPUT"
+          test "$actual" = "$EXPECTED_SHA"
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: 2026.10.23
+      - run: mise run install
+      - run: mise run test:e2e:install
+      - name: Run booking browser scenarios
+        id: browser
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/head-browser-evidence
+        run: |
+          set -o pipefail
+          mise run test:e2e -- e2e/meeting-types.spec.ts e2e/copy-booking.spec.ts --trace on --output="$EVIDENCE_DIR/traces" 2>&1 | tee "$EVIDENCE_DIR/results.log"
+      - name: Record browser result
+        if: ${{ !cancelled() && steps.revision.outputs.sha != '' }}
+        env:
+          HEAD_SHA: ${{ steps.revision.outputs.sha }}
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+        run: |
+          printf 'head_sha=%s\nresult=%s\nscenarios=e2e/meeting-types.spec.ts,e2e/copy-booking.spec.ts\n' "$HEAD_SHA" "$BROWSER_OUTCOME" > "$RUNNER_TEMP/head-browser-evidence/result.txt"
+      - name: Upload browser evidence
+        if: ${{ !cancelled() && steps.revision.outputs.sha != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: head-browser-${{ steps.revision.outputs.sha }}
+          path: ${{ runner.temp }}/head-browser-evidence
+          if-no-files-found: error
+
   security:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest

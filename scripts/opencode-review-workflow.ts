@@ -212,7 +212,7 @@ export async function reviewWorkflow(
   const directDocuments = new Set(documentLinks);
   const directRefs = new Set(refs.keys());
   const baseDocs = [];
-  for (const name of ["AGENTS.md", "README.md", "docs/agents/project-history.md"]) {
+  for (const name of ["AGENTS.md", "README.md", "REVIEW.md", "docs/agents/project-history.md"]) {
     try {
       baseDocs.push({ path: name, sha: pr.base.sha, body: text(await source(name, pr.base.sha)) });
     } catch {
@@ -426,6 +426,12 @@ export async function reviewWorkflow(
           author: text(c?.user?.login),
           body: text(c?.body),
           path: text(c?.path),
+          line: Number.isSafeInteger(c?.line) && c.line > 0 ? c.line : null,
+          originalLine:
+            Number.isSafeInteger(c?.original_line) && c.original_line > 0 ? c.original_line : null,
+          side: text(c?.side),
+          commit: text(c?.commit_id),
+          diffHunk: text(c?.diff_hunk),
           state: text(c?.state),
           url: text(c?.html_url),
         }))

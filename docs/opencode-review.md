@@ -2,15 +2,14 @@
 
 ## Status and authorization
 
-The review workflow is disabled in GitHub and its review job is disabled in the
-checked-in YAML. The existing implementation does not yet collect the complete
-context required by [#43](https://github.com/ignateff/ai-for-developers-project-387/issues/43);
-local mocks do not establish actual GitHub publication or token permissions.
-Enabling the workflow, changing GitHub settings, and real model calls each require
-separate authorization. Real App publication belongs to the separately authorized
-demonstration; do not claim it succeeded on the basis of local tests. Review is
-advisory, not a required merge status. A human decides after checking CI, evidence,
-the current head and each finding.
+GitHub Actions is enabled for the review workflow, and this branch removes its
+local disable guard. Integrate the workflow and trusted base code before expecting
+normal operation: the current default branch still has the guard. A controlled
+full review timed out; a successful complete review and actual publication of
+findings remain unverified. Review is advisory. A human decides after checking CI,
+evidence, the current head and each finding.
+
+The reviewer receives `REVIEW.md` from the pinned PR base as context; if it cannot be loaded, the report records an explicit limitation. The PR cannot change its own review criteria.
 
 ## Intended operation
 
@@ -27,8 +26,7 @@ Admission requires current owner or `write`/`maintain`/`admin` access, or an
 explicitly allowed bot with its verified numeric bot-user ID: `opencode-agent[bot]`
 (`219766164`) or `calendar-release-ignateff-bot[bot]` (`351107404`). Both head
 and base must belong to this repository. Unknown bots, forks and trust API errors
-must not receive model access. These are agreed identities, not authorization to
-configure an allowlist or enable the workflow. Command authorization has its own
+must not receive model access. The repository allowlist is configured with these verified identities. Command authorization has its own
 upstream limitations; see [command execution](opencode-commands.md).
 
 Authors should fill out the PR template with the original request, requirements,
@@ -51,8 +49,8 @@ automatic correction; a person must explicitly request it.
 
 ## Attempt budget and recovery
 
-Each PR has two independent, lifetime limits: three admitted command attempts
-shared by both command channels, and three automatic review attempts. A new PR
+Each PR has two independent, best-effort limits: three admitted command attempts
+shared by both command channels and counted from Actions history after the v2 cutover, and three automatic review attempts. A new PR
 gets its own budget; push, reopen, description edits and comments do not reset
 it. Ordinary issues are unaffected. After trust and freshness checks, the relevant
 counter is incremented before runtime preparation. Preparation failure, missing
@@ -62,9 +60,8 @@ rerun of a model-capable job needs a new admission; publication-only reruns do
 not invoke the model or spend another attempt. `limit_exhausted` is logged with
 the PR and SHA; inspect the log and do not assume a review ran.
 
-Both counters share one marked PR comment from the expected numeric author, not
-the review report. A missing comment creates zero state, including on an old PR
-or after deletion. API errors, malformed state or duplicate matching comments
+The legacy review counter uses one marked PR comment from the expected numeric author, not
+the review report. The command counter uses Actions history; see the budget document. For review, a missing comment creates zero state, including on an old PR or after deletion. API errors, malformed state or duplicate matching comments
 are `infra` and fail closed. The owner may correct or reset the comment after
 investigating; preserve its exact format and expected author. Deletion loses
 history and effectively resets the budget on the next admission. Humans and
@@ -89,7 +86,7 @@ Never bypass trust or manually remove an active budget lock to recover a run.
 The full `mise run check` includes workflow lint and local adapter tests; mock
 providers and runtime tests are not evidence of real GitHub permissions or
 publication. Record actual commands, outcomes, logs and SHA in the PR; flag any
-checks not run. Do not enable a disabled workflow simply to obtain evidence.
+checks not run.
 
 ## Local review adapter
 
@@ -118,3 +115,7 @@ hostile local user with access to the process. Avoid secrets in snapshots.
 `mise run test:opencode-review-runtime` is intended to exercise the pinned CLI
 with a local fixture provider, without real model calls or credentials. Passing
 local tests does not demonstrate GitHub publishing.
+
+## GitHub permission experiment
+
+A controlled PR test returned HTTP 403 when publishing a PR comment with `issues: write` and `pull-requests: read`. The same test successfully created and deleted a temporary PR comment with `issues: read` and `pull-requests: write`; the review and publication jobs use the latter permissions. A minimal model probe succeeded, while a full review timed out. See the task plan for run links. The full review is not yet verified; investigate timeout reports before relying on it.

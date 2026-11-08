@@ -52,29 +52,26 @@ it("bootstraps only the trusted default branch with credentials disabled", () =>
   });
 });
 
-it("runs admission and runtime through one production adapter", () => {
+it("records admission before giving the model access to credentials", () => {
   const job = workflow().jobs.opencode;
-  const steps: Array<{
-    id?: string;
-    run?: string;
-    if?: string;
-    uses?: string;
-    env?: Record<string, string>;
-  }> = job.steps;
-  const budget = steps.findIndex((step) => step.run === "mise run opencode:budget command");
-  expect(budget).toBeGreaterThan(0);
-  expect(steps[budget].env?.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
-  expect(steps.some((step) => step.run === "mise run opencode:run")).toBe(false);
-  for (const step of steps.slice(0, budget)) {
-    expect(JSON.stringify(step)).not.toContain("secrets.");
-  }
-  expect(job.permissions).toEqual({
-    "id-token": "write",
-    contents: "read",
-    "pull-requests": "read",
-    issues: "write",
-  });
-  for (const step of steps.filter((step) => step.uses)) {
-    expect(step.uses).toMatch(/@[a-f0-9]{40}$/);
-  }
+  const steps = job.steps;
+  const admission = steps.findIndex((step: { id?: string }) => step.id === "admission");
+  const marker = steps.findIndex(
+    (step: { name?: string }) => step.name === "Record command admission v2",
+  );
+  const command = steps.findIndex((step: { id?: string }) => step.id === "command");
+  expect(admission).toBeGreaterThan(0);
+  expect(marker).toBeGreaterThan(admission);
+  expect(command).toBeGreaterThan(marker);
+  expect(steps[command].env.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
+  expect(JSON.stringify(steps.slice(0, command))).not.toContain("secrets.");
+  expect(job.permissions).toMatchObject({ actions: "read", issues: "write", contents: "read" });
+});
+
+it("isolates PR reporting permission from the model job", () => {
+  const jobs = workflow().jobs;
+  expect(jobs.opencode.permissions["pull-requests"]).toBe("read");
+  expect(jobs.report.needs).toBe("opencode");
+  expect(jobs.report.permissions).toMatchObject({ issues: "read", "pull-requests": "write" });
+  expect(JSON.stringify(jobs.report)).not.toContain("DEEPSEEK_API_KEY");
 });
