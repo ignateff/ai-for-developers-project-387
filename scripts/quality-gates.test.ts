@@ -112,6 +112,37 @@ test("commit range checks every new message and rejects invalid revision inputs"
   ).not.toBe(0);
 });
 
+test("a push with an unavailable previous SHA checks the rewritten branch against main", () => {
+  const root = repository();
+  writeFileSync(
+    join(root, "commitlint.config.mjs"),
+    readFileSync(resolve("commitlint.config.mjs")),
+  );
+  symlinkSync(resolve("node_modules"), join(root, "node_modules"), "dir");
+  const base = git(root, "rev-parse", "HEAD");
+  git(root, "update-ref", "refs/remotes/origin/main", base);
+  git(root, "commit", "--allow-empty", "-m", "chore: valid rewritten commit");
+  const env = { GITHUB_EVENT_NAME: "push", CHECK_COMMIT_BASE: "a".repeat(40) };
+  const valid = command(root, "node", [commitScript], env);
+  expect(valid.status, valid.stdout + valid.stderr).toBe(0);
+  git(root, "commit", "--allow-empty", "-m", "invalid message");
+  const invalid = command(root, "node", [commitScript], env);
+  expect(invalid.status, invalid.stdout + invalid.stderr).not.toBe(0);
+  expect(invalid.stdout + invalid.stderr).toContain("subject may not be empty");
+});
+
+test("a push with an unavailable previous SHA fails when main is already at the head", () => {
+  const root = repository();
+  const head = git(root, "rev-parse", "HEAD");
+  git(root, "update-ref", "refs/remotes/origin/main", head);
+  const result = command(root, "node", [commitScript], {
+    GITHUB_EVENT_NAME: "push",
+    CHECK_COMMIT_BASE: "a".repeat(40),
+  });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("Cannot determine a safe commit range");
+});
+
 test("Hadolint and ShellCheck fail on real violations", () => {
   const root = repository();
   writeFileSync(join(root, "Dockerfile"), "FROM node:24\nRUN cd /app\n");
