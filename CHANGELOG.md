@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.9.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.8.0...v0.9.0) (2026-11-08)
+
+
+### Features
+
+* add PR head evidence and booking copy ([b5c6835](https://github.com/ignateff/ai-for-developers-project-387/commit/b5c6835251fc0bd0846b669c06898fa4302e1189))
+* add PR review cycle and browser evidence ([16140f5](https://github.com/ignateff/ai-for-developers-project-387/commit/16140f510d5726c468e7ca56afcb32e3b305387a))
+* **ci:** add scheduled performance audit ([dad3b74](https://github.com/ignateff/ai-for-developers-project-387/commit/dad3b74e507337ae4523c35e4b6d358e79681068)), closes [#53](https://github.com/ignateff/ai-for-developers-project-387/issues/53)
+* **ci:** configure review and PR command budget ([e30a6ec](https://github.com/ignateff/ai-for-developers-project-387/commit/e30a6ecbe4d72f97cf236c0e18c6f9b44ee05fd1))
+
+
+### Bug Fixes
+
+* **ci:** handle missing previous push commit ([10d7d88](https://github.com/ignateff/ai-for-developers-project-387/commit/10d7d88ccdf6628a59a8880de8ae3f0723bae952))
+* **ci:** handle missing previous push commit ([438ce98](https://github.com/ignateff/ai-for-developers-project-387/commit/438ce9805cddbf4207dd64959063e5aaf86b6d79)), closes [#49](https://github.com/ignateff/ai-for-developers-project-387/issues/49)
+* **review:** add safe command runtime diagnostics ([0cc4097](https://github.com/ignateff/ai-for-developers-project-387/commit/0cc409730b83535e1b00f3f6864cbb117e4fe92e))
+* **review:** add safe command runtime diagnostics ([c617ed9](https://github.com/ignateff/ai-for-developers-project-387/commit/c617ed923cf148b145f94f4f0e208c4ce6e170ee)), closes [#9](https://github.com/ignateff/ai-for-developers-project-387/issues/9)
+* **review:** add safe diagnostics for review stages ([c0ac7d9](https://github.com/ignateff/ai-for-developers-project-387/commit/c0ac7d9207e768310cf43f7f363bcccaeffa4596))
+* **review:** add safe diagnostics for review stages ([2c47bb7](https://github.com/ignateff/ai-for-developers-project-387/commit/2c47bb709bb9310eefa9e6ddf2c68db1ff6b3974))
+* **review:** improve review context and permissions ([2592f9a](https://github.com/ignateff/ai-for-developers-project-387/commit/2592f9a2aca61fa5c24fc0b21a57f1ab13e2f8c7))
+* **review:** log safe preparation failure reason ([8168c55](https://github.com/ignateff/ai-for-developers-project-387/commit/8168c557097875e652327852182cba0445640741))
+* **review:** log safe preparation failure reason ([797cd95](https://github.com/ignateff/ai-for-developers-project-387/commit/797cd95d4c89f97f72eb49c7fa758a4144bc619c)), closes [#39](https://github.com/ignateff/ai-for-developers-project-387/issues/39)
+* **review:** trace command process activity safely ([6bdbfe7](https://github.com/ignateff/ai-for-developers-project-387/commit/6bdbfe723b63514b7eec5fbe0f14de82f005b3b7))
+* **review:** trace command process activity safely ([308667b](https://github.com/ignateff/ai-for-developers-project-387/commit/308667ba6d639aba084276932a8af70126543422))
+
 ## [0.8.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.7.0...v0.8.0) (2026-11-07)
 
 
