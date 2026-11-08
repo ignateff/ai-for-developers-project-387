@@ -57,7 +57,7 @@ test("linked issue evidence is charged once and does not crowd out later evidenc
     );
     expect(JSON.parse(snapshot.requirements.text).materials).toHaveLength(9);
     expect(snapshot.previousReview.reviews[0].body).toBe("later review evidence");
-    expect(snapshot.agreement.limitations.join(" ")).not.toContain("aggregate size budget");
+    expect(snapshot.limitations.join(" ")).not.toContain("aggregate size budget");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -179,7 +179,7 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
     expect(requested.some((url) => url.includes("approval%2520notes"))).toBe(false);
     expect(requested.some((url) => url.includes("/contents/docs/secret.md"))).toBe(false);
     expect(requested.some((url) => url.includes("/commits/main"))).toBe(false);
-    const limitations = snapshot.agreement.limitations.join(" ");
+    const limitations = snapshot.limitations.join(" ");
     expect(limitations).toContain("aggregate size budget");
     expect(limitations).toContain("ambiguous");
     for (const criterion of [

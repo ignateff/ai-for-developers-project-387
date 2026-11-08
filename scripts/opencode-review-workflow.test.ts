@@ -79,6 +79,7 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
     expect(stages).toEqual([
       "PR context collection started",
       "changed file collection started",
+      "related repository context collection started",
       "supplementary context collection started",
       "final context validation started",
       "model invocation started",
@@ -275,9 +276,9 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
       explicitlyLinkedInPr: false,
       text: "ok",
     });
-    expect(snapshot.agreement.limitations.join(" ")).toContain("External or unsupported");
-    expect(snapshot.agreement.limitations.join(" ")).not.toContain("CI context is incomplete");
-    expect(snapshot.agreement.limitations.join(" ")).toContain("relative document link");
+    expect(snapshot.limitations.join(" ")).toContain("External or unsupported");
+    expect(snapshot.limitations.join(" ")).not.toContain("CI context is incomplete");
+    expect(snapshot.limitations.join(" ")).toContain("relative document link");
     expect(requested.some((url) => url.includes("/contents/docs/historical.md"))).toBe(false);
     expect(snapshot.previousReview.reviewComments[0]).toMatchObject({
       path: "src/a.ts",
@@ -407,7 +408,7 @@ test("production review admits then calls runtime with changed file contents pin
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(report.limitations.join(" ")).toContain("Only changed files");
+    expect(report.limitations.join(" ")).toContain("Related repository context");
     env.GITHUB_RUN_ATTEMPT = "2";
     failSource = true;
     expect((await run(options)).status).toBe("infra");
@@ -439,4 +440,583 @@ test("review model job spends inside the rerun job without holding the budget qu
   expect(JSON.stringify(publish)).not.toContain("DEEPSEEK_API_KEY");
   expect(JSON.stringify(publish)).not.toContain("opencode:budget");
   expect(JSON.stringify(publish)).not.toContain("opencode:review-run");
+});
+
+const blob = (character: string) => character.repeat(40);
+const treeBlob = (path: string, sha: string, size: number) => ({
+  path,
+  mode: "100644",
+  type: "blob",
+  sha,
+  size,
+});
+
+test("collects pinned base and head trees with unchanged related files needed to verify the diff", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-related-"));
+  const sha = "a".repeat(40),
+    base = "b".repeat(40);
+  const changed = "apps/web/src/pages/book/availability.tsx";
+  const format = "apps/web/src/shared/format.ts";
+  const calendar = "apps/web/src/shared/calendar.tsx";
+  const helper = "apps/web/src/shared/helper.ts";
+  const testFile = "apps/web/src/pages/book/availability.test.tsx";
+  const importer = "apps/web/src/widgets/book-widget.tsx";
+  const unrelated = "apps/web/src/widgets/other.tsx";
+  const baseChanged = blob("1");
+  const headChanged = blob("2");
+  const sources: Record<string, string> = {
+    [changed]:
+      'import { formatTime } from "../../shared/format";\nimport { Calendar } from "../../shared/calendar";\nimport { helper } from "../../shared/helper";\nexport const availability = formatTime;',
+    [format]: "export const formatTime = (minutes: number) => String(minutes);",
+    [calendar]: "export const Calendar = () => null;",
+    [helper]: "export const helper = 1;",
+    [testFile]: 'import { availability } from "./availability";',
+    [importer]: 'import { availability } from "../pages/book/availability";',
+    [unrelated]: "export const other = 1;",
+  };
+  const pr = {
+    number: 7,
+    state: "open",
+    draft: false,
+    changed_files: 1,
+    body: "Request: #33",
+    base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+    head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+  };
+  const tree = (ref: string) => ({
+    sha: ref,
+    truncated: false,
+    tree: [
+      treeBlob("AGENTS.md", blob("3"), 10),
+      treeBlob(changed, ref === base ? baseChanged : headChanged, sources[changed].length),
+      treeBlob(format, blob("4"), sources[format].length),
+      treeBlob(calendar, blob("5"), sources[calendar].length),
+      treeBlob(helper, ref === base ? blob("e") : blob("f"), sources[helper].length),
+      treeBlob(testFile, blob("6"), sources[testFile].length),
+      treeBlob(importer, blob("7"), sources[importer].length),
+      treeBlob(unrelated, blob("8"), sources[unrelated].length),
+      { path: "apps/web/src", mode: "040000", type: "tree", sha: blob("9") },
+    ],
+  });
+  const api: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    const path = url.pathname;
+    if (path.endsWith("/pulls/7")) return Response.json(pr);
+    if (path.endsWith("/pulls/7/files"))
+      return Response.json([{ filename: changed, status: "modified", patch: "-a\n+b" }]);
+    if (path.includes("/git/trees/")) return Response.json(tree(path.split("/git/trees/")[1]));
+    if (path.endsWith("/pulls/7/commits"))
+      return Response.json([
+        {
+          sha: blob("d"),
+          commit: { message: "fix: address prior review" },
+          author: { login: "owner" },
+        },
+      ]);
+    if (path.includes("/contents/")) {
+      const name = decodeURIComponent(path.split("/contents/")[1]);
+      if (name.endsWith("REVIEW.md")) {
+        const review = "Calendar review criteria";
+        return Response.json({
+          type: "file",
+          encoding: "base64",
+          content: Buffer.from(review).toString("base64"),
+          size: Buffer.byteLength(review),
+        });
+      }
+      const content = sources[name];
+      if (!content) return new Response(null, { status: 404 });
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+        size: Buffer.byteLength(content),
+      });
+    }
+    if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    if (path.endsWith("/issues/33"))
+      return Response.json({ title: "Requirements", body: "Booking requirements" });
+    return Response.json([]);
+  };
+  try {
+    await mkdir(join(dir, "opencode-review-1-1"));
+    await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+    let snapshot: any;
+    await reviewWorkflow(
+      "run",
+      {
+        RUNNER_TEMP: dir,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+        DEEPSEEK_API_KEY: "fixture-key",
+        GH_TOKEN: "fixture-token",
+        GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: sha,
+      },
+      {
+        fetch: api,
+        review: async ({ context }) => {
+          snapshot = context;
+          return { summary: "No confirmed defects", findings: [], limitations: [] };
+        },
+      },
+    );
+    const repository = snapshot.repository;
+    expect(repository).toMatchObject({ baseSha: base, headSha: sha, available: true });
+    const index = (ref: "base" | "head") =>
+      new Map(repository.index[ref].map((entry: { path: string }) => [entry.path, entry]));
+    expect(index("head").has(changed)).toBe(true);
+    expect((index("base").get(changed) as { sha: string }).sha).toBe(baseChanged);
+    expect((index("head").get(changed) as { sha: string }).sha).toBe(headChanged);
+    const related = new Map(
+      repository.related.map((entry: { path: string }) => [entry.path, entry]),
+    );
+    expect([...related.keys()]).toEqual(
+      expect.arrayContaining([format, calendar, testFile, importer]),
+    );
+    expect(related.has(unrelated)).toBe(false);
+    expect(related.has(helper)).toBe(false);
+    expect(related.get(format)).toMatchObject({
+      content: sources[format],
+      sha: blob("4"),
+      reason: `Imported by changed file ${changed}.`,
+    });
+    expect(related.get(importer)).toMatchObject({
+      content: sources[importer],
+      reason: `References changed file ${changed}.`,
+    });
+    expect(related.get(testFile)).toMatchObject({
+      content: sources[testFile],
+      sha: blob("6"),
+      reason: `Test for changed file ${changed}.`,
+    });
+    expect((index("base").get(format) as { sha: string }).sha).toBe(blob("4"));
+    expect((index("head").get(format) as { sha: string }).sha).toBe(blob("4"));
+    expect(snapshot.ci.headSha).toBe(sha);
+    expect(snapshot.commits).toContainEqual({
+      sha: blob("d"),
+      message: "fix: address prior review",
+      author: "owner",
+    });
+    const saved = JSON.parse(
+      await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+    );
+    const limitations = saved.limitations.join(" ");
+    expect(limitations).toContain("Related repository context");
+    expect(limitations).not.toContain("Related repository context is unavailable");
+    expect(limitations).toContain("differs between the pinned base and head");
+    expect(limitations).not.toContain("Only changed files");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reports an explicit limitation when pinned repository trees are unavailable", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-related-unavailable-"));
+  const sha = "a".repeat(40),
+    base = "b".repeat(40);
+  const changed = "apps/web/src/pages/book/availability.tsx";
+  const pr = {
+    number: 7,
+    state: "open",
+    draft: false,
+    changed_files: 1,
+    body: "#33",
+    base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+    head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+  };
+  const api: typeof fetch = async (input) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith("/pulls/7")) return Response.json(pr);
+    if (path.endsWith("/pulls/7/files"))
+      return Response.json([{ filename: changed, status: "modified", patch: "-a\n+b" }]);
+    if (path.includes("/git/trees/")) return new Response(null, { status: 404 });
+    if (path.endsWith("/pulls/7/commits")) return Response.json([{}]);
+    if (path.includes("/contents/")) {
+      const content = "source";
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+        size: Buffer.byteLength(content),
+      });
+    }
+    if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    return Response.json([]);
+  };
+  try {
+    await mkdir(join(dir, "opencode-review-1-1"));
+    await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+    let snapshot: any;
+    await reviewWorkflow(
+      "run",
+      {
+        RUNNER_TEMP: dir,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+        DEEPSEEK_API_KEY: "fixture-key",
+        GH_TOKEN: "fixture-token",
+        GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: sha,
+      },
+      {
+        fetch: api,
+        review: async ({ context }) => {
+          snapshot = context;
+          return { summary: "No confirmed defects", findings: [], limitations: [] };
+        },
+      },
+    );
+    expect(snapshot.repository).toMatchObject({
+      available: false,
+      index: null,
+      related: [],
+    });
+    const saved = JSON.parse(
+      await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+    );
+    const limitations = saved.limitations.join(" ");
+    expect(limitations).toContain("Related repository context is unavailable");
+    expect(limitations).toContain("PR commit history is incomplete or unavailable");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("includes the pinned contract chain for API changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-contract-chain-"));
+  const sha = "a".repeat(40),
+    base = "b".repeat(40);
+  const changed = "apps/api/src/bookings/routes.ts";
+  const contract = "contract/main.tsp";
+  const openapi = "generated/openapi/openapi.yaml";
+  const sdk = "generated/sdk/client.ts";
+  const contractTest = "apps/api/src/contract.test.ts";
+  const localTest = "apps/api/src/bookings/routes.test.ts";
+  const sources: Record<string, string> = {
+    [changed]: "export const routes = {};",
+    [contract]: "op Booking { id: string; }",
+    [openapi]: "openapi: 3.0.0",
+    [sdk]: "export const generated = 1;",
+    [contractTest]: "export const contractTest = 1;",
+    [localTest]: "export const localTest = 1;",
+  };
+  const pr = {
+    number: 7,
+    state: "open",
+    draft: false,
+    changed_files: 1,
+    body: "#33",
+    base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+    head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+  };
+  const entries = Object.fromEntries(
+    Object.entries(sources).map(([path, content], index) => [
+      path,
+      treeBlob(path, blob(String(index + 1)), Buffer.byteLength(content)),
+    ]),
+  );
+  const tree = (changedSha: string) => ({
+    sha: changedSha,
+    truncated: false,
+    tree: Object.values({
+      ...entries,
+      [changed]: treeBlob(changed, changedSha, Buffer.byteLength(sources[changed])),
+    }),
+  });
+  const api: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    const path = url.pathname;
+    if (path.endsWith("/pulls/7")) return Response.json(pr);
+    if (path.endsWith("/pulls/7/files"))
+      return Response.json([{ filename: changed, status: "modified", patch: "-a\n+b" }]);
+    if (path.includes("/git/trees/"))
+      return Response.json(tree(path.endsWith(sha) ? blob("2") : blob("1")));
+    if (path.includes("/contents/")) {
+      const name = decodeURIComponent(path.split("/contents/")[1]);
+      const content = sources[name] ?? "base document";
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+        size: Buffer.byteLength(content),
+      });
+    }
+    if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    return Response.json([]);
+  };
+  try {
+    await mkdir(join(dir, "opencode-review-1-1"));
+    await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+    let snapshot: any;
+    await reviewWorkflow(
+      "run",
+      {
+        RUNNER_TEMP: dir,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+        DEEPSEEK_API_KEY: "fixture-key",
+        GH_TOKEN: "fixture-token",
+        GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: sha,
+      },
+      {
+        fetch: api,
+        review: async ({ context }) => {
+          snapshot = context;
+          return { summary: "No confirmed defects", findings: [], limitations: [] };
+        },
+      },
+    );
+    const related = new Map(
+      snapshot.repository.related.map((entry: { path: string }) => [entry.path, entry]),
+    );
+    for (const path of [contract, openapi, sdk, contractTest]) expect(related.has(path)).toBe(true);
+    expect(related.get(contract)).toMatchObject({
+      content: sources[contract],
+      reason: expect.stringContaining("Contract chain"),
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("states explicitly when related context is capped", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-related-cap-"));
+  const sha = "a".repeat(40),
+    base = "b".repeat(40);
+  const directory = "apps/web/src/pages/book";
+  const changed = `${directory}/availability.tsx`;
+  const modules = Array.from({ length: 25 }, (_, index) => `${directory}/module-${index}.ts`);
+  const sources: Record<string, string> = {
+    [changed]: modules.map((_, index) => `import "./module-${index}";`).join("\n"),
+    ...Object.fromEntries(modules.map((path) => [path, "export const value = 1;"])),
+  };
+  const pr = {
+    number: 7,
+    state: "open",
+    draft: false,
+    changed_files: 1,
+    body: "#33",
+    base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+    head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+  };
+  const entries = Object.fromEntries(
+    Object.entries(sources).map(([path, content], index) => [
+      path,
+      treeBlob(path, blob(String((index % 9) + 1)), Buffer.byteLength(content)),
+    ]),
+  );
+  const tree = (changedSha: string) => ({
+    sha: changedSha,
+    truncated: false,
+    tree: Object.values({
+      ...entries,
+      [changed]: treeBlob(changed, changedSha, Buffer.byteLength(sources[changed])),
+    }),
+  });
+  const api: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    const path = url.pathname;
+    if (path.endsWith("/pulls/7")) return Response.json(pr);
+    if (path.endsWith("/pulls/7/files"))
+      return Response.json([{ filename: changed, status: "modified", patch: "-a\n+b" }]);
+    if (path.includes("/git/trees/"))
+      return Response.json(tree(path.endsWith(sha) ? blob("2") : blob("1")));
+    if (path.includes("/contents/")) {
+      const name = decodeURIComponent(path.split("/contents/")[1]);
+      const content = sources[name] ?? "base document";
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+        size: Buffer.byteLength(content),
+      });
+    }
+    if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    return Response.json([]);
+  };
+  try {
+    await mkdir(join(dir, "opencode-review-1-1"));
+    await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+    let snapshot: any;
+    await reviewWorkflow(
+      "run",
+      {
+        RUNNER_TEMP: dir,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+        DEEPSEEK_API_KEY: "fixture-key",
+        GH_TOKEN: "fixture-token",
+        GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: sha,
+      },
+      {
+        fetch: api,
+        review: async ({ context }) => {
+          snapshot = context;
+          return { summary: "No confirmed defects", findings: [], limitations: [] };
+        },
+      },
+    );
+    expect(snapshot.repository.related.length).toBeLessThanOrEqual(24);
+    const saved = JSON.parse(
+      await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+    );
+    expect(saved.limitations.join(" ")).toContain("omitted by count or size limits");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reports a truncated index when the pinned tree exceeds the listing limit", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-index-limit-"));
+  const sha = "a".repeat(40),
+    base = "b".repeat(40);
+  const changed = "apps/web/src/pages/book/availability.tsx";
+  const pr = {
+    number: 7,
+    state: "open",
+    draft: false,
+    changed_files: 1,
+    body: "#33",
+    base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+    head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+  };
+  const tree = (ref: string) => ({
+    sha: ref,
+    truncated: false,
+    tree: [
+      ...Array.from({ length: 5000 }, (_, index) =>
+        treeBlob(`file-${String(index).padStart(4, "0")}.ts`, blob("a"), 1),
+      ),
+      treeBlob(changed, ref === base ? blob("1") : blob("2"), 1),
+    ],
+  });
+  const api: typeof fetch = async (input) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith("/pulls/7")) return Response.json(pr);
+    if (path.endsWith("/pulls/7/files"))
+      return Response.json([{ filename: changed, status: "modified", patch: "-a\n+b" }]);
+    if (path.includes("/git/trees/")) return Response.json(tree(path.split("/git/trees/")[1]));
+    if (path.includes("/contents/")) {
+      const content = "x";
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+        size: Buffer.byteLength(content),
+      });
+    }
+    if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    return Response.json([]);
+  };
+  try {
+    await mkdir(join(dir, "opencode-review-1-1"));
+    await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+    await reviewWorkflow(
+      "run",
+      {
+        RUNNER_TEMP: dir,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+        DEEPSEEK_API_KEY: "fixture-key",
+        GH_TOKEN: "fixture-token",
+        GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: sha,
+      },
+      {
+        fetch: api,
+        review: async () => ({ summary: "No confirmed defects", findings: [], limitations: [] }),
+      },
+    );
+    const saved = JSON.parse(
+      await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+    );
+    expect(saved.limitations.join(" ")).toContain("index exceeds 5000 entries");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("fails closed to the unavailable-context limitation on a malformed pinned tree", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "review-malformed-tree-"));
+  const sha = "a".repeat(40),
+    base = "b".repeat(40);
+  const changed = "apps/web/src/pages/book/availability.tsx";
+  const pr = {
+    number: 7,
+    state: "open",
+    draft: false,
+    changed_files: 1,
+    body: "#33",
+    base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+    head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
+  };
+  const api: typeof fetch = async (input) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith("/pulls/7")) return Response.json(pr);
+    if (path.endsWith("/pulls/7/files"))
+      return Response.json([{ filename: changed, status: "modified", patch: "-a\n+b" }]);
+    if (path.includes("/git/trees/"))
+      return Response.json({
+        sha,
+        truncated: false,
+        tree: [treeBlob("bad", "not-a-sha", -1)],
+      });
+    if (path.includes("/contents/")) {
+      const content = "x";
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(content).toString("base64"),
+        size: Buffer.byteLength(content),
+      });
+    }
+    if (path.endsWith("/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+    if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
+    return Response.json([]);
+  };
+  try {
+    await mkdir(join(dir, "opencode-review-1-1"));
+    await writeFile(join(dir, "opencode-review-1-1", "binary"), "/fixture");
+    let snapshot: any;
+    await reviewWorkflow(
+      "run",
+      {
+        RUNNER_TEMP: dir,
+        GITHUB_RUN_ID: "1",
+        GITHUB_RUN_ATTEMPT: "1",
+        DEEPSEEK_API_KEY: "fixture-key",
+        GH_TOKEN: "fixture-token",
+        GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
+        OPENCODE_PR_NUMBER: "7",
+        OPENCODE_HEAD_SHA: sha,
+      },
+      {
+        fetch: api,
+        review: async ({ context }) => {
+          snapshot = context;
+          return { summary: "No confirmed defects", findings: [], limitations: [] };
+        },
+      },
+    );
+    expect(snapshot.repository).toMatchObject({ available: false, index: null, related: [] });
+    const saved = JSON.parse(
+      await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
+    );
+    expect(saved.limitations.join(" ")).toContain("Related repository context is unavailable");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

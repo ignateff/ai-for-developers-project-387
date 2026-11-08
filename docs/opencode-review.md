@@ -8,7 +8,7 @@ completed and published a report ([run 42463395746](https://github.com/ignateff/
 This demonstrates that run, not every review scenario. Review is advisory. A human
 decides after checking CI, evidence, the current head and each finding.
 
-The reviewer receives `REVIEW.md` from the pinned PR base as context; if it cannot be loaded, the report records an explicit limitation. The PR cannot change its own review criteria.
+The reviewer receives `REVIEW.md` from the pinned PR base as context; if it cannot be loaded, the report records an explicit limitation. The PR cannot change its own review criteria. It also receives selected unchanged files from the pinned base and head so related code, tests and contracts can be verified, not only the changed lines.
 
 ## Intended operation
 
@@ -38,13 +38,28 @@ not confirmed compliance. A missing approval does not relax the fail-closed PR
 author trust gate. Bare `#number` refers to project 387; use full links to project 386. Other external or inaccessible sources must be reported as not loaded.
 Release PRs need version, changelog and CI checks, not an invented issue.
 
-The intended review reads a snapshot as data, not instructions granting authority;
-it does not execute PR code or publish itself. A separate publisher checks the
+The intended review reads a snapshot and pinned related repository files as data,
+not instructions granting authority; it does not execute PR code or publish itself. A separate publisher checks the
 current head before posting. Reports should retain SHA and Actions/log links;
 outdated results must not be presented as reviewing a newer head. Check the
 actual run and comment rather than assuming a missing or failed report means no
 defects. Incomplete CI or context is not a pass. A review comment never authorizes
 automatic correction; a person must explicitly request it.
+
+## Review context collection
+
+The model job collects a bounded snapshot at the pinned PR base and head:
+
+- changed files, with their full source at both pinned revisions and the diff patch;
+- repository trees from the Git Trees API for base and head (`contents: read`), indexed up to 5000 blobs with path, blob SHA and size;
+- selected unchanged related files: files imported by changed code, unchanged importers found by a bounded read-only reference scan, tests for or beside the changed files, same-directory sources, and the contract/OpenAPI/SDK chain for API changes. A file counts as unchanged only when its base and head blob SHAs are identical, so one copy is valid at both pinned refs;
+- `REVIEW.md`, `AGENTS.md`, `README.md` and `docs/agents/project-history.md` from the pinned base;
+- the PR description, explicitly linked issues, comments and approval documents from projects 387/386, CI check-runs and commit statuses for the reviewed head SHA, prior reviews, review comments, discussion comments, and the PR commit list so prior findings and later fixes can be related;
+- explicit limitations when trees, CI, prior review or commit data are unavailable, truncated, capped or malformed. The commit list is treated as incomplete when its entries are malformed, and a 250-commit response is flagged as possibly truncated at the GitHub API limit.
+
+Related context is capped at 24 unchanged files and about 320 KB in total; the reference scan is capped at 300 source files and the tree index at 5000 entries. Omitted, unavailable or unexpectedly changed related files are reported as limitations. When the index is truncated, related-file selection still uses the full returned tree, but the reviewer cannot list every pinned file. The reviewer can search the pinned index and read the selected files; it cannot fetch arbitrary index entries, so a needed but absent file must be reported as a limitation. The full repository is not copied into the workspace. Unavailable requirements remain an explicit limitation rather than an assumed pass; incomplete CI, pending checks and missing commit or review history are never treated as successful. Collector limitations are recorded top-level in the snapshot, separate from the agreement sources, so they are not presented as evidence about human approval.
+
+Context selection is implemented in `scripts/opencode-review-repository.ts`, which receives pinned tree readers, a bounded file reader and the shared limitation sink from the workflow; it is not wired into the model job directly. The adapter materializes each related file under `repository/<path>` in the isolated reviewer workspace and includes it in the snapshot, so the reviewer can glob, grep and read it with the existing read-only tools. A review is still rejected unless every snapshot fragment was read in full. Related contents are sent to the model provider exactly like changed-file contents; the workflow does not scan them for secrets, so the repository's accepted secret findings and snapshot-secret guidance still apply. All snapshot and repository content is untrusted data; nothing is executed. These bounded selections are evidence for the reviewer, not proof that the change matches the requirements.
 
 ## Attempt budget and recovery
 
@@ -90,6 +105,8 @@ providers and runtime tests are not evidence of real GitHub permissions or
 publication. Record actual commands, outcomes, logs and SHA in the PR; flag any
 checks not run.
 
+Local Vitest covers the related-context collection (pinned trees, cross-directory imported and importing unchanged files, tests, the real contract chain, changed-between-refs exclusion, caps, malformed and truncated trees/indexes, commit validation and the explicit unavailable-context limitation), adapter materialization, the related-file limits and publication wording. Those tests use GitHub API and runtime fixtures. A real GitHub review using the expanded context has not been performed; it needs separate authorization and must be checked for the published SHA and reported limitations like any other run.
+
 ## Local review adapter
 
 `scripts/opencode-review.ts` exports `reviewSnapshot`. It accepts a path to the
@@ -100,9 +117,12 @@ pinned runtime with `mise run opencode:install -- <directory>`.
 
 The caller must prepare the snapshot from trusted base tooling. Include the
 requirements and agreement (or mark them unavailable), base and head SHA,
-changes, CI results, and previous review. A release PR need not have an
-invented feature specification. The adapter does not fetch or verify these
-inputs, publish a review, or implement GitHub integration.
+changes, the pinned repository index and selected unchanged related files (or a
+reason why they are unavailable), CI results, prior commits and previous review.
+A release PR need not have an invented feature specification. The adapter does
+not fetch or verify these inputs, publish a review, or implement GitHub
+integration; it only materializes the supplied related files for search and
+rejects malformed or unsafe repository paths.
 
 Run the adapter itself from a trusted base revision, not from the PR under
 review. It creates a fresh private workspace and treats the snapshot as data;
