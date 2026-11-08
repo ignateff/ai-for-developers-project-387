@@ -109,6 +109,13 @@ jobs:
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
+      - name: Summarize runtime log safely
+        if: ${{ !cancelled() && steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success' }}
+        continue-on-error: true
+        run: mise run opencode:log-summary
+        env:
+          OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Classify command outcome
         id: outcome
         if: ${{ !cancelled() && steps.admission.outputs.pr != '' && (steps.admission.outputs.status == 'limit_exhausted' || steps.admission.outputs.status == 'infra' || steps.prepare.outcome == 'failure' || steps.command.outcome == 'failure') }}

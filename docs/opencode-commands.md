@@ -41,7 +41,9 @@ agent's published results; a successful run is not proof of an authorized action
 The local adapter retains upstream `opencode github run`, App/OIDC token exchange,
 and `deepseek/deepseek-flash`. It replaces the floating installation performed by
 the upstream composite Action. The pinned CLI must be verified before the handler
-starts; a version-specific cache key alone is insufficient.
+starts; a version-specific cache key alone is insufficient. The runtime archive
+download is retried a bounded number of times within a fixed time budget; failures
+stay generic and never include response bodies or raw errors.
 
 The handler creates a branch and PR for issue commands. For comments on an
 existing internal PR it updates that PR instead of creating another one. The
@@ -58,6 +60,15 @@ Only an exact allowlist of fixed phase messages is relayed; all other output is
 discarded, including error annotations and model text. The handler still publishes
 its normal response on the issue/PR. A cancellation remains a failure even if the
 child exits with code zero after receiving the signal.
+
+After an admitted command, a separate `continue-on-error` step reads the runtime's
+own log from the prepared command directory and prints only counts of an allowlist
+of events (`loop`, `process`, `evaluated`, `asking`, `shell tool using shell`,
+`resolved path`) and the highest loop step. It never prints raw log lines, tool
+output, prompts or credentials, reports a missing log as `unavailable`, and runs
+after failures and timeouts except cancellation. It does not change the recorded
+outcome; the summary distinguishes a model call from a running shell command or a
+pending permission request only when the corresponding allowlisted events exist.
 
 HOME, XDG state and TMPDIR/TMP/TEMP are dedicated to the run. Mise's installed
 tool directory is retained explicitly, without copying developer configuration

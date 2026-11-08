@@ -75,3 +75,20 @@ it("isolates PR reporting permission from the model job", () => {
   expect(jobs.report.permissions).toMatchObject({ issues: "read", "pull-requests": "write" });
   expect(JSON.stringify(jobs.report)).not.toContain("DEEPSEEK_API_KEY");
 });
+
+it("summarizes only allowlisted runtime log events after a failed command", () => {
+  const steps = workflow().jobs.opencode.steps;
+  const command = steps.findIndex((step: { id?: string }) => step.id === "command");
+  const summary = steps.findIndex(
+    (step: { run?: string }) => step.run === "mise run opencode:log-summary",
+  );
+  expect(command).toBeGreaterThan(0);
+  expect(summary).toBeGreaterThan(command);
+  expect(steps[summary].if).toContain("!cancelled()");
+  expect(steps[summary].if).toContain("steps.prepare.outcome == 'success'");
+  expect(steps[summary]["continue-on-error"]).toBe(true);
+  expect(steps[summary].env).toEqual({
+    OPENCODE_COMMAND_DIR: "${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}",
+  });
+  expect(JSON.stringify(steps[summary])).not.toContain("secrets.");
+});

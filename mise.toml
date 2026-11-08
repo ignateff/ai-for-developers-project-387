@@ -156,6 +156,10 @@ run = "pnpm run opencode:prepare"
 description = "Run the prepared upstream GitHub handler with its pinned runtime"
 run = "pnpm run opencode:run"
 
+[tasks."opencode:log-summary"]
+description = "Print safe counts from the prepared command runtime log"
+run = "pnpm run opencode:log-summary"
+
 [tasks."lint:opencode-workflow"]
 run = "pnpm run lint:opencode-workflow"
 

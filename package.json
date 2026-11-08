@@ -32,6 +32,7 @@
     "opencode:review-publish": "node scripts/opencode-review-publish-cli.ts",
     "opencode:prepare": "node scripts/opencode-command.ts prepare",
     "opencode:run": "node scripts/opencode-command.ts run",
+    "opencode:log-summary": "node scripts/opencode-log-summary.ts",
     "lint:opencode-workflow": "jactionlint .github/workflows/opencode.yml",
     "lint:opencode-review-workflow": "jactionlint .github/workflows/opencode-review.yml",
     "lint:triage-workflow": "jactionlint .github/workflows/opencode-triage.yml",

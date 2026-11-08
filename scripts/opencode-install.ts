@@ -4,6 +4,10 @@ import { join, resolve } from "node:path";
 import { runIsolatedProcess } from "./opencode-process.ts";
 
 const maxArchiveBytes = 256 * 1024 * 1024;
+const downloadAttempts = 3;
+const downloadBudgetMs = 180_000;
+const downloadAttemptTimeoutMs = 120_000;
+const downloadBackoffMs = 500;
 
 export const runtimeVersion = "1.19.5";
 const version = runtimeVersion;
@@ -52,6 +56,13 @@ export interface InstallRuntimeOptions {
   arch?: string;
   fetch?: (url: string, options: { signal: AbortSignal }) => Promise<Response>;
   signal?: AbortSignal;
+  download?: DownloadOptions;
+}
+
+export interface DownloadOptions {
+  attempts?: number;
+  budgetMs?: number;
+  backoffMs?: number;
 }
 
 export async function installRuntime(options: InstallRuntimeOptions): Promise<string> {
@@ -59,11 +70,12 @@ export async function installRuntime(options: InstallRuntimeOptions): Promise<st
   if (target !== "linux-x64" && target !== "darwin-arm64")
     throw new Error("Unsupported OpenCode runtime platform/architecture");
   const release = releases[target];
-  const archive = await downloadArchive(
-    `https://github.com/anomalyco/opencode/releases/download/v${version}/${release.asset}`,
-    options.fetch ?? fetch,
-    options.signal,
-  );
+  const archive = await downloadArchive({
+    url: `https://github.com/anomalyco/opencode/releases/download/v${version}/${release.asset}`,
+    download: options.fetch ?? fetch,
+    cancellation: options.signal,
+    options: options.download,
+  });
   return installVerifiedArchive({
     directory: options.directory,
     archive,
@@ -72,13 +84,53 @@ export async function installRuntime(options: InstallRuntimeOptions): Promise<st
   });
 }
 
-async function downloadArchive(
+export async function downloadArchive(input: {
+  url: string;
+  download: NonNullable<InstallRuntimeOptions["fetch"]>;
+  cancellation?: AbortSignal;
+  options?: DownloadOptions;
+}): Promise<Buffer> {
+  const attempts = positiveInteger(input.options?.attempts, downloadAttempts);
+  const budgetMs = positiveInteger(input.options?.budgetMs, downloadBudgetMs);
+  const backoffMs = nonNegativeInteger(input.options?.backoffMs, downloadBackoffMs);
+  const deadline = Date.now() + budgetMs;
+  let attemptsMade = 0;
+  while (attemptsMade < attempts) {
+    if (input.cancellation?.aborted) break;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    attemptsMade++;
+    const timeout = AbortSignal.timeout(Math.min(downloadAttemptTimeoutMs, remaining));
+    const signal = input.cancellation ? AbortSignal.any([timeout, input.cancellation]) : timeout;
+    try {
+      return await downloadOnce(input.url, input.download, signal);
+    } catch {
+      if (input.cancellation?.aborted) break;
+      const waitMs = Math.min(
+        backoffMs * 2 ** (attemptsMade - 1),
+        Math.max(0, deadline - Date.now()),
+      );
+      if (waitMs > 0) await new Promise<void>((accept) => setTimeout(accept, waitMs));
+    }
+  }
+  throw new Error(
+    `OpenCode archive download failed after ${attemptsMade} attempt(s) (network, HTTP, size limit, or timeout)`,
+  );
+}
+
+function positiveInteger(value: number | undefined, fallback: number): number {
+  return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : fallback;
+}
+
+function nonNegativeInteger(value: number | undefined, fallback: number): number {
+  return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : fallback;
+}
+
+async function downloadOnce(
   url: string,
   download: NonNullable<InstallRuntimeOptions["fetch"]>,
-  cancellation?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<Buffer> {
-  const timeout = AbortSignal.timeout(120_000);
-  const signal = cancellation ? AbortSignal.any([timeout, cancellation]) : timeout;
   try {
     const response = await download(url, { signal });
     signal.throwIfAborted();
@@ -112,7 +164,7 @@ async function downloadArchive(
     }
     return Buffer.concat(chunks, size);
   } catch {
-    throw new Error("OpenCode archive download failed (network, HTTP, size limit, or timeout)");
+    throw new Error("OpenCode archive download attempt failed");
   }
 }
 
