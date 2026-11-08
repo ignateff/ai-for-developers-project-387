@@ -15,6 +15,7 @@ import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, expect, it } from "vitest";
 import {
+  downloadArchive,
   installRuntime,
   installVerifiedArchive,
   verifyInstalledRuntime,
@@ -126,6 +127,57 @@ it("cancels a stalled download stream when preparation is aborted", async () => 
   await expect(promise).rejects.toThrow(/download/i);
   expect(cancelled).toBe(true);
 }, 5000);
+
+it("returns the archive after a transient download failure", async () => {
+  const fixture = await archiveFixture("tar.gz");
+  let calls = 0;
+  const archive = await downloadArchive({
+    url: "https://example.invalid/opencode.tar.gz",
+    download: async () => {
+      calls++;
+      if (calls === 1) throw new Error("private-network-error");
+      return new Response(fixture.archive);
+    },
+    options: { attempts: 2, budgetMs: 5000, backoffMs: 0 },
+  });
+  expect(calls).toBe(2);
+  expect(createHash("sha256").update(archive).digest("hex")).toBe(fixture.sha256);
+});
+
+it("retries a bounded number of download failures without exposing diagnostics", async () => {
+  let calls = 0;
+  const failure = installRuntime({
+    directory: await directory(),
+    platform: "linux",
+    arch: "x64",
+    download: { attempts: 2, budgetMs: 5000, backoffMs: 0 },
+    fetch: async () => {
+      calls++;
+      throw new Error("private-network-error");
+    },
+  });
+  await expect(failure).rejects.toThrow(/download failed after 2 attempt/i);
+  await expect(failure).rejects.not.toThrow(/private-network-error/);
+  expect(calls).toBe(2);
+});
+
+it("does not retry a download cancelled by preparation", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const failure = downloadArchive({
+    url: "https://example.invalid/opencode.tar.gz",
+    download: async () => {
+      calls++;
+      controller.abort();
+      throw new Error("private-network-error");
+    },
+    cancellation: controller.signal,
+    options: { attempts: 3, budgetMs: 5000, backoffMs: 0 },
+  });
+  await expect(failure).rejects.toThrow(/download failed after 1 attempt/i);
+  await expect(failure).rejects.not.toThrow(/private-network-error/);
+  expect(calls).toBe(1);
+});
 
 it.each([
   "#!/bin/sh\nprintf '9.9.9 private-version-output\\n'\n",
