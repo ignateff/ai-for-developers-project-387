@@ -7,6 +7,7 @@ import {
   relatedFileBytesLimit,
   relatedFileLimit,
   safeRepositoryPath,
+  type RepositoryContext,
 } from "./opencode-review-repository.ts";
 import { ReviewFailure } from "./opencode-review-failure.ts";
 import { ProcessFailure, runIsolatedProcess } from "./opencode-process.ts";
@@ -32,17 +33,7 @@ export type ReviewContext = {
   baseSha: string;
   headSha: string;
   changes: JsonValue;
-  repository: {
-    baseSha: string;
-    headSha: string;
-    available: boolean;
-    index: {
-      base: { path: string; sha: string; size: number }[];
-      head: { path: string; sha: string; size: number }[];
-    } | null;
-    related: { path: string; sha: string; size: number; reason: string; content: string }[];
-    limitations: string[];
-  };
+  repository: RepositoryContext;
   ci: JsonValue;
   previousReview: JsonValue;
   isRelease: boolean;
