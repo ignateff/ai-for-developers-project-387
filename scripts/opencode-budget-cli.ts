@@ -75,10 +75,12 @@ export async function runBudgetCli(options: {
       if (!temp || !/^\d+$/.test(run) || !/^\d+$/.test(attempt)) throw new Error();
       const root = join(temp, `opencode-review-${run}-${attempt}`);
       await mkdir(root, { mode: 0o700 });
+      console.log("OpenCode diagnostics: runtime installation started");
       const binary = await installRuntime({
         directory: join(root, "runtime"),
         signal: controller.signal,
       });
+      console.log("OpenCode diagnostics: runtime installation complete");
       controller.signal.throwIfAborted();
       await writeFile(join(root, "binary"), binary, { flag: "wx", mode: 0o600 });
     });
@@ -94,6 +96,7 @@ export async function runBudgetCli(options: {
       if (kind === "command") await runCommand(runtime);
       else
         await reviewWorkflow("run", runtime, {
+          progress: (stage) => console.log(`OpenCode diagnostics: ${stage}`),
           fetch: (input, init) =>
             options.fetch(input, {
               ...init,
@@ -116,13 +119,23 @@ export async function runBudgetCli(options: {
     });
   const adapter = createProductionWorkflow({
     fetch: options.fetch,
-    prepare: kind === "review" ? () => bounded(() => prepare(controller.signal)) : prepare,
+    prepare:
+      kind === "review"
+        ? () =>
+            bounded(async () => {
+              console.log("OpenCode diagnostics: preparation started");
+              await prepare(controller.signal);
+              console.log("OpenCode diagnostics: preparation complete");
+            })
+        : prepare,
     model:
       kind === "review"
         ? (identity) =>
             bounded(async () => {
               enoughTime();
+              console.log("OpenCode diagnostics: review started");
               await model(identity, controller.signal);
+              console.log("OpenCode diagnostics: review complete");
             })
         : model,
   });

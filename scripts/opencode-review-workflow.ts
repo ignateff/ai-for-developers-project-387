@@ -7,7 +7,11 @@ import { formatReviewBody, reviewBodyLimit } from "./opencode-review-publish.ts"
 export async function reviewWorkflow(
   mode: string,
   env: NodeJS.ProcessEnv,
-  deps: { fetch?: typeof fetch; review?: typeof reviewSnapshot } = {},
+  deps: {
+    fetch?: typeof fetch;
+    review?: typeof reviewSnapshot;
+    progress?: (stage: string) => void;
+  } = {},
 ) {
   const root = resolve(
     env.RUNNER_TEMP ?? "",
@@ -52,6 +56,7 @@ export async function reviewWorkflow(
     if (!response.ok) throw new Error();
     return response.json();
   };
+  deps.progress?.("PR context collection started");
   const pr = await get(`pulls/${number}`);
   if (
     pr.number !== Number(number) ||
@@ -80,6 +85,7 @@ export async function reviewWorkflow(
     files.length !== pr.changed_files
   )
     throw new Error();
+  deps.progress?.("changed file collection started");
   let sourceBytes = 0;
   const source = async (name: unknown, ref: string, repo = repository) => {
     if (
@@ -132,6 +138,7 @@ export async function reviewWorkflow(
     });
   }
   // Optional context is untrusted evidence, never a reason to broaden API access.
+  deps.progress?.("supplementary context collection started");
   const limitations: string[] = [];
   const essentialLimitations = new Set<string>();
   const essential = (...items: string[]) => {
@@ -486,6 +493,7 @@ export async function reviewWorkflow(
     essential(
       "Optional context text exceeded the aggregate size budget and was truncated; omitted evidence cannot establish approval or completeness.",
     );
+  deps.progress?.("final context validation started");
   const current = await get(`pulls/${number}`);
   if (current?.head?.sha !== sha || current?.base?.sha !== pr.base.sha) throw new Error();
   const binary = await readFile(join(root, "binary"), "utf8");
@@ -498,11 +506,13 @@ export async function reviewWorkflow(
     throw new Error(
       "Review context exceeds the size limit; mandatory change evidence cannot be safely truncated.",
     );
+  deps.progress?.("model invocation started");
   const result = await (deps.review ?? reviewSnapshot)({
     binary,
     apiKey: env.DEEPSEEK_API_KEY,
     context: JSON.parse(serialized),
   });
+  deps.progress?.("model invocation complete");
   const missingRequirements =
     context.requirements.availability === "unavailable"
       ? `Requirements unavailable: ${context.requirements.reason}`

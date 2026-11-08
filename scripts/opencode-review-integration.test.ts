@@ -467,6 +467,7 @@ test.each([false, true])(
 
 test("a review that runs out of preparation time reports infrastructure failure without starting the model", async () => {
   vi.useFakeTimers();
+  const logs = vi.spyOn(console, "log").mockImplementation(() => {});
   const dir = await mkdtemp(join(tmpdir(), "review-deadline-"));
   const now = Date.now();
   const sha = "a".repeat(40);
@@ -531,10 +532,15 @@ test("a review that runs out of preparation time reports infrastructure failure 
     });
     expect(result.status).toBe("infra");
     expect(calls).toBe(0);
+    expect(logs.mock.calls.flat()).toContain("OpenCode diagnostics: preparation started");
+    expect(logs.mock.calls.flat()).not.toContain("OpenCode diagnostics: review started");
+    expect(JSON.stringify(logs.mock.calls)).not.toContain("token");
+    expect(JSON.stringify(logs.mock.calls)).not.toContain("key");
     expect(
       JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
     ).toEqual({ failure: "infra" });
   } finally {
+    logs.mockRestore();
     vi.useRealTimers();
     await rm(dir, { recursive: true, force: true });
   }
