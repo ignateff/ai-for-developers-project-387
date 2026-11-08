@@ -470,6 +470,16 @@ button.calendar-day {
   flex-shrink: 0;
 }
 
+.success-copy {
+  margin-top: 16px;
+  min-height: 44px;
+}
+
+.success-copy-feedback {
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
 .success-again {
   margin-top: 34px;
   min-height: 46px;

@@ -187,3 +187,50 @@ test("fails closed if the current attempt has not appeared in Actions history", 
     "current attempt not visible",
   );
 });
+
+test("retains the trusted PR identity when the later head lookup fails", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { admission } = await import("./opencode-actions-budget");
+  const dir = await mkdtemp(join(tmpdir(), "actions-budget-head-"));
+  const eventPath = join(dir, "event.json");
+  let requests = 0;
+  try {
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        action: "created",
+        repository: { full_name: "owner/repo", owner: { login: "owner" } },
+        comment: { body: "/oc fix", user: { login: "owner", type: "User" } },
+        issue: { number: 7, pull_request: {} },
+      }),
+    );
+    const fetcher: typeof fetch = async () => {
+      requests++;
+      if (requests === 1)
+        return Response.json({
+          number: 7,
+          base: { repo: { id: 1, full_name: "owner/repo" } },
+          head: { repo: { id: 1, full_name: "owner/repo" } },
+        });
+      throw new Error("network unavailable");
+    };
+    expect(
+      await admission(
+        {
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_EVENT_NAME: "issue_comment",
+          GITHUB_REPOSITORY: "owner/repo",
+          GITHUB_REPOSITORY_OWNER: "owner",
+          GH_TOKEN: "token",
+          GITHUB_RUN_ID: String(current),
+          GITHUB_RUN_ATTEMPT: "1",
+        },
+        fetcher,
+      ),
+    ).toEqual({ status: "infra", pr: 7, sha: "unavailable" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

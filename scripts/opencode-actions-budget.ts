@@ -113,16 +113,18 @@ export async function admission(env: NodeJS.ProcessEnv, fetcher: typeof fetch = 
     env.GITHUB_EVENT_NAME === "pull_request_review_comment" || Boolean(event.issue?.pull_request);
   if (!isPr) return { status: "allowed" };
   const pr = decision.number!;
-  const response = await fetcher(`https://api.github.com/repos/${repository}/pulls/${pr}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-    redirect: "error",
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) throw new Error("PR unavailable");
-  const details = await response.json();
-  if (details.state !== "open" || !/^[a-f\d]{40}$/i.test(details.head?.sha ?? ""))
-    throw new Error("invalid PR");
+  let sha = "unavailable";
   try {
+    const response = await fetcher(`https://api.github.com/repos/${repository}/pulls/${pr}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error("PR unavailable");
+    const details = await response.json();
+    if (details.state !== "open" || !/^[a-f\d]{40}$/i.test(details.head?.sha ?? ""))
+      throw new Error("invalid PR");
+    sha = details.head.sha;
     const count = await countAdmissions({
       repository,
       token,
@@ -131,9 +133,9 @@ export async function admission(env: NodeJS.ProcessEnv, fetcher: typeof fetch = 
       attempt: Number(env.GITHUB_RUN_ATTEMPT),
       fetch: fetcher,
     });
-    return { status: count >= 3 ? "limit_exhausted" : "allowed", pr, sha: details.head.sha };
+    return { status: count >= 3 ? "limit_exhausted" : "allowed", pr, sha };
   } catch {
-    return { status: "infra", pr, sha: details.head.sha };
+    return { status: "infra", pr, sha };
   }
 }
 
