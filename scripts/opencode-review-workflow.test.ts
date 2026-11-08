@@ -43,6 +43,7 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
       return new Response(null, { status: 404 });
     };
     let snapshot = "";
+    const stages: string[] = [];
     await reviewWorkflow(
       "run",
       {
@@ -57,6 +58,7 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
       },
       {
         fetch: api,
+        progress: (stage) => stages.push(stage),
         review: async ({ context }) => {
           snapshot = JSON.stringify(context);
           return { summary: "No confirmed defects", findings: [], limitations: [] };
@@ -74,6 +76,15 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
     expect(snapshot).not.toContain("Eligible human author");
     expect(snapshot).not.toContain("github-secret");
     expect(snapshot).not.toContain("model-secret");
+    expect(stages).toEqual([
+      "PR context collection started",
+      "changed file collection started",
+      "supplementary context collection started",
+      "final context validation started",
+      "model invocation started",
+      "model invocation complete",
+    ]);
+    expect(stages.join(" ")).not.toContain("secret");
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
