@@ -6,6 +6,39 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { runGitHubHandler } from "./opencode-handler.ts";
 
+it("reports process activity without exposing untrusted output", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-handler-activity-"));
+  try {
+    const binary = join(directory, "handler");
+    await writeFile(
+      binary,
+      `#!${process.execPath}
+console.log('Sending message to opencode...');
+console.log('private-stdout-value');
+console.error('private-stderr-value');
+setTimeout(() => process.exit(0), 160);
+`,
+      { mode: 0o700 },
+    );
+    const lines: string[] = [];
+    await runGitHubHandler({
+      binary,
+      workspace: directory,
+      env: { PATH: process.env.PATH },
+      report: (line) => lines.push(line),
+      heartbeatMs: 40,
+    });
+    expect(lines).toContain("OpenCode: handler started");
+    expect(lines).toContain("OpenCode: processing request");
+    expect(lines).toContain("OpenCode: processing request; stdout active; stderr active");
+    expect(lines).toContain("OpenCode: processing request; stdout quiet; stderr quiet");
+    expect(lines).toContain("OpenCode: upstream handler completed");
+    expect(lines.join(" ")).not.toContain("private-");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 it("does not forward a dynamically exchanged App credential when Git configuration fails", async () => {
   const directory = await mkdtemp(join(tmpdir(), "oc-handler-log-"));
   const token = "dynamic-app-token-not-known-to-parent";
