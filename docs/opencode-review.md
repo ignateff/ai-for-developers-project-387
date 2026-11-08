@@ -116,6 +116,9 @@ hostile local user with access to the process. Avoid secrets in snapshots.
 with a local fixture provider, without real model calls or credentials. Passing
 local tests does not demonstrate GitHub publishing.
 
+Review logs mark preparation, context collection, and model invocation stages
+without printing credentials or API response bodies.
+
 ## GitHub permission experiment
 
 A controlled PR test returned HTTP 403 when publishing a PR comment with `issues: write` and `pull-requests: read`. The same test successfully created and deleted a temporary PR comment with `issues: read` and `pull-requests: write`; the review and publication jobs use the latter permissions. A minimal model probe succeeded, while a full review timed out. See the task plan for run links. The full review is not yet verified; investigate timeout reports before relying on it.
