@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.9.0...v0.10.0) (2026-11-08)
+
+
+### Features
+
+* **review:** expand pinned context for independent PR review ([e04f67b](https://github.com/ignateff/ai-for-developers-project-387/commit/e04f67bafe28494c6109b7e1a60768c3b8912dce))
+* **review:** expand pinned context for independent PR review ([8aef1c3](https://github.com/ignateff/ai-for-developers-project-387/commit/8aef1c3e5f508873cdfb2c6cf29ec28d319e908c)), closes [#74](https://github.com/ignateff/ai-for-developers-project-387/issues/74)
+
 ## [0.9.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.8.0...v0.9.0) (2026-11-08)
 
 
