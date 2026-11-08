@@ -2,12 +2,11 @@
 
 ## Status and authorization
 
-GitHub Actions is enabled for the review workflow, and this branch removes its
-local disable guard. Integrate the workflow and trusted base code before expecting
-normal operation: the current default branch still has the guard. A controlled
-full review timed out; a successful complete review and actual publication of
-findings remain unverified. Review is advisory. A human decides after checking CI,
-evidence, the current head and each finding.
+GitHub Actions is enabled for the review workflow. A controlled review of
+[PR #62](https://github.com/ignateff/ai-for-developers-project-387/pull/62)
+completed and published a report ([run 42463395746](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42463395746)).
+This demonstrates that run, not every review scenario. Review is advisory. A human
+decides after checking CI, evidence, the current head and each finding.
 
 The reviewer receives `REVIEW.md` from the pinned PR base as context; if it cannot be loaded, the report records an explicit limitation. The PR cannot change its own review criteria.
 
@@ -121,4 +120,4 @@ local tests does not demonstrate GitHub publishing.
 
 ## GitHub permission experiment
 
-A controlled PR test returned HTTP 403 when publishing a PR comment with `issues: write` and `pull-requests: read`. The same test successfully created and deleted a temporary PR comment with `issues: read` and `pull-requests: write`; the review and publication jobs use the latter permissions. A minimal model probe succeeded, while a full review timed out. See the task plan for run links. The full review is not yet verified; investigate timeout reports before relying on it.
+A controlled PR test returned HTTP 403 when publishing a PR comment with `issues: write` and `pull-requests: read`. The same test successfully created and deleted a temporary PR comment with `issues: read` and `pull-requests: write`; the review and publication jobs use the latter permissions. A minimal model probe succeeded, while an earlier full review timed out. A later controlled review published successfully as described above; individual runs can still fail or time out.

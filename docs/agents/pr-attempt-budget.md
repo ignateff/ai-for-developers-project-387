@@ -10,7 +10,7 @@ The model step has its own timeout so reporting can run; forced cancellation or 
 
 ## Legacy review budget
 
-The adapter in `scripts/opencode-budget-workflow.ts` remains wired into the review model job. The reviewer loads changed-file contents at pinned base/head SHAs and linked context when available, while reporting incomplete evidence and the absence of a full repository snapshot. A controlled full GitHub review timed out; successful publication of findings and cross-runner behavior remain unverified.
+The adapter in `scripts/opencode-budget-workflow.ts` remains wired into the review model job. The reviewer loads changed-file contents at pinned base/head SHAs and linked context when available, while reporting incomplete evidence and the absence of a full repository snapshot. An earlier controlled full GitHub review timed out; a later review completed and published a report on [PR #62](https://github.com/ignateff/ai-for-developers-project-387/pull/62) ([run 42463395746](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42463395746)). This does not establish every review scenario or cross-runner behavior.
 
 The trusted workflow orchestrator receives the provider key as a job-step environment variable, removes it from the process environment before admission, and excludes it from preparation; only the model/runtime invocation receives it after admission. This is not the same as withholding the secret from the trusted orchestrator itself.
 
