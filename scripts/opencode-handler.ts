@@ -23,8 +23,11 @@ export async function runGitHubHandler(options: {
   workspace: string;
   env: NodeJS.ProcessEnv;
   report?: (line: string) => void;
+  heartbeatMs?: number;
 }): Promise<void> {
   const report = options.report ?? console.log;
+  const heartbeatMs = options.heartbeatMs ?? 30_000;
+  if (!Number.isSafeInteger(heartbeatMs) || heartbeatMs < 1) throw new Error("Invalid heartbeat");
   await new Promise<void>((accept, reject) => {
     const child = spawn(options.binary, ["github", "run"], {
       cwd: options.workspace,
@@ -35,8 +38,22 @@ export async function runGitHubHandler(options: {
     let partial = "";
     let dropping = false;
     let cancelled = false;
+    let processing = false;
+    let stdoutActive = false;
+    let stderrActive = false;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
+    report("OpenCode: handler started");
+    const heartbeat = setInterval(() => {
+      if (!processing) return;
+      report(
+        `OpenCode: processing request; stdout ${stdoutActive ? "active" : "quiet"}; stderr ${stderrActive ? "active" : "quiet"}`,
+      );
+      stdoutActive = false;
+      stderrActive = false;
+    }, heartbeatMs);
+    heartbeat.unref();
     child.stdout.on("data", (chunk: Buffer) => {
+      stdoutActive = true;
       const pieces = chunk.toString("utf8").split("\n");
       for (let index = 0; index < pieces.length; index++) {
         const newline = index < pieces.length - 1;
@@ -47,7 +64,10 @@ export async function runGitHubHandler(options: {
             dropping = true;
           } else if (newline) {
             const phase = phases.get(partial);
-            if (phase) report(`OpenCode: ${phase}`);
+            if (phase) {
+              processing = phase === "processing request";
+              report(`OpenCode: ${phase}`);
+            }
           }
         }
         if (newline) {
@@ -56,7 +76,9 @@ export async function runGitHubHandler(options: {
         }
       }
     });
-    child.stderr.resume();
+    child.stderr.on("data", () => {
+      stderrActive = true;
+    });
     const signalGroup = (signal: NodeJS.Signals) => {
       if (child.pid) {
         try {
@@ -80,6 +102,7 @@ export async function runGitHubHandler(options: {
       process.off("SIGTERM", terminate);
       process.off("SIGINT", interrupt);
       clearTimeout(killTimer);
+      clearInterval(heartbeat);
     };
     child.once("error", () => {
       cleanup();
