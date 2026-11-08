@@ -8,9 +8,18 @@ import { ReviewFailure } from "./opencode-review-failure.ts";
 const context: ReviewContext = {
   requirements: { availability: "available", text: "Booking works" },
   agreement: null,
+  limitations: [],
   baseSha: "base",
   headSha: "head",
   changes: "example",
+  repository: {
+    baseSha: "base",
+    headSha: "head",
+    available: true,
+    index: null,
+    related: [],
+    limitations: [],
+  },
   ci: null,
   previousReview: null,
   isRelease: false,
@@ -454,4 +463,148 @@ it("uses a new empty workspace, excludes ambient credentials, and keeps snapshot
     apiKey: "provider-key",
   });
   expect(workspaces[0]).not.toBe(workspaces[1]);
+});
+
+it("materializes pinned related repository files into a searchable workspace", async () => {
+  const { readFile: read } = await import("node:fs/promises");
+  const content = "export const formatTime = 1;";
+  const related = {
+    path: "apps/web/src/shared/format.ts",
+    sha: "c".repeat(40),
+    size: Buffer.byteLength(content),
+    reason: "Imported by changed file",
+    content,
+  };
+  const reviewContext: ReviewContext = {
+    ...context,
+    repository: {
+      baseSha: "b".repeat(40),
+      headSha: "a".repeat(40),
+      available: true,
+      index: { base: [related], head: [related] },
+      related: [related],
+      limitations: [],
+    },
+  };
+  const run = vi.fn(async (_binary, args, options) => {
+    if (args[0] === "debug") {
+      const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT!);
+      return JSON.stringify({
+        name: "reviewer",
+        permission: Object.entries(config.permission).map(([permission, action]) => ({
+          permission,
+          action,
+          pattern: "*",
+        })),
+      });
+    }
+    expect(await read(`${options.cwd}/repository/${related.path}`, "utf8")).toBe(related.content);
+    expect(await read(`${options.cwd}/snapshot-0001.jsonl`, "utf8")).toContain("formatTime");
+    const searchEvents = [
+      JSON.stringify({
+        type: "tool_use",
+        part: {
+          tool: "read",
+          state: {
+            status: "completed",
+            input: { filePath: `repository/${related.path}` },
+            output: `<content>\n1: ${related.content}\n</content>`,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: "tool_use",
+        part: {
+          tool: "grep",
+          state: {
+            status: "completed",
+            input: { pattern: "formatTime", path: "repository/" },
+            output: `repository/${related.path}:1:${related.content}`,
+          },
+        },
+      }),
+    ].join("\n");
+    return (
+      searchEvents +
+      "\n" +
+      readEvent("snapshot-0001.jsonl", reviewContext) +
+      JSON.stringify({
+        type: "text",
+        part: { text: '{"summary":"No defects found","limitations":[],"findings":[]}' },
+      }) +
+      '\n{"type":"step_finish","part":{"reason":"stop"}}'
+    );
+  });
+  const result = await createReviewAdapter({ verify: async () => {}, run })({
+    binary: "/runtime",
+    context: reviewContext,
+  });
+  expect(result.summary).toBe("No defects found");
+});
+
+it.each(["../escape.ts", "/absolute.ts", "repository//double.ts", "a/./b.ts"])(
+  "rejects unsafe related repository path %s before the model runs",
+  async (path) => {
+    const run = vi.fn(async (_binary, args, options) => {
+      if (args[0] === "debug") {
+        const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT!);
+        return JSON.stringify({
+          name: "reviewer",
+          permission: Object.entries(config.permission).map(([permission, action]) => ({
+            permission,
+            action,
+            pattern: "*",
+          })),
+        });
+      }
+      throw new Error("model must not run");
+    });
+    await expect(
+      createReviewAdapter({ verify: async () => {}, run })({
+        binary: "/runtime",
+        context: {
+          ...context,
+          repository: {
+            ...context.repository,
+            related: [{ path, sha: "c".repeat(40), size: 1, reason: "Related", content: "x" }],
+          },
+        },
+      }),
+    ).rejects.toThrow("no review was produced");
+    expect(run.mock.calls.map((call) => call[1][0])).toEqual(["debug"]);
+  },
+);
+
+it("rejects related context over the caller limits before the model runs", async () => {
+  const run = vi.fn(async (_binary, args, options) => {
+    if (args[0] === "debug") {
+      const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT!);
+      return JSON.stringify({
+        name: "reviewer",
+        permission: Object.entries(config.permission).map(([permission, action]) => ({
+          permission,
+          action,
+          pattern: "*",
+        })),
+      });
+    }
+    throw new Error("model must not run");
+  });
+  const related = Array.from({ length: 25 }, (_, index) => ({
+    path: `apps/web/src/shared/file-${index}.ts`,
+    sha: "c".repeat(40),
+    size: 1,
+    reason: "Related file",
+    content: "x",
+  }));
+  await expect(
+    createReviewAdapter({ verify: async () => {}, run })({
+      binary: "/runtime",
+      context: {
+        ...context,
+        repository: { ...context.repository, related },
+      },
+    }),
+  ).rejects.toThrow("no review was produced");
+  expect(run.mock.calls.map((call) => call[1][0])).toEqual(["debug"]);
 });

@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { publishWorkflow } from "./opencode-review-publish-cli";
+import { formatReviewBody } from "./opencode-review-publish";
 
 test("oversize recovery rejects malformed finding structure before contacting GitHub", async () => {
   let calls = 0;
@@ -64,7 +65,8 @@ test("publication-only rerun publishes a saved review without budget or model ca
   await publish();
   expect(comments).toHaveLength(1);
   expect(comments[0]).toContain("No confirmed defects");
-  expect(comments[0]).toContain("Full base/head source snapshots were unavailable");
+  expect(comments[0]).toContain("not a full code review");
+  expect(comments[0]).toContain("Requirements unavailable");
   expect(comments[0]).toContain("a".repeat(40));
   expect(comments[0]).toContain("https://github.com/owner/repo/actions/runs/123/attempts/1");
 });
@@ -91,4 +93,23 @@ test("publication refuses a stale head and does not call the model", async () =>
     });
   await expect(publish()).rejects.toThrow();
   expect(posts).toBe(0);
+});
+
+test("clean review without context limitations keeps the advisory wording", () => {
+  const body = formatReviewBody("owner/repo", "a".repeat(40), "review-1-1", {
+    summary: "No confirmed defects",
+    limitations: [],
+    findings: [],
+  });
+  expect(body).toContain("Advisory review of the pinned head");
+  expect(body).not.toContain("not a full code review");
+});
+
+test("unavailable context restores the visible non-full-review warning", () => {
+  const body = formatReviewBody("owner/repo", "a".repeat(40), "review-1-1", {
+    summary: "No confirmed defects",
+    limitations: ["Related repository context is unavailable: trees failed."],
+    findings: [],
+  });
+  expect(body).toContain("not a full code review");
 });

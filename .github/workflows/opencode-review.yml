@@ -7,6 +7,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
+  # The model step collects the pinned base/head trees and selected unchanged
+  # related code, test and contract files with contents: read. It never checks
+  # out or executes PR code; related files are data in a read-only workspace.
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 15

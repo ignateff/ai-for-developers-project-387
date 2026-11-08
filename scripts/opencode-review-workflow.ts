@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { installRuntime } from "./opencode-install.ts";
+import {
+  collectRepositoryContext,
+  safeRepositoryPath,
+  type TreeEntry,
+} from "./opencode-review-repository.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
 import { formatReviewBody, reviewBodyLimit } from "./opencode-review-publish.ts";
 
@@ -86,8 +91,12 @@ export async function reviewWorkflow(
   )
     throw new Error();
   deps.progress?.("changed file collection started");
-  let sourceBytes = 0;
-  const source = async (name: unknown, ref: string, repo = repository) => {
+  const readContent = async (
+    name: unknown,
+    ref: string,
+    repo = repository,
+    maxBytes = 1024 * 1024,
+  ) => {
     if (
       typeof name !== "string" ||
       !name ||
@@ -104,7 +113,7 @@ export async function reviewWorkflow(
       typeof data.content !== "string" ||
       !Number.isSafeInteger(data.size) ||
       data.size < 0 ||
-      data.size > 1024 * 1024
+      data.size > maxBytes
     )
       throw new Error();
     const encoded = data.content.replace(/\n/g, "");
@@ -112,8 +121,16 @@ export async function reviewWorkflow(
       throw new Error();
     const bytes = Buffer.from(encoded, "base64");
     if (bytes.length !== data.size) throw new Error();
+    return {
+      bytes,
+      // Preserve a possible UTF-8 BOM so re-encoded content keeps the pinned size.
+      decoded: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes),
+    };
+  };
+  let sourceBytes = 0;
+  const source = async (name: unknown, ref: string, repo = repository) => {
+    const { bytes, decoded } = await readContent(name, ref, repo);
     if (sourceBytes + bytes.length > 2 * 1024 * 1024) throw new Error();
-    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     sourceBytes += bytes.length;
     return decoded;
   };
@@ -138,7 +155,6 @@ export async function reviewWorkflow(
     });
   }
   // Optional context is untrusted evidence, never a reason to broaden API access.
-  deps.progress?.("supplementary context collection started");
   const limitations: string[] = [];
   const essentialLimitations = new Set<string>();
   const essential = (...items: string[]) => {
@@ -147,9 +163,42 @@ export async function reviewWorkflow(
       limitations.push(item);
     }
   };
-  essential(
-    "Only changed files were collected at pinned base/head; the full repository was not collected.",
-  );
+  const readTree = async (ref: string) => {
+    const data = await get(`git/trees/${ref}?recursive=1`);
+    if (!data || typeof data !== "object" || !Array.isArray(data.tree) || data.truncated === true)
+      throw new Error();
+    if (data.tree.length > 20000) throw new Error();
+    const entries = new Map<string, TreeEntry>();
+    for (const entry of data.tree) {
+      if (!entry || typeof entry !== "object") throw new Error();
+      if (entry.type === "tree" || entry.type === "commit") continue;
+      if (
+        entry.type !== "blob" ||
+        !safeRepositoryPath(entry.path) ||
+        !/^[a-f\d]{40}$/i.test(entry.sha ?? "") ||
+        !Number.isSafeInteger(entry.size) ||
+        entry.size < 0 ||
+        entries.has(entry.path)
+      )
+        throw new Error();
+      entries.set(entry.path, {
+        path: entry.path,
+        sha: entry.sha.toLowerCase(),
+        size: entry.size,
+      });
+    }
+    return entries;
+  };
+  deps.progress?.("related repository context collection started");
+  const repositoryContext = await collectRepositoryContext({
+    baseSha: pr.base.sha,
+    headSha: sha,
+    changes,
+    tree: readTree,
+    read: (path, maxBytes) => readContent(path, sha, repository, maxBytes),
+    essential,
+  });
+  deps.progress?.("supplementary context collection started");
   const optional = async (path: string, repo = repository) => {
     try {
       return await get(path, repo);
@@ -369,19 +418,21 @@ export async function reviewWorkflow(
     }
     return { items, first, complete: false };
   };
-  const [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages] =
+  const [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages, commitPages] =
     await Promise.all([
       pages(`commits/${sha}/check-runs`, "check_runs"),
       pages(`commits/${sha}/status`, "statuses"),
       pages(`pulls/${number}/reviews`),
       pages(`pulls/${number}/comments`),
       pages(`issues/${number}/comments`),
+      pages(`pulls/${number}/commits`),
     ]);
   const checks = { check_runs: checkPages.items };
   const statuses = { statuses: statusPages.items, state: statusPages.first?.state };
   const reviews = reviewPages.items;
   const reviewComments = reviewCommentPages.items;
   const issueComments = issueCommentPages.items;
+  const commits = commitPages.items;
   const checkStates = ["queued", "in_progress", "completed", "waiting", "requested", "pending"];
   const conclusions = [
     "action_required",
@@ -419,13 +470,27 @@ export async function reviewWorkflow(
     essential("CI context is incomplete or unavailable; pending checks are not successful.");
   if (!Array.isArray(reviews) || !Array.isArray(reviewComments) || !Array.isArray(issueComments))
     essential("Previous review or discussion context is incomplete or unavailable.");
+  const validCommits =
+    Array.isArray(commits) &&
+    commits.every(
+      (commit: any) =>
+        commit &&
+        typeof commit === "object" &&
+        /^[a-f\d]{40}$/i.test(commit.sha ?? "") &&
+        typeof commit.commit?.message === "string" &&
+        commit.commit.message.trim().length > 0,
+    );
+  if (!validCommits) essential("PR commit history is incomplete or unavailable.");
+  // GitHub may cap this endpoint at 250 commits; a short page cannot prove completeness.
+  if (Array.isArray(commits) && commits.length >= 250)
+    essential("PR commit history may be truncated at the GitHub 250-commit API limit.");
   if (
-    [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages].some(
+    [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages, commitPages].some(
       (x) => !x.complete,
     )
   )
     essential(
-      "CI or previous review context is incomplete or exceeded the 300 item per endpoint limit.",
+      "CI, previous review or commit context is incomplete or exceeded the 300 item per endpoint limit.",
     );
   const comments = (value: unknown) =>
     Array.isArray(value)
@@ -447,6 +512,13 @@ export async function reviewWorkflow(
     pr.user?.login === "calendar-release-ignateff-bot[bot]" &&
     pr.user?.id === 351107404 &&
     pr.user?.type === "Bot";
+  const commitHistory = validCommits
+    ? commits.map((commit: any) => ({
+        sha: text(commit?.sha),
+        message: text(commit?.commit?.message),
+        author: text(commit?.author?.login),
+      }))
+    : null;
   const context = {
     requirements: materials.length
       ? {
@@ -459,11 +531,14 @@ export async function reviewWorkflow(
           description: body,
           baseDocs,
         },
-    agreement: { sources: agreements, limitations },
+    agreement: { sources: agreements },
+    limitations,
     baseSha: pr.base.sha,
     headSha: sha,
     changes,
+    repository: repositoryContext,
     ci: {
+      headSha: sha,
       checks: Array.isArray(checks?.check_runs)
         ? checks.check_runs.map((c: any) => ({
             name: text(c?.name),
@@ -486,6 +561,7 @@ export async function reviewWorkflow(
       reviewComments: comments(reviewComments),
       issueComments: comments(issueComments),
     },
+    commits: commitHistory,
     isRelease,
   };
   if (truncated) essential("Some context text was truncated at 30000 characters.");

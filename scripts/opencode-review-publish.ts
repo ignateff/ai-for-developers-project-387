@@ -24,6 +24,11 @@ export function formatReviewBody(
       .replace(/>/g, "&gt;")
       .replace(/@/g, "@\u200b")
       .replace(/[\r\n]+/g, " ");
+  const contextUnavailable =
+    !("failure" in report) &&
+    (report.publicationLimitations ?? report.limitations).some((item) =>
+      /(?:unavailable|incomplete|could not be loaded)/i.test(item),
+    );
   return [
     marker,
     `## OpenCode review`,
@@ -37,7 +42,9 @@ export function formatReviewBody(
             `**Human attention required: findings are not included in this comment because the review or essential context exceeds publication limits. Download artifact \`${artifact}\` from the Actions run linked above and inspect its review.json for the complete findings and limitations.**`,
           ]
         : [
-            "**Limitation: Full base/head source snapshots were unavailable. This is not a full code review.**",
+            contextUnavailable
+              ? "**Limitation: pinned review context was incomplete or unavailable. This is not a full code review.**"
+              : "**Advisory review of the pinned head; context limitations are listed below.**",
             "",
             safe(report.summary),
             "",

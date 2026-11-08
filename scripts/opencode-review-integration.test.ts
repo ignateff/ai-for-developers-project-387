@@ -126,9 +126,9 @@ test.each([
             .join(""),
         );
         if (scenario !== "malicious missing requirements")
-          expect(JSON.stringify(snapshot.agreement).match(/relative document link/g)).toHaveLength(
-            1,
-          );
+          expect(
+            JSON.stringify(snapshot.limitations).match(/relative document link/g),
+          ).toHaveLength(1);
         const reads = files.map((name, i) =>
           JSON.stringify({
             type: "tool_use",
@@ -191,9 +191,7 @@ test.each([
             ...Array.from(
               {
                 length:
-                  scenario === "exact limitation capacity"
-                    ? 100 - snapshot.agreement.limitations.length
-                    : 99,
+                  scenario === "exact limitation capacity" ? 100 - snapshot.limitations.length : 99,
               },
               (_, i) =>
                 `${scenario.startsWith("malicious") ? "Requirements unavailable:" : "Model limitation"} ${i}: ${"x".repeat(scenario.startsWith("malicious") || scenario === "exact limitation capacity" ? 5 : 650)}`,
@@ -276,7 +274,7 @@ test.each([
       expect(comments[0]).toContain(
         "Linked issue ignateff/ai-for-developers-project-386#13 was unavailable.",
       );
-    expect(comments[0]).toContain("Only changed files");
+    expect(comments[0]).toContain("Related repository context");
     if (scenario === "malicious model priority" || scenario === "crowded essential context") {
       expect(comments[0]).toContain("Agreement is unconfirmed");
       expect(comments[0]).toContain("External or unsupported links were not loaded");
