@@ -319,9 +319,10 @@ export async function summarizeRuntimeLogFile(
       pending = pending.slice(index + 1);
       if (skipFirstLine) {
         skipFirstLine = false;
+        dropping = false;
         continue;
       }
-      if (dropping) {
+      if (dropping || Buffer.byteLength(line, "utf8") > maxLineBytes) {
         dropping = false;
         oversizedLines++;
         continue;
@@ -329,7 +330,7 @@ export async function summarizeRuntimeLogFile(
       summary.addLine(line);
       activity.addLine(line);
     }
-    if (pending.length > maxLineBytes) {
+    if (Buffer.byteLength(pending, "utf8") > maxLineBytes) {
       pending = "";
       dropping = true;
     }
@@ -343,8 +344,8 @@ export async function summarizeRuntimeLogFile(
       feed(decoder.write(buffer.subarray(0, bytesRead)));
     }
     feed(decoder.end());
-    if (pending && !skipFirstLine) {
-      if (dropping) oversizedLines++;
+    if (!skipFirstLine && (pending || dropping)) {
+      if (dropping || Buffer.byteLength(pending, "utf8") > maxLineBytes) oversizedLines++;
       else {
         summary.addLine(pending);
         activity.addLine(pending);

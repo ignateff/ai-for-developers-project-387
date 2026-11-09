@@ -269,3 +269,35 @@ it("skips oversized lines and counts them without printing their content", async
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it("skips a completed oversized line and keeps the next event", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-boundary-"));
+  try {
+    const path = join(root, "opencode.log");
+    await writeFile(path, `message=loop step=1 ${"x".repeat(1100)}\nmessage=loop step=2\n`);
+    const result = await summarizeRuntimeLogFile(path, { chunkBytes: 1024, maxLineBytes: 1024 });
+    expect(result?.oversizedLines).toBe(1);
+    expect(result?.summary.loop).toBe(1);
+    expect(result?.summary.maxStep).toBe(2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("keeps the next event when a tail starts inside an oversized line", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-tail-oversize-"));
+  try {
+    const path = join(root, "opencode.log");
+    await writeFile(path, `${"x".repeat(8000)}\nmessage=loop step=9\n`);
+    const result = await summarizeRuntimeLogFile(path, {
+      chunkBytes: 1024,
+      maxLineBytes: 1024,
+      maxBytes: 4096,
+    });
+    expect(result?.summary.truncated).toBe(true);
+    expect(result?.summary.maxStep).toBe(9);
+    expect(result?.oversizedLines).toBe(0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
