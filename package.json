@@ -50,7 +50,8 @@
     "test:e2e:visual:update": "playwright test e2e/00-visual.spec.ts --update-snapshots",
     "test:e2e:visual:update:linux": "bash scripts/update-visual-snapshots-linux.sh",
     "check:contract-http": "node scripts/check-contract-http.mjs",
-    "opencode:actions-budget": "node scripts/opencode-actions-budget.ts"
+    "opencode:actions-budget": "node scripts/opencode-actions-budget.ts",
+    "opencode:github-diagnostic": "node scripts/opencode-github-diagnostic.ts"
   },
   "devDependencies": {
     "@babel/parser": "^8.0.10",
