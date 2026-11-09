@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -231,4 +231,19 @@ it("comments on the source issue and fails if the comment is not published", () 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+it("listens for command comments and only this workflow does", () => {
+  const parsed = workflow();
+  expect(parsed.on.issue_comment.types).toEqual(["created"]);
+  expect(parsed.on.pull_request_review_comment.types).toEqual(["created"]);
+  expect(parsed.on.workflow_dispatch).toBeUndefined();
+  const directory = ".github/workflows";
+  const otherHandlers = readdirSync(directory)
+    .filter((file) => file.endsWith(".yml") && file !== "opencode.yml")
+    .filter((file) => {
+      const other = parse(readFileSync(join(directory, file), "utf8"));
+      return Boolean(other.on?.issue_comment || other.on?.pull_request_review_comment);
+    });
+  expect(otherHandlers).toEqual([]);
 });

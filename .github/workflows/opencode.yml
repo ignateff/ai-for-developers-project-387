@@ -3,9 +3,14 @@ name: Opencode
 # Classification runs outside the command queue; only matching jobs are serialized.
 # jactionlint ignore=concurrency-limits
 on:
-  # Comment triggers are paused during the upstream experiment (#90).
-  # A manual run has no comment payload and cannot pass the classifier.
-  workflow_dispatch:
+  # The trust preflight rejects untrusted commenters and fork PRs. The
+  # classifier accepts /oc and /opencode; workflows are bootstrapped from the
+  # default branch, never from the commented PR.
+  # jactionlint ignore=dangerous-triggers
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
   classify:
