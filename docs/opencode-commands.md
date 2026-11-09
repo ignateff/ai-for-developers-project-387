@@ -12,6 +12,13 @@ The workflow listens for newly created `issue_comment` and
 checks still decide whether the command can run. The command environment sets
 `share: "disabled"` and `SHARE=false`; it does not publish shared sessions.
 
+**Temporary experiment #90:** the comment triggers of this workflow are currently
+replaced by `workflow_dispatch`, and `/oc` is handled by
+`opencode-upstream-experiment.yml`. The experimental workflow is not disabled by
+this change and the old comment handler is not enabled, so at most one `/oc`
+handler reacts to a comment. The detailed logging and two-hour limits below are
+prepared for review and only take effect when the normal handler is restored.
+
 ## Trust boundary
 
 The workflow bootstraps its scripts from the repository's default branch, not the
@@ -69,32 +76,71 @@ discarded, including error annotations and model text. The handler still publish
 its normal response on the issue/PR. A cancellation remains a failure even if the
 child exits with code zero after receiving the signal.
 
-After an admitted command, a separate `continue-on-error` step reads the runtime's
-own log from the prepared command directory and prints only allowlisted
-aggregates. It never prints raw log lines, tool output, prompts or credentials,
-reports a missing log as `unavailable`, and runs after failures and timeouts
-except cancellation. It does not change the recorded outcome.
+### Detailed activity logging
 
-The summary distinguishes a model call from a running shell command or a pending
-permission request only when the corresponding allowlisted events exist. It also
-reports, only when the pinned runtime actually emits them: the session count,
-subagent starts with their approved type counts (`implementer`, `reviewer`, other
-counted but never named), `task` permission allow/deny decisions, loop
-completions, cancellations, error-line count, the longest observed subagent
-session in seconds, and an observed lower bound of concurrent subagents.
-Concurrency is not reported as compliance: `exiting loop` is only a provisional
-boundary and a session can be resumed, so `concurrency_exceeded=yes` means a
-breach was observed, `no` is emitted only when no subagent session started, and
-anything else is `unknown` (`concurrency_observation=observed_lower_bound`,
-`concurrency_enforced=no`). A truncated log can only hide starts, never prove
-compliance. Tool decisions are observable only as allowlisted permission names
-with counts (`tool_permissions`, fixed tool names only; anything unrecognized is
-aggregated as `other`). The runtime does not log a generic tool-execution event,
-so individual tool durations and a definitive result stay unknown: the summary
-prints `tool_duration=unknown`, `tool_name=unknown` and `result=unknown` instead
-of inferring them. The policy is to publish only counts, allowlisted fixed names,
-booleans and durations; prompts, file contents, commands and arguments, tool
-output, model text, tokens and secrets are never copied.
+The command process tails the runtime's structured log while the handler runs and
+prints allowlisted activity events live; after the run a separate
+`continue-on-error` step prints the existing aggregate summary plus an activity
+digest and the last safe events. The digest runs after failures and timeouts
+except cancellation, reports a missing log as `unavailable`, and does not change
+the recorded outcome.
+
+Live activity lines look like `OpenCode activity: event=...` and can show:
+
+- lifecycle stages: fixed handler phases, session start, model request
+  (provider, model, agent), loop step, loop end, cancellation;
+- which tools ran: allowlisted tool names and the permission decision
+  (`allow`/`deny`/`ask`), including subagents requested through `task` and the
+  approved subagent type;
+- redacted command families for shell permission decisions, for example
+  `family="mise run check"`. Only known command words are kept; quoted values,
+  paths, URLs, flags and all arguments stop the summary;
+- which checks ran: a command family matching known check commands is counted in
+  `checks=`, with the result left unknown (see the compromise below);
+- whether a permission request is pending and which one (`event=waiting_permission
+  permission=...`), which explains a run that appears stuck;
+- path categories (`relative_path`, `absolute_path`, `wildcard`) rather than the
+  path itself, and error occurrence with `details=withheld`.
+
+The digest reports counts (`events`, `tools`, `command_families`, `checks`,
+`subagents_started`, `subagent_ends`, `permission_waits`, `waiting_on`, `errors`)
+and the last up-to-20 safe events, so the activity immediately before an error or
+timeout is visible without exporting raw output. The older summary counters and
+the subagent/concurrency observations remain in the same output line.
+
+**Never logged by this adapter:** raw stdout/stderr or log lines, prompts and
+conversation text, issue bodies, file contents, full commands or arguments, tool
+output, resolved filesystem paths, model responses, error payloads, environment
+variables, resolved configuration, or any token (including the OIDC token and the
+dynamically exchanged App token that is unknown to the parent process).
+
+### Publication risk and the logging compromise
+
+The repository and its Actions logs are public. The filtering above is a
+best-effort allowlist, not a guarantee: a sanitized command family or path
+category could still carry unexpected text, and GitHub masking does not
+guarantee removal of encoded or unregistered secrets. Treat every Actions log as
+public and inspect a run before sharing links.
+
+Full experiment-parity logging (tools calling with complete command lines,
+prompts, file contents and tool output) is deliberately **not** enabled here: it
+would export exactly the data the trust boundary is designed not to publish.
+That leaves a real diagnostic gap — check exit codes and tool results are not
+visible, so the activity log can say that `mise run check` was requested but not
+whether it passed. A human decision is required before closing that gap:
+
+1. keep the structured activity log and use the temporary
+   `opencode-upstream-experiment.yml` workflow for raw diagnostics on trusted test
+   issues (current state);
+2. explicitly approve a separate opt-in raw-output mode for the normal workflow,
+   with a documented warning that public Actions logs may contain prompts, file
+   contents, commands and dynamically obtained tokens; it should not be the
+   default for comment-triggered runs;
+3. accept the remaining gap and require the agent to summarize check results in
+   its final response/PR body instead.
+
+Do not treat the structured activity log as proof that checks passed or that the
+task is complete.
 
 HOME, XDG state and TMPDIR/TMP/TEMP are dedicated to the run. Mise's installed
 tool directory is retained explicitly, without copying developer configuration
@@ -175,9 +221,15 @@ was not prevented by the runtime; do not describe the instruction as a guarantee
 
 ## Limits and queue
 
-The agent has 45 minutes of work inside a 50-minute command step and a 55-minute
-job, leaving room for preparation, signal delivery, the safe log summary and
-reporting. The attempt budget is unchanged and best effort, not a monetary
+The agent has 2 hours of work. The nested limits are: 120 minutes for the
+`timeout`-wrapped agent command inside a 130-minute command step, a 6-minute
+preparation step and a 5-minute activity/log summary step inside a 150-minute
+job. The 10-minute step margin covers the `--kill-after=10s` escalation and
+wrapper exit; the job keeps a further 9-minute margin over preparation, the
+command step and diagnostics for classification before it ends. The separate reporting job
+has its own 5-minute limit. GitHub's maximum job duration is 6 hours, so the
+limits stay well inside it. A timeout is reported as an unconfirmed task, never
+as success. The attempt budget is unchanged and best effort, not a monetary
 ceiling; all subagents run inside the same admitted attempt and do not admit
 additional runs.
 
@@ -213,7 +265,7 @@ pending request from immediate allow/deny. `debug agent --tool` alone cannot pro
 this: this version's debug tool path does not wait on `ask`.
 
 ```sh
-mise run test -- scripts/opencode-command.test.ts scripts/opencode-handler.test.ts scripts/opencode-log-summary.test.ts scripts/opencode-workflow.test.ts scripts/opencode-trust.test.ts
+mise run test -- scripts/opencode-activity.test.ts scripts/opencode-command.test.ts scripts/opencode-handler.test.ts scripts/opencode-log-summary.test.ts scripts/opencode-workflow.test.ts scripts/opencode-trust.test.ts
 mise run test:opencode-runtime
 mise run lint:opencode-workflow
 mise run check
@@ -223,7 +275,10 @@ The real-runtime regression exercises the pinned runtime with a local fixture
 provider: subagent resolution and the `task` allow/deny patterns, the
 implementer/reviewer permission split, immediate denials with no pending request,
 an implementer worktree under TMPDIR that is merged, removed and cleaned up, and
-the safe log summary against a real runtime log. Handler process-group
+the safe log summary plus activity digest against a real runtime log. The
+activity parser has separate unit tests for tool events, command families,
+permission waits, subagent start/end, error withholding and the live tail.
+Handler process-group
 termination, including the standalone-process escalation lifecycle, is covered by
 `scripts/opencode-handler.test.ts`; the workflow's `timeout -> mise -> pnpm ->
 node` link is covered only by the live run. It downloads the pinned public release and checks
@@ -248,27 +303,33 @@ relying on an Actions job's success status.
 
 The workflow and the bootstrap scripts come from the default branch, so this
 recorded live check is necessarily a post-merge step; a branch run cannot exercise
-this workflow.
+this workflow. While the #90 experiment is active this workflow is manual-only;
+the live check applies to the change that restores the normal comment handler, and
+exactly one `/oc` handler must be active at that point.
 
 1. Prepare a small test issue with one verifiable change and a trusted maintainer
    comment `/oc ...`.
 2. Confirm admission and preparation succeed, then inspect the run log for the
-   fixed handler phases and the safe runtime summary: subagent starts, approved
-   type counts, `task_allowed`/`task_denied`, completions/cancellations and
-   `concurrency_exceeded`. Confirm the summary never prints prompts, file
-   contents, commands, tool output, model text, tokens or secrets.
+   fixed handler phases and the live `OpenCode activity:` lines: stages, tool
+   names and decisions, redacted command families, `task` subagent starts/ends and
+   `waiting_permission`. Then inspect the post-run summary and activity digest:
+   subagent starts/types, `task_allowed`/`task_denied`, `checks`,
+   completions/cancellations, `concurrency_exceeded` and the last events.
+   Confirm the output never prints prompts, file contents, full commands, tool
+   output, model text, tokens or secrets.
 3. Confirm the published PR or comment and its real CI result; a successful
    handler is delivery, not proof that the change is correct.
 4. Separately exercise failure handling: cancel a run, and confirm from the
    runner process list that the handler child group is gone; let a run hit the
-   45-minute work limit or force a command failure in a controlled way, and
-   confirm the issue/PR receives the truthful not-confirmed outcome with the run
-   link. Forced cancellation may prevent the final comment by design.
+   2-hour work limit or force a command failure in a controlled way, and confirm
+   the issue/PR receives the truthful not-confirmed outcome with the run link and
+   that the activity log shows the last events before the timeout. Forced
+   cancellation may prevent the final comment by design.
 5. Record the run URLs and outcomes on the issue, then run `mise run check` on the
    final commit. Local and live checks do not substitute for each other; an
    unavailable check or an unverified criterion stays a blocker.
 
-The 45-minute timeout and signal propagation through
+The 2-hour timeout and signal propagation through
 `timeout -> mise -> pnpm -> node` are verified locally only for the layers that
 can run on this host; the GNU `timeout` link and the real runner path must be
 confirmed by the live cancellation run above.

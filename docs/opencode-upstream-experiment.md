@@ -21,9 +21,16 @@ GitHub masking cannot guarantee removal of encoded or unregistered secrets.
 Inspect the run before sharing logs. The 20-minute job timeout is not a monetary
 ceiling. Do not use the experiment for untrusted code or confidential tasks.
 
+The normal handler now also has prepared two-hour limits and a detailed safe
+activity log (allowlisted stages, tool names, redacted command families,
+subagent start/end and permission waits; never prompts, file contents, full
+commands, tool output or tokens). Those changes do not enable it: the comment
+triggers stay disabled and this experiment remains the only `/oc` handler.
+
 To restore the normal workflow, replace `workflow_dispatch` in
 `.github/workflows/opencode.yml` with `issue_comment` and
 `pull_request_review_comment` events for `created`, and remove or disable this
 experimental workflow in the same change. Run `mise run check`, then verify on
-a trusted test issue that exactly one command handler starts. Until that
-restoration merges, `/oc` runs through the experiment.
+a trusted test issue that exactly one command handler starts and that the live
+activity log and post-run digest are present. Until that restoration merges,
+`/oc` runs through the experiment.
