@@ -1,8 +1,9 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 import { runGitHubHandler } from "./opencode-handler.ts";
 
@@ -24,14 +25,18 @@ function alive(pid: number) {
   }
 }
 
+/** The grandchild marks readiness only after it installed its signal trap, so a
+ * fast SIGTERM cannot kill it before the fixture is actually signal-tolerant. */
 function handlerFixture(pidFile: string, ignoreSignals: boolean) {
   const trap = ignoreSignals
     ? "process.on('SIGTERM', () => {}); process.on('SIGINT', () => {});"
     : "process.on('SIGTERM', () => process.exit(0)); process.on('SIGINT', () => process.exit(0));";
+  const ready = `${pidFile}.ready`;
   return `#!${process.execPath}
 import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
-const child = spawn(process.execPath, ['-e', ${JSON.stringify(`${trap} setInterval(() => {}, 1000);`)}], { stdio: 'ignore' });
+import { existsSync, writeFileSync } from 'node:fs';
+const child = spawn(process.execPath, ['-e', ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(ready)}, 'ready'); ${trap} setInterval(() => {}, 1000);`)}], { stdio: 'ignore' });
+while (!existsSync(${JSON.stringify(ready)})) await new Promise((accept) => setTimeout(accept, 5));
 writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));
 ${trap}
 console.log('Sending message to opencode...');
@@ -244,6 +249,70 @@ setInterval(() => {}, 1000);
     process.emit("SIGTERM");
     expect(await run).toBeInstanceOf(Error);
     await waitFor(() => !alive(grandchild));
+    expect(alive(grandchild)).toBe(false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("keeps the CLI process alive until descendants are escalated after cancellation", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-handler-cli-"));
+  try {
+    const binary = join(directory, "handler");
+    const pidFile = join(directory, "grandchild.pid");
+    const resultFile = join(directory, "result.txt");
+    const ready = `${pidFile}.ready`;
+    await writeFile(
+      binary,
+      `#!${process.execPath}
+import { spawn } from 'node:child_process';
+import { existsSync, writeFileSync } from 'node:fs';
+const child = spawn(process.execPath, ['-e', ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(ready)}, 'ready'); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`)}], { stdio: 'ignore' });
+while (!existsSync(${JSON.stringify(ready)})) await new Promise((accept) => setTimeout(accept, 5));
+writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));
+process.on('SIGTERM', () => process.exit(0));
+setInterval(() => {}, 1000);
+`,
+      { mode: 0o700 },
+    );
+    const runner = join(directory, "runner.mjs");
+    await writeFile(
+      runner,
+      `import { writeFile } from 'node:fs/promises';
+import { runGitHubHandler } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, "opencode-handler.ts")).href)};
+try {
+  await runGitHubHandler({
+    binary: ${JSON.stringify(binary)},
+    workspace: ${JSON.stringify(directory)},
+    env: { PATH: process.env.PATH },
+    report: () => {},
+    killGraceMs: 250,
+  });
+} catch (error) {
+  await writeFile(${JSON.stringify(resultFile)}, String(error.message));
+  process.exitCode = 1;
+}
+`,
+    );
+    // A standalone process matches the real CLI: when the wrapper rejects it
+    // may exit immediately unless the escalation keeps the event loop alive.
+    const child = spawn(process.execPath, [runner], { stdio: "ignore" });
+    const exited = new Promise<number | null>((resolve, reject) => {
+      child.once("exit", resolve);
+      child.once("error", reject);
+    });
+    await waitFor(async () => {
+      try {
+        await readFile(pidFile, "utf8");
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    const grandchild = Number(await readFile(pidFile, "utf8"));
+    child.kill("SIGTERM");
+    expect(await exited).toBe(1);
+    expect(await readFile(resultFile, "utf8")).toMatch(/not confirmed/);
     expect(alive(grandchild)).toBe(false);
   } finally {
     await rm(directory, { recursive: true, force: true });

@@ -96,7 +96,10 @@ export async function runGitHubHandler(options: {
     const cancel = (signal: NodeJS.Signals) => {
       cancelled = true;
       signalGroup(signal);
-      killTimer ??= setTimeout(escalate, killGraceMs).unref();
+      // Deliberately referenced: after the direct handler exits the wrapper must
+      // stay alive until the escalation has killed any remaining descendants.
+      // An unref'd timer allows the Node process to exit first and orphan them.
+      killTimer ??= setTimeout(escalate, killGraceMs);
     };
     /**
      * The direct handler may exit on the forwarded signal while a same-group
