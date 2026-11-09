@@ -29,9 +29,9 @@ it.each([
   }
 });
 
-it("bounds command execution to fifty-five minutes without cancelling an active fix", () => {
+it("bounds command execution to two and a half hours without cancelling an active fix", () => {
   const job = workflow().jobs.opencode;
-  expect(job["timeout-minutes"]).toBe(55);
+  expect(job["timeout-minutes"]).toBe(150);
   expect(job.needs).toBe("classify");
   expect(job.if).toBe("needs.classify.outputs.command == 'true'");
   expect(workflow().jobs.classify.concurrency).toBeUndefined();
@@ -43,13 +43,15 @@ it("bounds command execution to fifty-five minutes without cancelling an active 
   });
 });
 
-it("gives the agent 45 minutes inside a 50-minute step and a 55-minute job", () => {
+it("gives the agent two hours inside a 130-minute step and a 150-minute job", () => {
   const job = workflow().jobs.opencode;
   const command = job.steps.find((step: { id?: string }) => step.id === "command");
-  expect(command["timeout-minutes"]).toBe(50);
+  expect(command["timeout-minutes"]).toBe(130);
   expect(command["continue-on-error"]).toBe(true);
-  expect(command.run).toContain("timeout --signal=TERM --kill-after=10s 45m mise run opencode:run");
-  expect(job["timeout-minutes"]).toBe(55);
+  expect(command.run).toContain(
+    "timeout --signal=TERM --kill-after=10s 120m mise run opencode:run",
+  );
+  expect(job["timeout-minutes"]).toBe(150);
   expect(command.run).toContain('if [ "$result" -eq 124 ]');
   expect(command.run).toContain("reason=timeout");
   expect(command.run).toContain('if [ "$result" -eq 137 ]');
@@ -106,7 +108,7 @@ it("explains each failure reason without confirming task completion", () => {
     RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
   });
   expect(report.run).toContain("**OpenCode command failed. Task completion is NOT confirmed.**");
-  expect(report.run).toContain('timeout) explanation="the agent hit the 45-minute work limit');
+  expect(report.run).toContain('timeout) explanation="the agent hit the 2-hour work limit');
   expect(report.run).toContain(
     'limit_exhausted) explanation="the attempt budget for this issue or pull request is exhausted"',
   );
@@ -161,9 +163,12 @@ it("bounds preparation and diagnostics so the job keeps room to report", () => {
     (step: { run?: string }) => step.run === "mise run opencode:log-summary",
   );
   expect(prepare["timeout-minutes"]).toBe(6);
-  expect(summary["timeout-minutes"]).toBe(2);
-  expect(workflow().jobs.opencode["timeout-minutes"]).toBeGreaterThan(
-    45 + prepare["timeout-minutes"] + summary["timeout-minutes"],
+  expect(summary["timeout-minutes"]).toBe(5);
+  const job = workflow().jobs.opencode;
+  const command = steps.find((step: { id?: string }) => step.id === "command");
+  expect(command["timeout-minutes"]).toBeGreaterThan(120 + 10 / 60);
+  expect(job["timeout-minutes"]).toBeGreaterThan(
+    command["timeout-minutes"] + prepare["timeout-minutes"] + summary["timeout-minutes"],
   );
 });
 
