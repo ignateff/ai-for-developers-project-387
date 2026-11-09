@@ -35,9 +35,11 @@ jobs:
     needs: classify
     if: needs.classify.outputs.command == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45 minutes of agent work + preparation, signal delivery, safe log summary
+    # and failure classification. The inner wrapper stops the agent at 45m, the
+    # command step at 50m is a second guard, and this job limit leaves the rest.
+    timeout-minutes: 55
     outputs:
-      pr: ${{ steps.admission.outputs.pr }}
       sha: ${{ steps.admission.outputs.sha }}
       reason: ${{ steps.outcome.outputs.reason }}
     concurrency:
@@ -76,6 +78,7 @@ jobs:
       - name: Prepare command
         id: prepare
         if: steps.admission.outputs.status == 'allowed'
+        timeout-minutes: 6
         continue-on-error: true
         run: mise run opencode:prepare
         env:
@@ -85,7 +88,7 @@ jobs:
       - name: Run admitted command
         id: command
         if: steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success'
-        timeout-minutes: 22
+        timeout-minutes: 50
         continue-on-error: true
         run: |
           if [ -z "$DEEPSEEK_API_KEY" ]; then
@@ -93,7 +96,7 @@ jobs:
             exit 1
           fi
           set +e
-          timeout --signal=TERM --kill-after=10s 19m mise run opencode:run
+          timeout --signal=TERM --kill-after=10s 45m mise run opencode:run
           result=$?
           set -e
           if [ "$result" -eq 124 ]; then
@@ -111,6 +114,7 @@ jobs:
 
       - name: Summarize runtime log safely
         if: ${{ !cancelled() && steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success' }}
+        timeout-minutes: 2
         continue-on-error: true
         run: mise run opencode:log-summary
         env:
@@ -118,15 +122,21 @@ jobs:
 
       - name: Classify command outcome
         id: outcome
-        if: ${{ !cancelled() && steps.admission.outputs.pr != '' && (steps.admission.outputs.status == 'limit_exhausted' || steps.admission.outputs.status == 'infra' || steps.prepare.outcome == 'failure' || steps.command.outcome == 'failure') }}
+        # Issue commands have no admission PR, so failures on issues must be
+        # classified too. Untrusted/skipped admissions stay silent (no notification
+        # for an unauthorized commenter); PR admission failures keep the old path.
+        if: ${{ !cancelled() && (steps.admission.outputs.status == 'limit_exhausted' || (steps.admission.outputs.status == 'allowed' && (steps.prepare.outcome == 'failure' || steps.command.outcome == 'failure')) || (steps.admission.outputs.status == 'infra' && steps.admission.outputs.pr != '')) }}
         env:
           ADMISSION: ${{ steps.admission.outputs.status }}
           PREPARE: ${{ steps.prepare.outcome }}
           COMMAND_REASON: ${{ steps.command.outputs.reason }}
         run: |
-          reason=${COMMAND_REASON:-infra}
-          if [ "$ADMISSION" = limit_exhausted ]; then reason=limit_exhausted; fi
-          if [ "$ADMISSION" = infra ] || [ "$PREPARE" = failure ]; then reason=infra; fi
+          reason=infra
+          if [ "$ADMISSION" = limit_exhausted ]; then
+            reason=limit_exhausted
+          elif [ "$ADMISSION" = allowed ] && [ "$PREPARE" != failure ] && [ -n "$COMMAND_REASON" ]; then
+            reason=$COMMAND_REASON
+          fi
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
 
       - name: Fail for command errors
@@ -135,19 +145,38 @@ jobs:
 
   report:
     needs: opencode
-    if: ${{ !cancelled() && needs.opencode.outputs.pr != '' && needs.opencode.outputs.reason != '' }}
+    if: ${{ !cancelled() && needs.opencode.outputs.reason != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      issues: read
+      # Comment on the source issue or pull request without model credentials.
+      issues: write
       pull-requests: write
     steps:
       - name: Report command outcome
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ needs.opencode.outputs.pr }}
+          # The triggering issue or PR number, available even when the agent was
+          # never reached; admission.pr is empty for ordinary issue commands.
+          TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           PR_SHA: ${{ needs.opencode.outputs.sha }}
           REASON: ${{ needs.opencode.outputs.reason }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f "body=OpenCode: $REASON. Нужен человек. SHA: $PR_SHA. Логи: $RUN_URL"
+          set -euo pipefail
+          : "${TARGET_NUMBER:?missing source issue or pull request number}"
+          sha=${PR_SHA:-unknown}
+          case "$REASON" in
+            timeout) explanation="the agent hit the 45-minute work limit before publishing a verified result" ;;
+            limit_exhausted) explanation="the attempt budget for this issue or pull request is exhausted" ;;
+            infra) explanation="the workflow could not start the agent (infrastructure or preparation failure)" ;;
+            agent_failed) explanation="the agent failed before publishing a verified result" ;;
+            *) explanation="unknown cause" ;;
+          esac
+          body=$(printf '**OpenCode command failed. Task completion is NOT confirmed.**\n\nThe command did not finish successfully, so there is no verified result.\n\nReason: %s - %s\nSHA: %s\nActions run: %s\n' "$REASON" "$explanation" "$sha" "$RUN_URL")
+          comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$TARGET_NUMBER/comments" -f "body=$body" --jq .id)
+          if [ -z "$comment_id" ] || [ "$comment_id" = "null" ]; then
+            echo "Failed to publish the failure comment: no comment id was returned." >&2
+            exit 1
+          fi
+          echo "Published failure comment $comment_id for reason $REASON on issue or PR $TARGET_NUMBER."

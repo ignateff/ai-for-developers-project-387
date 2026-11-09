@@ -10,6 +10,37 @@ import { commandSkills, verifyCommandSkills } from "./opencode-skills.ts";
 
 const execute = promisify(execFile);
 
+/**
+ * The only subagent types the command agent may delegate to. `implement-spec`
+ * needs implementers, explorers and mergers (all of which edit files and run
+ * commands); `code-review` needs read-only reviewers. Both roles run in the
+ * shared checkout; no other type is allowed and the `task` permission patterns
+ * below are the enforcement point.
+ */
+export const commandSubagents = ["implementer", "reviewer"] as const;
+export type CommandSubagent = (typeof commandSubagents)[number];
+
+const subagentDescriptions: Record<CommandSubagent, string> = {
+  implementer:
+    "Implementation subagent for one ticket or merge. Edits files, runs commands and tests in the shared checkout, and may explore the codebase. Not allowed to delegate further.",
+  reviewer:
+    "Read-only review subagent. Can read and search files in the shared checkout to review a diff, but cannot edit files, run commands, fetch the web, load skills, or delegate.",
+};
+
+const subagentPermission: Record<CommandSubagent, Record<string, unknown>> = {
+  implementer: { task: "deny" },
+  reviewer: {
+    bash: "deny",
+    edit: "deny",
+    todowrite: "deny",
+    webfetch: "deny",
+    websearch: "deny",
+    skill: "deny",
+    task: "deny",
+    question: "deny",
+  },
+};
+
 type EnvironmentOptions = {
   workspace: string;
   directory: string;
@@ -63,7 +94,9 @@ export function createCommandEnvironment({
     skill: { "*": "deny", ...Object.fromEntries(commandSkills.map((name) => [name, "allow"])) },
     external_directory: { "*": "deny", [`${workspace}/*`]: "allow", [`${directory}/*`]: "allow" },
     question: "deny",
-    task: "deny",
+    // Only the two approved subagent types may be delegated to; every other
+    // type is denied and denied requests never become interactive asks.
+    task: { "*": "deny", ...Object.fromEntries(commandSubagents.map((name) => [name, "allow"])) },
     plan_enter: "deny",
     plan_exit: "deny",
     doom_loop: "deny",
@@ -103,7 +136,21 @@ export function createCommandEnvironment({
       skills: { paths: [join(directory, "skills")] },
       permission,
       instructions: [join(workspace, "AGENTS.md"), join(directory, "instructions.md")],
-      agent: { build: { permission } },
+      // Nested delegation stays off: a subagent may not launch another subagent.
+      subagent_depth: 1,
+      agent: {
+        build: { permission },
+        ...Object.fromEntries(
+          commandSubagents.map((name) => [
+            name,
+            {
+              mode: "subagent",
+              description: subagentDescriptions[name],
+              permission: subagentPermission[name],
+            },
+          ]),
+        ),
+      },
     }),
     MODEL: "deepseek/deepseek-flash",
     USE_GITHUB_TOKEN: "false",
@@ -114,16 +161,58 @@ export function createCommandEnvironment({
 
 type Rule = { permission: string; pattern: string; action: string };
 
-export function assertCommandAgent(agent: unknown, paths: Omit<EnvironmentOptions, "base">): void {
+function flattenPermission(permission: Record<string, unknown>): Rule[] {
+  const rules: Rule[] = [];
+  for (const [name, value] of Object.entries(permission)) {
+    if (typeof value === "string") rules.push({ permission: name, pattern: "*", action: value });
+    else
+      for (const [pattern, action] of Object.entries(value as Record<string, string>)) {
+        rules.push({ permission: name, pattern, action });
+      }
+  }
+  return rules;
+}
+
+/**
+ * The rules upstream appends after the last global default deny for one agent:
+ * the shared command policy, then that agent's own overrides, then the one
+ * automatic external-directory allowance for tool output.
+ */
+export function expectedAgentRules(
+  paths: Omit<EnvironmentOptions, "base">,
+  name: "build" | CommandSubagent,
+): Rule[] {
+  const env = createCommandEnvironment({ ...paths, base: {} });
+  const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
+  const specific = config.agent?.[name]?.permission ?? {};
+  const base =
+    name === "build"
+      ? flattenPermission(config.permission)
+      : [...flattenPermission(config.permission), ...flattenPermission(specific)];
+  return [
+    ...base,
+    {
+      permission: "external_directory",
+      pattern: join(env.XDG_DATA_HOME!, "opencode/tool-output/*"),
+      action: "allow",
+    },
+  ];
+}
+
+export function assertCommandAgent(
+  agent: unknown,
+  paths: Omit<EnvironmentOptions, "base">,
+  name: "build" | CommandSubagent = "build",
+): void {
   if (
     !agent ||
     typeof agent !== "object" ||
     !("name" in agent) ||
-    agent.name !== "build" ||
+    agent.name !== name ||
     !("permission" in agent) ||
     !Array.isArray(agent.permission)
   )
-    throw new Error("OpenCode resolved build agent is missing or invalid");
+    throw new Error("OpenCode resolved agent is missing or invalid");
   const rules: Rule[] = agent.permission.map((rule: unknown) => {
     if (
       !rule ||
@@ -145,29 +234,10 @@ export function assertCommandAgent(agent: unknown, paths: Omit<EnvironmentOption
   const tail = rules.slice(lastDeny);
   if (tail.some((rule) => rule.action === "ask"))
     throw new Error("OpenCode resolved policy contains an interactive permission");
-
-  const env = createCommandEnvironment({ ...paths, base: {} });
-  const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
-  const expected: Rule[] = [];
-  for (const [permission, value] of Object.entries(config.permission)) {
-    if (typeof value === "string") expected.push({ permission, pattern: "*", action: value });
-    else
-      for (const [pattern, action] of Object.entries(value as Record<string, string>)) {
-        expected.push({ permission, pattern, action });
-      }
-  }
-  // Upstream appends this one automatic allowance after the configured agent rules.
-  const withOutput = [
-    ...expected,
-    {
-      permission: "external_directory",
-      pattern: join(env.XDG_DATA_HOME!, "opencode/tool-output/*"),
-      action: "allow",
-    },
-  ];
+  const expected = expectedAgentRules(paths, name);
   if (
     JSON.stringify(tail) !== JSON.stringify(expected) &&
-    JSON.stringify(tail) !== JSON.stringify(withOutput)
+    JSON.stringify(tail) !== JSON.stringify(expected.slice(0, -1))
   )
     throw new Error("OpenCode resolved policy differs from the approved command policy");
 }
@@ -176,13 +246,14 @@ async function inspectAgent(
   binary: string,
   env: NodeJS.ProcessEnv,
   paths: Omit<EnvironmentOptions, "base">,
+  name: "build" | CommandSubagent,
 ) {
   const inspection = { ...env };
   for (const key of ["DEEPSEEK_API_KEY", "GH_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"])
     delete inspection[key];
   let output: string;
   try {
-    ({ stdout: output } = await execute(binary, ["debug", "agent", "build"], {
+    ({ stdout: output } = await execute(binary, ["debug", "agent", name], {
       cwd: paths.workspace,
       env: inspection,
       encoding: "utf8",
@@ -199,7 +270,7 @@ async function inspectAgent(
   } catch {
     throw new Error("OpenCode configuration validation returned invalid JSON");
   }
-  assertCommandAgent(agent, paths);
+  assertCommandAgent(agent, paths, name);
 }
 
 async function inspectSource(base: NodeJS.ProcessEnv, workspace: string) {
@@ -252,7 +323,12 @@ export async function prepareCommand(base: NodeJS.ProcessEnv) {
     [
       "Implement the approved request and follow the explicitly loaded AGENTS.md.",
       "Use TMPDIR for temporary files. Hard-coded external paths may be denied; do not broaden permissions.",
-      "This is a headless build session: do not delegate, enter plan mode, or request interactive approval.",
+      "This is a headless build session: do not enter plan mode or request interactive approval; report a blocker instead.",
+      "Delegate only through the task tool and only to the implementer or reviewer subagent types; every other type is denied.",
+      "Use implementer for code changes, exploration, tests and merges: it can edit files and run commands.",
+      "For parallel tickets, each implementer may use its own git worktree and branch created under TMPDIR, never inside this checkout. Merge the work back into this checkout's branch and remove the worktree and temporary branch before your final response; the upstream handler publishes only this checkout.",
+      "Use reviewer only for read-only review work such as the code-review skill; it cannot edit files, run commands or load skills.",
+      "Run at most two subagents concurrently at any time. Start further subagents after an earlier one finishes, and serialize implementations that touch the same files.",
       "Run mise install, mise run install, and the relevant tests; run mise run check before reporting completion.",
       "Report failed checks or blockers honestly. Do not call partial work a successful fix.",
       "The upstream GitHub handler handles publication after your final response.",
@@ -261,7 +337,8 @@ export async function prepareCommand(base: NodeJS.ProcessEnv) {
   );
   const binary = await installRuntime({ directory: join(paths.directory, "runtime") });
   await verifyInstalledRuntime(binary);
-  await inspectAgent(binary, env, paths);
+  for (const name of ["build", ...commandSubagents] as const)
+    await inspectAgent(binary, env, paths, name);
   await writeFile(
     join(paths.directory, "state.json"),
     JSON.stringify({
@@ -296,7 +373,8 @@ export async function runCommand(base: NodeJS.ProcessEnv) {
   await verifyInstalledRuntime(state.binary);
   await verifyCommandSkills(paths.workspace, paths.directory, false);
   const env = createCommandEnvironment({ ...paths, base });
-  await inspectAgent(state.binary, env, paths);
+  for (const name of ["build", ...commandSubagents] as const)
+    await inspectAgent(state.binary, env, paths, name);
   if (!env.DEEPSEEK_API_KEY) throw new Error("OpenCode provider credentials are missing");
   await runGitHubHandler({ binary: state.binary, workspace: paths.workspace, env });
 }

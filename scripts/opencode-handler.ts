@@ -24,10 +24,14 @@ export async function runGitHubHandler(options: {
   env: NodeJS.ProcessEnv;
   report?: (line: string) => void;
   heartbeatMs?: number;
+  /** Grace period between SIGTERM/SIGINT and the group SIGKILL. */
+  killGraceMs?: number;
 }): Promise<void> {
   const report = options.report ?? console.log;
   const heartbeatMs = options.heartbeatMs ?? 30_000;
+  const killGraceMs = options.killGraceMs ?? 5000;
   if (!Number.isSafeInteger(heartbeatMs) || heartbeatMs < 1) throw new Error("Invalid heartbeat");
+  if (!Number.isSafeInteger(killGraceMs) || killGraceMs < 1) throw new Error("Invalid kill grace");
   await new Promise<void>((accept, reject) => {
     const child = spawn(options.binary, ["github", "run"], {
       cwd: options.workspace,
@@ -92,7 +96,24 @@ export async function runGitHubHandler(options: {
     const cancel = (signal: NodeJS.Signals) => {
       cancelled = true;
       signalGroup(signal);
-      killTimer ??= setTimeout(() => signalGroup("SIGKILL"), 5000).unref();
+      // Deliberately referenced: after the direct handler exits the wrapper must
+      // stay alive until the escalation has killed any remaining descendants.
+      // An unref'd timer allows the Node process to exit first and orphan them.
+      killTimer ??= setTimeout(escalate, killGraceMs);
+    };
+    /**
+     * The direct handler may exit on the forwarded signal while a same-group
+     * descendant ignores it. Keep the escalation armed until the group is empty;
+     * the liveness probe avoids signalling a reused process-group id.
+     */
+    const escalate = () => {
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, 0);
+      } catch {
+        return;
+      }
+      signalGroup("SIGKILL");
     };
     const terminate = () => cancel("SIGTERM");
     const interrupt = () => cancel("SIGINT");
@@ -101,7 +122,9 @@ export async function runGitHubHandler(options: {
     const cleanup = () => {
       process.off("SIGTERM", terminate);
       process.off("SIGINT", interrupt);
-      clearTimeout(killTimer);
+      // A cancelled handler keeps the escalation armed so descendants that
+      // outlive the direct child are still killed after the grace period.
+      if (!cancelled) clearTimeout(killTimer);
       clearInterval(heartbeat);
     };
     child.once("error", () => {
