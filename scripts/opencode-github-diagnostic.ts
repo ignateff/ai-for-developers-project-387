@@ -45,7 +45,7 @@ try {
   await mkdir(env.TMPDIR!, { recursive: true });
   const binary = await installRuntime({ directory: join(directory, "binary") });
   try {
-    await runGitHubHandler({ binary, workspace, env });
+    await runGitHubHandler({ binary, workspace, env, timeoutMs: 120_000 });
   } finally {
     const logdir = join(env.XDG_DATA_HOME!, "opencode", "log");
     let files: string[] = [];

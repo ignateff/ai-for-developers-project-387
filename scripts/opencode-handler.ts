@@ -26,12 +26,19 @@ export async function runGitHubHandler(options: {
   heartbeatMs?: number;
   /** Grace period between SIGTERM/SIGINT and the group SIGKILL. */
   killGraceMs?: number;
+  /** Optional internal deadline for callers that must collect diagnostics afterwards. */
+  timeoutMs?: number;
 }): Promise<void> {
   const report = options.report ?? console.log;
   const heartbeatMs = options.heartbeatMs ?? 30_000;
   const killGraceMs = options.killGraceMs ?? 5000;
   if (!Number.isSafeInteger(heartbeatMs) || heartbeatMs < 1) throw new Error("Invalid heartbeat");
   if (!Number.isSafeInteger(killGraceMs) || killGraceMs < 1) throw new Error("Invalid kill grace");
+  if (
+    options.timeoutMs !== undefined &&
+    (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1)
+  )
+    throw new Error("Invalid handler timeout");
   await new Promise<void>((accept, reject) => {
     const child = spawn(options.binary, ["github", "run"], {
       cwd: options.workspace,
@@ -117,6 +124,13 @@ export async function runGitHubHandler(options: {
     };
     const terminate = () => cancel("SIGTERM");
     const interrupt = () => cancel("SIGINT");
+    const deadline =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            report("OpenCode: handler deadline reached");
+            cancel("SIGTERM");
+          }, options.timeoutMs);
     process.on("SIGTERM", terminate);
     process.on("SIGINT", interrupt);
     const cleanup = () => {
@@ -126,6 +140,7 @@ export async function runGitHubHandler(options: {
       // outlive the direct child are still killed after the grace period.
       if (!cancelled) clearTimeout(killTimer);
       clearInterval(heartbeat);
+      clearTimeout(deadline);
     };
     child.once("error", () => {
       cleanup();

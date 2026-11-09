@@ -44,6 +44,34 @@ setInterval(() => {}, 1000);
 `;
 }
 
+it("ends a bounded diagnostic handler so the caller can collect its summary", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-handler-deadline-"));
+  try {
+    const binary = join(directory, "handler");
+    await writeFile(binary, `#!${process.execPath}\nsetInterval(() => {}, 1000);\n`, {
+      mode: 0o700,
+    });
+    const lines: string[] = [];
+    let summarized = false;
+    try {
+      await runGitHubHandler({
+        binary,
+        workspace: directory,
+        env: { PATH: process.env.PATH },
+        report: (line) => lines.push(line),
+        timeoutMs: 200,
+        killGraceMs: 50,
+      });
+    } catch {
+      summarized = true;
+    }
+    expect(summarized).toBe(true);
+    expect(lines).toContain("OpenCode: handler deadline reached");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 it("kills the whole handler process group on cancellation and reports failure", async () => {
   const directory = await mkdtemp(join(tmpdir(), "oc-handler-kill-"));
   const baseline = process.listenerCount("SIGTERM");
