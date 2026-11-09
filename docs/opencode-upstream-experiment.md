@@ -1,29 +1,46 @@
-# Temporary upstream OpenCode comparison (#90)
+# Upstream OpenCode comparison (#90) — concluded
 
-The usual command workflow's comment triggers are disabled while the separate
-`opencode-upstream-experiment.yml` workflow handles `/oc` and `/opencode`.
-The experiment retains the existing original-author and same-repository PR trust
-preflight. Issue triage and independent PR review remain separate.
+The temporary comparison with the upstream OpenCode GitHub Action is over. Its
+comment triggers for `/oc` and `/opencode` were moved to the normal
+`.github/workflows/opencode.yml` workflow, the manual `workflow_dispatch` entry
+point was removed from that workflow, and the experiment workflow was deleted in
+the same change. Automatic PR review and issue triage were not touched.
+`scripts/opencode-workflow.test.ts` asserts that only `opencode.yml` subscribes to
+`issue_comment`/`pull_request_review_comment`, so exactly one `/oc` handler
+remains.
 
-The upstream Action is pinned to its source commit, but its composite action
-installs the latest OpenCode CLI using an upstream install script. The effective
-runtime and nested actions are therefore not pinned by our project. This is a
-controlled temporary experiment, not evidence that runtime provenance matches
-our verified 1.19.5 binary.
+## What the experiment showed
 
-Unlike the normal command adapter, the upstream Action uses OpenCode defaults
-and project configuration, not the project's validated command tool and skill
-policy. It does not enforce the command attempt budget or our output allowlist.
-It exchanges the Actions OIDC token for an OpenCode GitHub App token, whose
-permissions are separate from the job's `GITHUB_TOKEN`. Its raw output may
-contain model requests, file contents, commands, or dynamically obtained tokens;
-GitHub masking cannot guarantee removal of encoded or unregistered secrets.
-Inspect the run before sharing logs. The 20-minute job timeout is not a monetary
-ceiling. Do not use the experiment for untrusted code or confidential tasks.
+The upstream Action pinned its source commit but installed the latest OpenCode CLI
+through its own install script, so the effective runtime was not pinned by this
+project. It used OpenCode defaults rather than the validated command policy and
+did not enforce the command attempt budget or the output allowlist. Its raw logs
+also demonstrated the risk in the #83 work: they contained full shell commands
+(including `env`/`cat` probes), prompts, model text and runtime internals, and one
+run hung waiting for an `external_directory` permission until the job timeout.
+GitHub masking does not guarantee removal of encoded or unregistered secrets, and
+the repository is public.
 
-To restore the normal workflow, replace `workflow_dispatch` in
-`.github/workflows/opencode.yml` with `issue_comment` and
-`pull_request_review_comment` events for `created`, and remove or disable this
-experimental workflow in the same change. Run `mise run check`, then verify on
-a trusted test issue that exactly one command handler starts. Until that
-restoration merges, `/oc` runs through the experiment.
+## What replaced it
+
+The normal workflow keeps the original trust preflight, the pinned and verified
+runtime, the validated tool/skill/subagent policy, the attempt budget and the
+failure reporting. It now also has two-hour nested limits and a safe activity log
+(allowlisted stages, tool names and decisions, redacted command families, subagent
+start/end and permission waits; never prompts, file contents, full commands, tool
+output or tokens). Check results and tool output remain unavailable through that
+safe channel; `docs/opencode-commands.md` records the compromise and the options
+that require a human decision.
+
+The raw experiment workflow is preserved in Git history (PR #91). Restoring it for
+raw diagnostics would need an explicit human decision, a temporary replacement of
+the comment triggers, and a change that disables the normal handler while it runs.
+
+## Verification
+
+Static checks and CI cover the restored triggers, the single-handler invariant and
+the two-hour timeout configuration. A controlled run on a trusted test issue after
+merge must confirm that exactly one handler starts, the activity log and digest
+are present, a cancellation or timeout leaves no child processes and the failure
+report states that task completion is not confirmed. Until that run is recorded,
+those live criteria remain unverified.

@@ -4,6 +4,7 @@ import { isAbsolute, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
 import { safeOpenCodeError } from "./opencode-error.ts";
+import { startActivityWatch } from "./opencode-activity.ts";
 import { assertSafeProject, assertSafePullRequest } from "./opencode-discovery.ts";
 import { runGitHubHandler } from "./opencode-handler.ts";
 import { commandSkills, verifyCommandSkills } from "./opencode-skills.ts";
@@ -376,7 +377,15 @@ export async function runCommand(base: NodeJS.ProcessEnv) {
   for (const name of ["build", ...commandSubagents] as const)
     await inspectAgent(state.binary, env, paths, name);
   if (!env.DEEPSEEK_API_KEY) throw new Error("OpenCode provider credentials are missing");
-  await runGitHubHandler({ binary: state.binary, workspace: paths.workspace, env });
+  const activity = startActivityWatch({
+    logPath: join(paths.directory, "home", ".local/share/opencode/log/opencode.log"),
+  });
+  activity.start();
+  try {
+    await runGitHubHandler({ binary: state.binary, workspace: paths.workspace, env });
+  } finally {
+    await activity.stop();
+  }
 }
 
 if (import.meta.main) {

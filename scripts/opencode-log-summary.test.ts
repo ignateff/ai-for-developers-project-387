@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import {
   formatRuntimeLogSummary,
-  readRuntimeLog,
   summarizeRuntimeLog,
+  summarizeRuntimeLogFile,
 } from "./opencode-log-summary.ts";
+import { summarizeActivity } from "./opencode-activity.ts";
 
 it("counts only allowlisted runtime events and never prints raw fields", () => {
   const text = [
@@ -177,17 +178,125 @@ it("reports no loop step when the log has no loop events", () => {
   expect(formatRuntimeLogSummary(summary)).toContain("max_step=none");
 });
 
-it("reads the prepared runtime log and reports a missing file as unavailable", async () => {
+it("streams the prepared runtime log and reports a missing file as unavailable", async () => {
   const root = await mkdtemp(join(tmpdir(), "oc-log-summary-"));
   try {
-    expect(await readRuntimeLog(join(root, "missing.log"))).toBeNull();
+    expect(await summarizeRuntimeLogFile(join(root, "missing.log"))).toBeNull();
     const directory = join(root, "home", ".local/share/opencode/log");
     await mkdir(directory, { recursive: true });
     const path = join(directory, "opencode.log");
     await writeFile(path, "message=loop step=3\n");
-    const log = await readRuntimeLog(path);
+    const log = await summarizeRuntimeLogFile(path);
     expect(log).not.toBeNull();
-    expect(formatRuntimeLogSummary(summarizeRuntimeLog(log!.text))).toContain("loop=1 max_step=3");
+    expect(formatRuntimeLogSummary(log!.summary)).toContain("loop=1 max_step=3");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("streams across chunks and keeps the last events from the end of the file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-stream-"));
+  try {
+    const loops = Array.from(
+      { length: 200 },
+      (_, index) =>
+        `timestamp=2026-11-08T09:00:00.000Z level=INFO run=abc message=loop session.id=ses_root step=${index + 1}`,
+    ).join("\n");
+    const text = [
+      loops,
+      'timestamp=2026-11-08T09:00:01.000Z level=INFO run=abc message=created id=ses_child parentID=ses_root title="private" agent=implementer',
+      'timestamp=2026-11-08T09:00:02.000Z level=INFO run=abc message="exiting loop" session.id=ses_child',
+    ].join("\n");
+    const path = join(root, "opencode.log");
+    await writeFile(path, `${text}\n`);
+    const streamed = await summarizeRuntimeLogFile(path, { chunkBytes: 1024 });
+    expect(streamed).not.toBeNull();
+    expect(streamed!.summary).toEqual(summarizeRuntimeLog(text));
+    expect(streamed!.digest).toEqual(summarizeActivity(text));
+    expect(streamed!.summary.maxStep).toBe(200);
+    expect(streamed!.digest.lastEvents.at(-1)).toContain("event=subagent_ended");
+    expect(streamed!.oversizedLines).toBe(0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("reads the tail when the log exceeds the byte budget", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-tail-"));
+  try {
+    const filler = Array.from(
+      { length: 200 },
+      (_, index) =>
+        `timestamp=2026-11-08T09:00:00.000Z level=INFO run=abc message=process filler=${index} private="value"`,
+    ).join("\n");
+    const text = [
+      'timestamp=2026-11-08T08:00:00.000Z level=INFO run=abc message=created id=ses_root title="early" agent=build',
+      filler,
+      'timestamp=2026-11-08T09:59:59.000Z level=INFO run=abc message="exiting loop" session.id=ses_root',
+    ].join("\n");
+    const path = join(root, "opencode.log");
+    await writeFile(path, `${text}\n`);
+    const streamed = await summarizeRuntimeLogFile(path, {
+      chunkBytes: 512,
+      maxLineBytes: 1024,
+      maxBytes: 1024,
+    });
+    expect(streamed).not.toBeNull();
+    expect(streamed!.summary.truncated).toBe(true);
+    expect(streamed!.digest.lastEvents.at(-1)).toContain("event=loop_end");
+    expect(streamed!.digest.lastEvents.join("\n")).not.toContain("private");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("skips oversized lines and counts them without printing their content", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-oversize-"));
+  try {
+    const path = join(root, "opencode.log");
+    await writeFile(path, `message=process\n${"x".repeat(5000)}\nmessage=loop step=2\n`);
+    const streamed = await summarizeRuntimeLogFile(path, {
+      chunkBytes: 1024,
+      maxLineBytes: 1024,
+    });
+    expect(streamed).not.toBeNull();
+    expect(streamed!.oversizedLines).toBe(1);
+    expect(streamed!.summary.lines).toBe(2);
+    expect(streamed!.summary.loop).toBe(1);
+    const formatted = formatRuntimeLogSummary(streamed!.summary);
+    expect(formatted).not.toContain("xxxx");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("skips a completed oversized line and keeps the next event", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-boundary-"));
+  try {
+    const path = join(root, "opencode.log");
+    await writeFile(path, `message=loop step=1 ${"x".repeat(1100)}\nmessage=loop step=2\n`);
+    const result = await summarizeRuntimeLogFile(path, { chunkBytes: 1024, maxLineBytes: 1024 });
+    expect(result?.oversizedLines).toBe(1);
+    expect(result?.summary.loop).toBe(1);
+    expect(result?.summary.maxStep).toBe(2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("keeps the next event when a tail starts inside an oversized line", async () => {
+  const root = await mkdtemp(join(tmpdir(), "oc-log-tail-oversize-"));
+  try {
+    const path = join(root, "opencode.log");
+    await writeFile(path, `${"x".repeat(8000)}\nmessage=loop step=9\n`);
+    const result = await summarizeRuntimeLogFile(path, {
+      chunkBytes: 1024,
+      maxLineBytes: 1024,
+      maxBytes: 4096,
+    });
+    expect(result?.summary.truncated).toBe(true);
+    expect(result?.summary.maxStep).toBe(9);
+    expect(result?.oversizedLines).toBe(0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

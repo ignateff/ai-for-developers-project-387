@@ -3,9 +3,14 @@ name: Opencode
 # Classification runs outside the command queue; only matching jobs are serialized.
 # jactionlint ignore=concurrency-limits
 on:
-  # Comment triggers are paused during the upstream experiment (#90).
-  # A manual run has no comment payload and cannot pass the classifier.
-  workflow_dispatch:
+  # The trust preflight rejects untrusted commenters and fork PRs. The
+  # classifier accepts /oc and /opencode; workflows are bootstrapped from the
+  # default branch, never from the commented PR.
+  # jactionlint ignore=dangerous-triggers
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
   classify:
@@ -31,10 +36,11 @@ jobs:
     needs: classify
     if: needs.classify.outputs.command == 'true'
     runs-on: ubuntu-latest
-    # 45 minutes of agent work + preparation, signal delivery, safe log summary
-    # and failure classification. The inner wrapper stops the agent at 45m, the
-    # command step at 50m is a second guard, and this job limit leaves the rest.
-    timeout-minutes: 55
+    # Nested limits: the agent works for at most 2h inside a 130m command step,
+    # after which up to 10s of kill-after plus the 5m activity/log summary run
+    # inside a 150m job. The job keeps 20m of headroom over the command step for
+    # preparation and classification; GitHub's maximum job limit is 6h.
+    timeout-minutes: 150
     outputs:
       sha: ${{ steps.admission.outputs.sha }}
       reason: ${{ steps.outcome.outputs.reason }}
@@ -84,7 +90,7 @@ jobs:
       - name: Run admitted command
         id: command
         if: steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success'
-        timeout-minutes: 50
+        timeout-minutes: 130
         continue-on-error: true
         run: |
           if [ -z "$DEEPSEEK_API_KEY" ]; then
@@ -92,7 +98,7 @@ jobs:
             exit 1
           fi
           set +e
-          timeout --signal=TERM --kill-after=10s 45m mise run opencode:run
+          timeout --signal=TERM --kill-after=10s 120m mise run opencode:run
           result=$?
           set -e
           if [ "$result" -eq 124 ]; then
@@ -110,7 +116,7 @@ jobs:
 
       - name: Summarize runtime log safely
         if: ${{ !cancelled() && steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success' }}
-        timeout-minutes: 2
+        timeout-minutes: 5
         continue-on-error: true
         run: mise run opencode:log-summary
         env:
@@ -163,7 +169,7 @@ jobs:
           : "${TARGET_NUMBER:?missing source issue or pull request number}"
           sha=${PR_SHA:-unknown}
           case "$REASON" in
-            timeout) explanation="the agent hit the 45-minute work limit before publishing a verified result" ;;
+            timeout) explanation="the agent hit the 2-hour work limit before publishing a verified result" ;;
             limit_exhausted) explanation="the attempt budget for this issue or pull request is exhausted" ;;
             infra) explanation="the workflow could not start the agent (infrastructure or preparation failure)" ;;
             agent_failed) explanation="the agent failed before publishing a verified result" ;;
