@@ -139,11 +139,13 @@ grandchild (same process group by default, `detached` when escaping).
   cover the same detached-group TERM -> SIGKILL escalation.
 - PASS: a child that exits 0 on SIGTERM still yields rejection, not success,
   because cancellation is sticky.
-- GAP: the SIGKILL grace timer is cleared when the direct handler child closes,
-  so a SIGTERM-ignoring grandchild survives if the handler exits; a grandchild
-  that calls `setsid` escapes group signaling entirely (observed alive after
-  escalation). Exposure depends on whether `opencode github run`/its children
-  survive TERM/detach; GitHub job teardown is the backstop.
+- GAP found in this spike and fixed during implementation (commit `27e7e54`):
+  the SIGKILL grace timer used to be cleared when the direct handler child
+  closed, so a SIGTERM-ignoring grandchild survived if the handler exited. The
+  handler now keeps the escalation armed until the group is empty and probes
+  group liveness first; `scripts/opencode-handler.test.ts` covers that case.
+  Residual: a grandchild that calls `setsid`/detaches leaves the group and is
+  not guaranteed to be killed; GitHub job teardown is the backstop.
 - PASS (chain part 1): temp `mise run -> pnpm run -> node handler -> detached
   stub + grandchild`; SIGTERM sent to the `mise` PID alone reached the node
   handler, which ran its cancellation path (rejection recorded, `mise` exit 1,
