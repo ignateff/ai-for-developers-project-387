@@ -392,7 +392,13 @@ export function formatActivity(event: ActivityEvent): string {
   return formatEvent(event);
 }
 
-export function summarizeActivity(text: string): ActivityDigest {
+export type ActivityAccumulator = {
+  addLine: (line: string) => void;
+  digest: () => ActivityDigest;
+};
+
+/** Stateful variant for streaming large logs without keeping the file in memory. */
+export function createActivityAccumulator(): ActivityAccumulator {
   const digest: ActivityDigest = {
     events: 0,
     tools: {},
@@ -406,48 +412,56 @@ export function summarizeActivity(text: string): ActivityDigest {
     lastEvents: [],
   };
   const parser = createActivityParser();
-  for (const line of text.split("\n")) {
-    if (!line) continue;
-    const event = parser.parseLine(line);
-    if (!event) continue;
-    digest.events++;
-    switch (event.kind) {
-      case "tool": {
-        const tool = event.fields.tool ?? "other";
-        digest.tools[tool] = (digest.tools[tool] ?? 0) + 1;
-        break;
+  return {
+    addLine(line: string) {
+      if (!line) return;
+      const event = parser.parseLine(line);
+      if (!event) return;
+      digest.events++;
+      switch (event.kind) {
+        case "tool": {
+          const tool = event.fields.tool ?? "other";
+          digest.tools[tool] = (digest.tools[tool] ?? 0) + 1;
+          break;
+        }
+        case "command": {
+          const family = event.fields.family ?? "unknown";
+          digest.commands[family] = (digest.commands[family] ?? 0) + 1;
+          if (isCheckFamily(family)) digest.checks[family] = (digest.checks[family] ?? 0) + 1;
+          break;
+        }
+        case "subagent_started": {
+          const type = event.fields.type ?? "other";
+          digest.subagentStarts[type] = (digest.subagentStarts[type] ?? 0) + 1;
+          break;
+        }
+        case "subagent_decision":
+        case "subagent_ended":
+          break;
+        case "waiting_permission": {
+          digest.permissionWaits++;
+          const permission = event.fields.permission ?? "other";
+          digest.waitingOn[permission] = (digest.waitingOn[permission] ?? 0) + 1;
+          break;
+        }
+        case "error":
+          digest.errors++;
+          break;
+        default:
+          break;
       }
-      case "command": {
-        const family = event.fields.family ?? "unknown";
-        digest.commands[family] = (digest.commands[family] ?? 0) + 1;
-        if (isCheckFamily(family)) digest.checks[family] = (digest.checks[family] ?? 0) + 1;
-        break;
-      }
-      case "subagent_started": {
-        const type = event.fields.type ?? "other";
-        digest.subagentStarts[type] = (digest.subagentStarts[type] ?? 0) + 1;
-        break;
-      }
-      case "subagent_decision":
-      case "subagent_ended":
-        break;
-      case "waiting_permission": {
-        digest.permissionWaits++;
-        const permission = event.fields.permission ?? "other";
-        digest.waitingOn[permission] = (digest.waitingOn[permission] ?? 0) + 1;
-        break;
-      }
-      case "error":
-        digest.errors++;
-        break;
-      default:
-        break;
-    }
-    if (event.kind === "subagent_ended") digest.subagentEnds++;
-    digest.lastEvents.push(formatEvent(event));
-    if (digest.lastEvents.length > maxLastEvents) digest.lastEvents.shift();
-  }
-  return digest;
+      if (event.kind === "subagent_ended") digest.subagentEnds++;
+      digest.lastEvents.push(formatEvent(event));
+      if (digest.lastEvents.length > maxLastEvents) digest.lastEvents.shift();
+    },
+    digest: () => digest,
+  };
+}
+
+export function summarizeActivity(text: string): ActivityDigest {
+  const accumulator = createActivityAccumulator();
+  for (const line of text.split("\n")) accumulator.addLine(line);
+  return accumulator.digest();
 }
 
 function sortedCounts(counts: Record<string, number>, limit = Infinity): string {

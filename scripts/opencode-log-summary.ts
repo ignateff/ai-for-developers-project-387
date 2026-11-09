@@ -1,6 +1,13 @@
 import { open, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { formatActivityDigest, observedTools, summarizeActivity } from "./opencode-activity.ts";
+import { StringDecoder } from "node:string_decoder";
+import {
+  createActivityAccumulator,
+  formatActivityDigest,
+  observedTools,
+  summarizeActivity,
+  type ActivityDigest,
+} from "./opencode-activity.ts";
 
 /**
  * Prints only counts of an allowlist of runtime log events. Raw log lines may
@@ -13,7 +20,11 @@ import { formatActivityDigest, observedTools, summarizeActivity } from "./openco
  * and the runtime timestamps. Tool names and individual tool durations are not
  * emitted as a generic event, so they stay `unknown` instead of being guessed.
  */
-const maxLogBytes = 32 * 1024 * 1024;
+// Streaming keeps memory bounded per chunk/line. Files above the byte budget are
+// read from the tail so the most recent events are never replaced by an old head.
+const defaultChunkBytes = 1024 * 1024;
+const defaultMaxLineBytes = 1024 * 1024;
+const defaultMaxBytes = 256 * 1024 * 1024;
 
 const loopEvent = /(?:^|\s)message=loop(?:\s|$)/;
 const processEvent = /(?:^|\s)message=process(?:\s|$)/;
@@ -105,13 +116,19 @@ function messageOf(line: string): string | undefined {
   return field(line, "message");
 }
 
-export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLogSummary {
-  const summary = emptySummary(truncated);
+export type RuntimeLogAccumulator = {
+  addLine: (line: string) => void;
+  finish: (truncated?: boolean) => RuntimeLogSummary;
+};
+
+/** Stateful variant for streaming large logs without keeping the file in memory. */
+export function createRuntimeLogAccumulator(): RuntimeLogAccumulator {
+  const summary = emptySummary();
   const sessions = new Map<string, { at: number; subagent: boolean }>();
   const activeSubagents = new Set<string>();
   let sawSessionCreated = false;
-  for (const line of text.split("\n")) {
-    if (!line) continue;
+  const addLine = (line: string) => {
+    if (!line) return;
     summary.lines++;
     const message = messageOf(line);
     if (loopEvent.test(line)) {
@@ -170,21 +187,33 @@ export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLog
       if (id) activeSubagents.delete(id);
     }
     if (field(line, "level") === "ERROR") summary.errors++;
-  }
-  if (!sawSessionCreated) {
-    summary.maxConcurrentSubagents = null;
-    summary.concurrencyExceeded = "unknown";
-  } else if ((summary.maxConcurrentSubagents ?? 0) > 2) {
-    // An observed breach is reported even if the log tail was lost.
-    summary.concurrencyExceeded = "yes";
-  } else if (truncated || summary.subagentSessions > 0) {
-    // `exiting loop` is only a provisional boundary: a session can be resumed
-    // afterwards, so a complete log cannot prove that at most two ran at once.
-    summary.concurrencyExceeded = "unknown";
-  } else {
-    summary.concurrencyExceeded = "no";
-  }
-  return summary;
+  };
+  return {
+    addLine,
+    finish(truncated = false): RuntimeLogSummary {
+      summary.truncated = truncated;
+      if (!sawSessionCreated) {
+        summary.maxConcurrentSubagents = null;
+        summary.concurrencyExceeded = "unknown";
+      } else if ((summary.maxConcurrentSubagents ?? 0) > 2) {
+        // An observed breach is reported even if the log tail was lost.
+        summary.concurrencyExceeded = "yes";
+      } else if (truncated || summary.subagentSessions > 0) {
+        // `exiting loop` is only a provisional boundary: a session can be
+        // resumed afterwards, so a complete log cannot prove the limit.
+        summary.concurrencyExceeded = "unknown";
+      } else {
+        summary.concurrencyExceeded = "no";
+      }
+      return summary;
+    },
+  };
+}
+
+export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLogSummary {
+  const accumulator = createRuntimeLogAccumulator();
+  for (const line of text.split("\n")) accumulator.addLine(line);
+  return accumulator.finish(truncated);
 }
 
 function summarizeTaskDecision(line: string, summary: RuntimeLogSummary) {
@@ -243,27 +272,92 @@ export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
   ].join(" ");
 }
 
-export async function readRuntimeLog(
+export type RuntimeLogFileSummary = {
+  summary: RuntimeLogSummary;
+  digest: ActivityDigest;
+  oversizedLines: number;
+};
+
+/**
+ * Stream the whole runtime log in bounded chunks. The summary and the activity
+ * digest see every line, and the digest keeps only the last safe events, so a
+ * large file can neither exhaust memory nor hide what happened at the end. For
+ * files above `maxBytes` the tail is read instead and `truncated=yes` marks the
+ * partial window.
+ */
+export async function summarizeRuntimeLogFile(
   path: string,
-): Promise<{ text: string; truncated: boolean } | null> {
+  options: { chunkBytes?: number; maxLineBytes?: number; maxBytes?: number } = {},
+): Promise<RuntimeLogFileSummary | null> {
+  const chunkBytes = Math.max(1024, options.chunkBytes ?? defaultChunkBytes);
+  const maxLineBytes = Math.max(1024, options.maxLineBytes ?? defaultMaxLineBytes);
+  const maxBytes = Math.max(maxLineBytes, options.maxBytes ?? defaultMaxBytes);
+  let handle;
+  let size: number;
   try {
     const info = await stat(path);
     if (!info.isFile()) return null;
-    const length = Math.min(info.size, maxLogBytes);
-    const handle = await open(path, "r");
-    try {
-      const buffer = Buffer.alloc(length);
-      const { bytesRead } = await handle.read(buffer, 0, length, 0);
-      return {
-        text: buffer.subarray(0, bytesRead).toString("utf8"),
-        truncated: info.size > length,
-      };
-    } finally {
-      await handle.close();
-    }
+    size = info.size;
+    handle = await open(path, "r");
   } catch {
     return null;
   }
+  const summary = createRuntimeLogAccumulator();
+  const activity = createActivityAccumulator();
+  const decoder = new StringDecoder("utf8");
+  let position = Math.max(0, size - maxBytes);
+  // A tail window starts mid-line; drop that fragment instead of parsing it.
+  let skipFirstLine = position > 0;
+  let pending = "";
+  let dropping = false;
+  let oversizedLines = 0;
+  const feed = (text: string) => {
+    pending += text;
+    let index: number;
+    while ((index = pending.indexOf("\n")) !== -1) {
+      const line = pending.slice(0, index);
+      pending = pending.slice(index + 1);
+      if (skipFirstLine) {
+        skipFirstLine = false;
+        continue;
+      }
+      if (dropping) {
+        dropping = false;
+        oversizedLines++;
+        continue;
+      }
+      summary.addLine(line);
+      activity.addLine(line);
+    }
+    if (pending.length > maxLineBytes) {
+      pending = "";
+      dropping = true;
+    }
+  };
+  try {
+    const buffer = Buffer.alloc(chunkBytes);
+    while (position < size) {
+      const { bytesRead } = await handle.read(buffer, 0, chunkBytes, position);
+      if (bytesRead === 0) break;
+      position += bytesRead;
+      feed(decoder.write(buffer.subarray(0, bytesRead)));
+    }
+    feed(decoder.end());
+    if (pending && !skipFirstLine) {
+      if (dropping) oversizedLines++;
+      else {
+        summary.addLine(pending);
+        activity.addLine(pending);
+      }
+    }
+  } finally {
+    await handle.close();
+  }
+  return {
+    summary: summary.finish(size > maxBytes),
+    digest: activity.digest(),
+    oversizedLines,
+  };
 }
 
 if (import.meta.main) {
@@ -272,14 +366,18 @@ if (import.meta.main) {
     if (!directory) {
       console.log("OpenCode runtime log: unavailable");
     } else {
-      const log = await readRuntimeLog(
+      const log = await summarizeRuntimeLogFile(
         join(directory, "home", ".local/share/opencode/log/opencode.log"),
       );
       if (!log) {
         console.log("OpenCode runtime log: unavailable");
       } else {
-        console.log(formatRuntimeLogSummary(summarizeRuntimeLog(log.text, log.truncated)));
-        console.log(formatActivityDigest(summarizeActivity(log.text)).join("\n"));
+        console.log(formatRuntimeLogSummary(log.summary));
+        console.log(formatActivityDigest(log.digest).join("\n"));
+        if (log.oversizedLines > 0)
+          console.log(
+            `OpenCode runtime log: oversized_lines=${log.oversizedLines} (details withheld)`,
+          );
       }
     }
   } catch {

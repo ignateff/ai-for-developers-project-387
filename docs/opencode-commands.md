@@ -110,6 +110,14 @@ and the last up-to-20 safe events, so the activity immediately before an error o
 timeout is visible without exporting raw output. The older summary counters and
 the subagent/concurrency observations remain in the same output line.
 
+The post-run step streams the whole log in bounded chunks instead of reading a
+fixed prefix: counters cover every line and the digest keeps only the last safe
+events, so a large log cannot push the cause of a stop out of the window. A single
+line is capped (1 MiB); longer lines are skipped and counted as
+`oversized_lines` with their content withheld. For files above 256 MiB the tail is
+read instead and `truncated=yes` marks the partial window. Live activity tailing
+also keeps memory bounded.
+
 **Never logged by this adapter:** raw stdout/stderr or log lines, prompts and
 conversation text, issue bodies, file contents, full commands or arguments, tool
 output, resolved filesystem paths, model responses, error payloads, environment
