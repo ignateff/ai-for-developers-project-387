@@ -263,3 +263,7 @@ ready_cmd = "curl -fsS http://127.0.0.1:$PORT/ > /dev/null"
 [tasks."opencode:actions-budget"]
 description = "Check command admission against Actions history"
 run = "pnpm run opencode:actions-budget"
+
+[tasks."opencode:github-diagnostic"]
+description = "Run read-only OpenCode GitHub handler diagnostic"
+run = "pnpm run opencode:github-diagnostic"
