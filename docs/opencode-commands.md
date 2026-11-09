@@ -67,15 +67,14 @@ handler's ability to publish does not establish that checks passed: inspect the
 resulting checks and require successful CI before merge.
 
 Preparation runs without provider credentials. Only the final agent step receives
-the provider key. Never print full resolved configuration, environment variables,
-Git credential configuration, or raw authorization/API error payloads.
+the provider key. The explicitly enabled raw diagnostic output can nevertheless
+expose sensitive content, including credentials, in the public Actions log.
 
-Upstream stdout/stderr are not forwarded verbatim: its dynamically exchanged App
-token is unknown to the parent and may occur in encoded Git-error arguments.
-Only an exact allowlist of fixed phase messages is relayed; all other output is
-discarded, including error annotations and model text. The handler still publishes
-its normal response on the issue/PR. A cancellation remains a failure even if the
-child exits with code zero after receiving the signal.
+The owner explicitly enabled raw upstream stdout and stderr in the public Actions
+log for diagnosis. It can include prompts, file contents, commands, error payloads,
+and dynamically exchanged App credentials; GitHub masking cannot guarantee their
+removal. GitHub workflow command parsing is paused during raw output. A cancelled
+handler still reports failure even if the child exits successfully.
 
 ### Detailed activity logging
 
@@ -118,37 +117,14 @@ line is capped (1 MiB); longer lines are skipped and counted as
 read instead and `truncated=yes` marks the partial window. Live activity tailing
 also keeps memory bounded.
 
-**Never logged by this adapter:** raw stdout/stderr or log lines, prompts and
-conversation text, issue bodies, file contents, full commands or arguments, tool
-output, resolved filesystem paths, model responses, error payloads, environment
-variables, resolved configuration, or any token (including the OIDC token and the
-dynamically exchanged App token that is unknown to the parent process).
+### Publication risk
 
-### Publication risk and the logging compromise
-
-The repository and its Actions logs are public. The filtering above is a
-best-effort allowlist, not a guarantee: a sanitized command family or path
-category could still carry unexpected text, and GitHub masking does not
-guarantee removal of encoded or unregistered secrets. Treat every Actions log as
-public and inspect a run before sharing links.
-
-Full experiment-parity logging (tools calling with complete command lines,
-prompts, file contents and tool output) is deliberately **not** enabled here: it
-would export exactly the data the trust boundary is designed not to publish.
-That leaves a real diagnostic gap — check exit codes and tool results are not
-visible, so the activity log can say that `mise run check` was requested but not
-whether it passed. A human decision is required before closing that gap:
-
-1. keep the structured activity log and accept that raw diagnostics are not
-   available in this workflow (current state); to inspect a raw run, restore the
-   #90 experiment workflow from Git history (PR #91) only with explicit human
-   approval and while the normal handler is disabled;
-2. explicitly approve a separate opt-in raw-output mode for the normal workflow,
-   with a documented warning that public Actions logs may contain prompts, file
-   contents, commands and dynamically obtained tokens; it should not be the
-   default for comment-triggered runs;
-3. accept the remaining gap and require the agent to summarize check results in
-   its final response/PR body instead.
+The raw output is public and may disclose secrets and other sensitive data. The
+structured activity summary remains best-effort; it does not establish that the
+raw stream is redacted or complete. OpenCode may also write data to separate
+files or buffer its output, so live output is limited to what the handler sends
+to stdout and stderr. To restore filtered-only output, remove `OPENCODE_RAW_OUTPUT`
+from the command step in `.github/workflows/opencode.yml`.
 
 Do not treat the structured activity log as proof that checks passed or that the
 task is complete.
@@ -325,8 +301,8 @@ command comment, then run the checks below on a trusted test issue.
    `waiting_permission`. Then inspect the post-run summary and activity digest:
    subagent starts/types, `task_allowed`/`task_denied`, `checks`,
    completions/cancellations, `concurrency_exceeded` and the last events.
-   Confirm the output never prints prompts, file contents, full commands, tool
-   output, model text, tokens or secrets.
+   Confirm handler stdout and stderr arrive during execution; their raw contents
+   are public and may include sensitive data.
 3. Confirm the published PR or comment and its real CI result; a successful
    handler is delivery, not proof that the change is correct.
 4. Separately exercise failure handling: cancel a run, and confirm from the

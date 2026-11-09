@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -381,10 +382,27 @@ export async function runCommand(base: NodeJS.ProcessEnv) {
     logPath: join(paths.directory, "home", ".local/share/opencode/log/opencode.log"),
   });
   activity.start();
+  // Untrusted model/tool output must not be interpreted as GitHub workflow commands.
+  const stopToken =
+    base.OPENCODE_RAW_OUTPUT === "1" && base.GITHUB_ACTIONS === "true" ? randomUUID() : undefined;
+  if (stopToken) process.stdout.write(`::stop-commands::${stopToken}\n`);
   try {
-    await runGitHubHandler({ binary: state.binary, workspace: paths.workspace, env });
+    await runGitHubHandler({
+      binary: state.binary,
+      workspace: paths.workspace,
+      env,
+      ...(base.OPENCODE_RAW_OUTPUT === "1"
+        ? {
+            rawOutput: (stream: "stdout" | "stderr", chunk: Buffer) => {
+              void stream;
+              process.stdout.write(chunk);
+            },
+          }
+        : {}),
+    });
   } finally {
     await activity.stop();
+    if (stopToken) process.stdout.write(`\n::${stopToken}::\n`);
   }
 }
 
