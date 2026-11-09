@@ -151,6 +151,18 @@ export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLog
     if (askingEvent.test(line)) summary.asking++;
     if (shellEvent.test(line)) summary.shell++;
     if (resolvedPathEvent.test(line)) summary.paths++;
+    if (message === "loop") {
+      // A session resumed through task_id logs another loop without a new
+      // `created` event; treat it as active again for the lower bound.
+      const id = field(line, "session.id") ?? field(line, "sessionID");
+      if (id && sessions.get(id)?.subagent && !activeSubagents.has(id)) {
+        activeSubagents.add(id);
+        summary.maxConcurrentSubagents = Math.max(
+          summary.maxConcurrentSubagents ?? 0,
+          activeSubagents.size,
+        );
+      }
+    }
     if (message === "created") {
       summary.sessions++;
       sawSessionCreated = true;
@@ -196,10 +208,14 @@ export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLog
     summary.maxConcurrentSubagents = null;
     summary.concurrencyExceeded = "unknown";
   } else if ((summary.maxConcurrentSubagents ?? 0) > 2) {
+    // An observed breach is reported even if the log tail was lost.
     summary.concurrencyExceeded = "yes";
+  } else if (truncated || summary.subagentSessions > 0) {
+    // `exiting loop` is only a provisional boundary: a session can be resumed
+    // afterwards, so a complete log cannot prove that at most two ran at once.
+    summary.concurrencyExceeded = "unknown";
   } else {
-    // A truncated log can hide later parallel starts; never claim compliance from partial data.
-    summary.concurrencyExceeded = truncated ? "unknown" : "no";
+    summary.concurrencyExceeded = "no";
   }
   return summary;
 }
@@ -250,6 +266,7 @@ export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
     `max_subagent_seconds=${summary.maxSubagentSeconds ?? "none"}`,
     "concurrency_limit=2",
     `max_concurrent_subagents=${summary.maxConcurrentSubagents ?? "unknown"}`,
+    "concurrency_observation=observed_lower_bound",
     "concurrency_enforced=no",
     `concurrency_exceeded=${summary.concurrencyExceeded}`,
     "tool_name=unknown",

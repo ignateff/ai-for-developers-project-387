@@ -102,7 +102,8 @@ it("reports delegation starts, approved types, completions and durations without
   expect(summary.errors).toBe(1);
   expect(summary.maxSubagentSeconds).toBe(7);
   expect(summary.maxConcurrentSubagents).toBe(2);
-  expect(summary.concurrencyExceeded).toBe("no");
+  // `exiting loop` is provisional: a resumed session could still overlap later.
+  expect(summary.concurrencyExceeded).toBe("unknown");
   const output = formatRuntimeLogSummary(summary);
   expect(output).toContain("subagent_sessions=2");
   expect(output).toContain("subagent_types=implementer:1,reviewer:1,other:0");
@@ -113,8 +114,9 @@ it("reports delegation starts, approved types, completions and durations without
   expect(output).toContain("max_subagent_seconds=7");
   expect(output).toContain("concurrency_limit=2");
   expect(output).toContain("max_concurrent_subagents=2");
+  expect(output).toContain("concurrency_observation=observed_lower_bound");
   expect(output).toContain("concurrency_enforced=no");
-  expect(output).toContain("concurrency_exceeded=no");
+  expect(output).toContain("concurrency_exceeded=unknown");
   expect(output).not.toContain("ses_root");
   expect(output).not.toContain("ses_child");
   expect(output).not.toContain("private");
@@ -135,6 +137,30 @@ it("flags more than two concurrent subagents and never claims enforcement", () =
   expect(formatRuntimeLogSummary(summary)).toContain("concurrency_exceeded=yes");
   const truncated = summarizeRuntimeLog(text.replace(/.*exiting loop.*\n?/, ""), true);
   expect(truncated.concurrencyExceeded).toBe("yes");
+});
+
+it("reports no concurrency breach only when no subagent session started", () => {
+  const text = [
+    'timestamp=2026-11-08T09:00:00.000Z level=INFO run=abc message=created id=root title="t" agent=build',
+    'timestamp=2026-11-08T09:00:01.000Z level=INFO run=abc message="exiting loop" session.id=root',
+  ].join("\n");
+  const summary = summarizeRuntimeLog(text);
+  expect(summary.maxConcurrentSubagents).toBe(0);
+  expect(summary.concurrencyExceeded).toBe("no");
+});
+
+it("counts a resumed subagent session as active again", () => {
+  const text = [
+    'timestamp=2026-11-08T09:00:00.000Z level=INFO run=abc message=created id=root title="t" agent=build',
+    'timestamp=2026-11-08T09:00:01.000Z level=INFO run=abc message=created id=a parentID=root title="t" agent=implementer',
+    'timestamp=2026-11-08T09:00:02.000Z level=INFO run=abc message="exiting loop" session.id=a',
+    "timestamp=2026-11-08T09:00:03.000Z level=INFO run=abc message=loop session.id=a step=2",
+    'timestamp=2026-11-08T09:00:04.000Z level=INFO run=abc message=created id=b parentID=root title="t" agent=implementer',
+    'timestamp=2026-11-08T09:00:05.000Z level=INFO run=abc message=created id=c parentID=root title="t" agent=reviewer',
+  ].join("\n");
+  const summary = summarizeRuntimeLog(text);
+  expect(summary.maxConcurrentSubagents).toBe(3);
+  expect(summary.concurrencyExceeded).toBe("yes");
 });
 
 it("reports concurrency as unknown when no session creation was observed", () => {
