@@ -8,7 +8,7 @@ import { join } from "node:path";
  *
  * Subagent delegation is summarized from events the pinned runtime actually
  * emits: `evaluated` permission=task (approved type), `created` sessions with a
- * parent (start of a subagent), `exiting loop` (completion), `cancel`, `errors`
+ * parent (start of a subagent), `exiting loop` (provisional boundary), `cancel`, `errors`
  * and the runtime timestamps. Tool names and individual tool durations are not
  * emitted as a generic event, so they stay `unknown` instead of being guessed.
  */
@@ -185,20 +185,7 @@ export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLog
       );
     }
     if (message === "exiting loop" || message === "cancel") {
-      if (message === "exiting loop") {
-        const id = field(line, "session.id") ?? field(line, "sessionID");
-        const started = id ? sessions.get(id) : undefined;
-        if (started) {
-          summary.completions++;
-          const at = timestamp(line);
-          if (started.subagent && at !== undefined) {
-            const seconds = Math.max(0, Math.round((at - started.at) / 1000));
-            summary.maxSubagentSeconds = Math.max(summary.maxSubagentSeconds ?? 0, seconds);
-          }
-        }
-      } else {
-        summary.cancellations++;
-      }
+      if (message === "cancel") summary.cancellations++;
       const id = field(line, "session.id") ?? field(line, "sessionID");
       if (id) activeSubagents.delete(id);
     }
@@ -260,10 +247,10 @@ export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
     `tool_permissions=${permissions || "none"}`,
     "tool_duration=unknown",
     `starts=${summary.starts}`,
-    `completions=${summary.completions}`,
+    "completions=unknown",
     `cancellations=${summary.cancellations}`,
     `errors=${summary.errors}`,
-    `max_subagent_seconds=${summary.maxSubagentSeconds ?? "none"}`,
+    "max_subagent_seconds=unknown",
     "concurrency_limit=2",
     `max_concurrent_subagents=${summary.maxConcurrentSubagents ?? "unknown"}`,
     "concurrency_observation=observed_lower_bound",

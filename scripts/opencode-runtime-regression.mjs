@@ -311,7 +311,7 @@ async function probeDelegation(binary) {
             toolChunk([
               bashCall(
                 "call_i_worktree",
-                'git worktree add "$TMPDIR/ticket-worktree" -b ticket-worktree && test -f "$TMPDIR/ticket-worktree/AGENTS.md" && git worktree remove --force "$TMPDIR/ticket-worktree" && git branch -D ticket-worktree',
+                'git worktree add "$TMPDIR/ticket-worktree" -b ticket-worktree && printf "merged ticket work\\n" > "$TMPDIR/ticket-worktree/ticket-result.txt" && git -C "$TMPDIR/ticket-worktree" add ticket-result.txt && git -C "$TMPDIR/ticket-worktree" commit -qm "fixture ticket" && git merge --no-edit ticket-worktree && git worktree remove "$TMPDIR/ticket-worktree" && git branch -d ticket-worktree',
               ),
             ]),
             chunk({}, "tool_calls"),
@@ -499,6 +499,10 @@ async function probeDelegation(binary) {
     assert.equal(
       await readFile(join(project, "edit-target.txt"), "utf8"),
       "edited by implementer\n",
+    );
+    assert.equal(
+      await readFile(join(project, "ticket-result.txt"), "utf8"),
+      "merged ticket work\n",
     );
     const reviewerRead = delegation.children.find(
       (child) => child.agent === "reviewer" && child.title.includes("review read"),

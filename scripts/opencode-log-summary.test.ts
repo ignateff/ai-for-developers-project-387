@@ -97,10 +97,10 @@ it("reports delegation starts, approved types, completions and durations without
   expect(summary.taskAsk).toBe(0);
   expect(summary.toolPermissions.task).toBe(3);
   expect(summary.toolPermissions.other).toBe(0);
-  expect(summary.completions).toBe(2);
+  expect(summary.completions).toBe(0);
   expect(summary.cancellations).toBe(1);
   expect(summary.errors).toBe(1);
-  expect(summary.maxSubagentSeconds).toBe(7);
+  expect(summary.maxSubagentSeconds).toBe(null);
   expect(summary.maxConcurrentSubagents).toBe(2);
   // `exiting loop` is provisional: a resumed session could still overlap later.
   expect(summary.concurrencyExceeded).toBe("unknown");
@@ -111,7 +111,7 @@ it("reports delegation starts, approved types, completions and durations without
   expect(output).toContain("task_denied=2");
   expect(output).toContain("tool_permissions=task:3");
   expect(output).toContain("tool_duration=unknown");
-  expect(output).toContain("max_subagent_seconds=7");
+  expect(output).toContain("max_subagent_seconds=unknown");
   expect(output).toContain("concurrency_limit=2");
   expect(output).toContain("max_concurrent_subagents=2");
   expect(output).toContain("concurrency_observation=observed_lower_bound");
