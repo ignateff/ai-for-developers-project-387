@@ -46,6 +46,7 @@ it("bounds command execution to two and a half hours without cancelling an activ
 it("gives the agent two hours inside a 130-minute step and a 150-minute job", () => {
   const job = workflow().jobs.opencode;
   const command = job.steps.find((step: { id?: string }) => step.id === "command");
+  expect(command.env.OPENCODE_RAW_OUTPUT).toBe("1");
   expect(command["timeout-minutes"]).toBe(130);
   expect(command["continue-on-error"]).toBe(true);
   expect(command.run).toContain(

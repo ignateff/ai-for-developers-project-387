@@ -113,6 +113,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          # Explicitly authorized public raw diagnostic output; may expose secrets.
+          OPENCODE_RAW_OUTPUT: "1"
 
       - name: Summarize runtime log safely
         if: ${{ !cancelled() && steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success' }}

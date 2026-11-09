@@ -346,3 +346,33 @@ try {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it("streams opted-in stdout and stderr before the handler exits", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-raw-output-"));
+  try {
+    const binary = join(directory, "handler");
+    await writeFile(
+      binary,
+      `#!${process.execPath}\nprocess.stdout.write('fixture-out'); process.stderr.write('fixture-err'); setTimeout(() => process.exit(0), 500);\n`,
+      { mode: 0o700 },
+    );
+    const chunks: string[] = [];
+    let finished = false;
+    const run = runGitHubHandler({
+      binary,
+      workspace: directory,
+      env: { PATH: process.env.PATH },
+      report: () => {},
+      rawOutput: (stream, chunk) => chunks.push(`${stream}:${chunk.toString()}`),
+    }).then(() => {
+      finished = true;
+    });
+    await waitFor(() => chunks.length === 2);
+    expect(finished).toBe(false);
+    await run;
+    expect(chunks).toContain("stdout:fixture-out");
+    expect(chunks).toContain("stderr:fixture-err");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

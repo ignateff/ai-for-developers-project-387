@@ -23,6 +23,8 @@ export async function runGitHubHandler(options: {
   workspace: string;
   env: NodeJS.ProcessEnv;
   report?: (line: string) => void;
+  /** Raw diagnostic output; may include dynamically generated credentials. */
+  rawOutput?: (stream: "stdout" | "stderr", chunk: Buffer) => void;
   heartbeatMs?: number;
   /** Grace period between SIGTERM/SIGINT and the group SIGKILL. */
   killGraceMs?: number;
@@ -64,6 +66,7 @@ export async function runGitHubHandler(options: {
     }, heartbeatMs);
     heartbeat.unref();
     child.stdout.on("data", (chunk: Buffer) => {
+      options.rawOutput?.("stdout", chunk);
       stdoutActive = true;
       const pieces = chunk.toString("utf8").split("\n");
       for (let index = 0; index < pieces.length; index++) {
@@ -87,7 +90,8 @@ export async function runGitHubHandler(options: {
         }
       }
     });
-    child.stderr.on("data", () => {
+    child.stderr.on("data", (chunk: Buffer) => {
+      options.rawOutput?.("stderr", chunk);
       stderrActive = true;
     });
     const signalGroup = (signal: NodeJS.Signals) => {
