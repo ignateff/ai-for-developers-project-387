@@ -505,6 +505,7 @@ export function startActivityWatch(options: {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let reading = false;
+  let inFlight: Promise<void> | undefined;
 
   const parseCompleteLines = (chunk: string) => {
     const buffer = partial + chunk;
@@ -517,9 +518,7 @@ export function startActivityWatch(options: {
     }
   };
 
-  const poll = async (): Promise<void> => {
-    if (stopped || reading) return;
-    reading = true;
+  const readOnce = async (): Promise<void> => {
     try {
       const info = await stat(options.logPath);
       if (!info.isFile()) return;
@@ -540,9 +539,17 @@ export function startActivityWatch(options: {
       }
     } catch {
       // Missing or transiently unreadable log: the post-run digest reports it.
-    } finally {
-      reading = false;
     }
+  };
+
+  const poll = async (): Promise<void> => {
+    if (stopped || reading) return;
+    reading = true;
+    inFlight = readOnce().finally(() => {
+      reading = false;
+      inFlight = undefined;
+    });
+    await inFlight;
   };
 
   const schedule = () => {
@@ -560,7 +567,11 @@ export function startActivityWatch(options: {
     async stop() {
       stopped = true;
       if (timer) clearTimeout(timer);
-      await poll();
+      // Let a read that was already in progress finish, then force one last
+      // read regardless of the stopped flag. Guarding the final read with
+      // `stopped` would silently drop events from the last poll interval.
+      if (inFlight) await inFlight;
+      await readOnce();
       // An incomplete line may be cut mid-value; the post-run digest parses the
       // complete file instead of guessing from a partial event.
       partial = "";

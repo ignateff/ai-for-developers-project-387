@@ -151,3 +151,28 @@ it("tails the runtime log live and stops without parsing an incomplete line", as
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it("flushes events appended before stop even when the poll interval has not elapsed", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-activity-stop-"));
+  try {
+    const logPath = join(directory, "opencode.log");
+    const initial = lines.split("\n").slice(0, 3).join("\n");
+    await writeFile(logPath, `${initial}\n`);
+    const reported: string[] = [];
+    const watcher = startActivityWatch({
+      logPath,
+      report: (line) => reported.push(line),
+      pollMs: 60_000,
+    });
+    watcher.start();
+    await appendFile(
+      logPath,
+      'timestamp=2026-11-08T09:00:12.000Z level=INFO run=abc message="exiting loop" session.id=ses_child\n',
+    );
+    await watcher.stop();
+    expect(reported).toHaveLength(4);
+    expect(reported.join("\n")).toContain("event=subagent_ended");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
