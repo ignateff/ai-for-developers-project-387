@@ -1,5 +1,6 @@
 import { open, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { formatActivityDigest, summarizeActivity } from "./opencode-activity.ts";
 
 /**
  * Prints only counts of an allowlist of runtime log events. Raw log lines may
@@ -295,11 +296,12 @@ if (import.meta.main) {
       const log = await readRuntimeLog(
         join(directory, "home", ".local/share/opencode/log/opencode.log"),
       );
-      console.log(
-        log
-          ? formatRuntimeLogSummary(summarizeRuntimeLog(log.text, log.truncated))
-          : "OpenCode runtime log: unavailable",
-      );
+      if (!log) {
+        console.log("OpenCode runtime log: unavailable");
+      } else {
+        console.log(formatRuntimeLogSummary(summarizeRuntimeLog(log.text, log.truncated)));
+        console.log(formatActivityDigest(summarizeActivity(log.text)).join("\n"));
+      }
     }
   } catch {
     console.log("OpenCode runtime log: unavailable");

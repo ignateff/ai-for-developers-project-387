@@ -12,6 +12,7 @@ import {
   commandSubagents,
 } from "./opencode-command.ts";
 import { formatRuntimeLogSummary, summarizeRuntimeLog } from "./opencode-log-summary.ts";
+import { formatActivityDigest, summarizeActivity } from "./opencode-activity.ts";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
 import { assertSafeProject } from "./opencode-discovery.ts";
 import { commandSkills, verifyCommandSkills } from "./opencode-skills.ts";
@@ -592,8 +593,25 @@ async function probeDelegation(binary) {
     for (const unsafe of [sentinel, "IMPLEMENTER:", "REVIEWER-", project]) {
       assert.ok(!formatted.includes(unsafe), `safe summary must not contain ${unsafe}`);
     }
+    const activity = summarizeActivity(log);
+    assert.ok(activity.events > 0, "activity events must be observable in the real log");
+    assert.ok(
+      (activity.tools.bash ?? 0) + (activity.tools.edit ?? 0) + (activity.tools.read ?? 0) > 0,
+      "tool activity must be observable",
+    );
+    assert.ok(
+      (activity.subagentStarts.implementer ?? 0) >= 1,
+      "subagent starts must be observable",
+    );
+    assert.ok(activity.subagentEnds >= 1, "subagent loop ends must be observable");
+    const activityDigest = formatActivityDigest(activity).join("\n");
+    assert.match(activityDigest, /OpenCode activity digest: events=\d+/);
+    assert.match(activityDigest, /OpenCode activity last events \(\d+\):/);
+    for (const unsafe of [sentinel, "IMPLEMENTER:", "REVIEWER-", project]) {
+      assert.ok(!activityDigest.includes(unsafe), `activity digest must not contain ${unsafe}`);
+    }
     console.log(
-      "PASS: subagent delegation (implementer/reviewer split, denials, no pending permissions, log summary)",
+      "PASS: subagent delegation (implementer/reviewer split, denials, no pending permissions, log summary, activity digest)",
     );
   } finally {
     controller.abort();
