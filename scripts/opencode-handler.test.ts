@@ -202,3 +202,50 @@ process.exit(result.status);
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it("still escalates after the direct child exits when a descendant ignores TERM", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-handler-orphan-"));
+  try {
+    const binary = join(directory, "handler");
+    const pidFile = join(directory, "grandchild.pid");
+    await writeFile(
+      binary,
+      `#!${process.execPath}
+import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+const child = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); process.on('SIGINT', () => {}); setInterval(() => {}, 1000);"], { stdio: 'ignore' });
+writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
+setInterval(() => {}, 1000);
+`,
+      { mode: 0o700 },
+    );
+    const run = runGitHubHandler({
+      binary,
+      workspace: directory,
+      env: { PATH: process.env.PATH },
+      report: () => {},
+      heartbeatMs: 60_000,
+      killGraceMs: 200,
+    }).then(
+      () => null,
+      (error: Error) => error,
+    );
+    await waitFor(async () => {
+      try {
+        await readFile(pidFile, "utf8");
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    const grandchild = Number(await readFile(pidFile, "utf8"));
+    process.emit("SIGTERM");
+    expect(await run).toBeInstanceOf(Error);
+    await waitFor(() => !alive(grandchild));
+    expect(alive(grandchild)).toBe(false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

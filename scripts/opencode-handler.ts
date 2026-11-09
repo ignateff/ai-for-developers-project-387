@@ -96,7 +96,21 @@ export async function runGitHubHandler(options: {
     const cancel = (signal: NodeJS.Signals) => {
       cancelled = true;
       signalGroup(signal);
-      killTimer ??= setTimeout(() => signalGroup("SIGKILL"), killGraceMs).unref();
+      killTimer ??= setTimeout(escalate, killGraceMs).unref();
+    };
+    /**
+     * The direct handler may exit on the forwarded signal while a same-group
+     * descendant ignores it. Keep the escalation armed until the group is empty;
+     * the liveness probe avoids signalling a reused process-group id.
+     */
+    const escalate = () => {
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, 0);
+      } catch {
+        return;
+      }
+      signalGroup("SIGKILL");
     };
     const terminate = () => cancel("SIGTERM");
     const interrupt = () => cancel("SIGINT");
@@ -105,7 +119,9 @@ export async function runGitHubHandler(options: {
     const cleanup = () => {
       process.off("SIGTERM", terminate);
       process.off("SIGINT", interrupt);
-      clearTimeout(killTimer);
+      // A cancelled handler keeps the escalation armed so descendants that
+      // outlive the direct child are still killed after the grace period.
+      if (!cancelled) clearTimeout(killTimer);
       clearInterval(heartbeat);
     };
     child.once("error", () => {

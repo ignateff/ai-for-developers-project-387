@@ -143,8 +143,11 @@ Subagents run in the same process, checkout and working directory as the parent
 and inherit its environment, including `GH_TOKEN` and the provider key. An
 implementer with shell access can therefore read or forward those credentials;
 the reviewer cannot execute shell. Treat any delegated implementer as equivalent
-to the trusted command agent itself. Do not create nested Git worktrees: the
-upstream handler publishes the single shared checkout as one branch.
+to the trusted command agent itself. Git worktrees created inside the checkout
+are technically permitted by the shell and external-directory policy, but they
+are untracked and the handler publishes the single shared checkout as one branch;
+the preparation instruction therefore forbids nested worktrees instead of relying
+on a permission boundary.
 
 There is **no hard runtime cap** on parallel subagents on 1.19.5. The runtime has
 no semaphore or concurrency setting, the plugin hook that could enforce one is
@@ -165,6 +168,13 @@ job, leaving room for preparation, signal delivery, the safe log summary and
 reporting. The attempt budget is unchanged and best effort, not a monetary
 ceiling; all subagents run inside the same admitted attempt and do not admit
 additional runs.
+
+Cancellation forwards SIGTERM/SIGINT to the whole detached handler process group
+and escalates to SIGKILL after a grace period even when the direct handler already
+exited, so same-group descendants are still killed. Descendants that deliberately
+leave the group (`setsid`, detached) are not guaranteed to be killed; the GitHub
+runner's job teardown is the backstop. The escalation is covered by
+`scripts/opencode-handler.test.ts`, including a grandchild that ignores SIGTERM.
 
 Failure, cancellation and timeout are not successful fixes, and partial output is
 not evidence of completion. When the agent times out, fails or cannot start, a
@@ -195,7 +205,9 @@ mise run check
 The real-runtime regression exercises the pinned runtime with a local fixture
 provider: subagent resolution and the `task` allow/deny patterns, the
 implementer/reviewer permission split, immediate denials with no pending request,
-and process-group termination. It downloads the pinned public release and checks
+and the safe log summary against a real runtime log. Handler process-group
+termination is covered separately by `scripts/opencode-handler.test.ts`; the
+workflow's `timeout -> mise -> pnpm -> node` link is covered only by the live run. It downloads the pinned public release and checks
 its archive and executable SHA256 before use. For an offline run,
 `CALENDAR_OPENCODE_ARCHIVE=/absolute/path/to/the/release/archive` can supply the
 public artifact instead; the same hard-coded checksum is mandatory. It never
