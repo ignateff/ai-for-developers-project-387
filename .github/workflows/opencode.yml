@@ -3,13 +3,9 @@ name: Opencode
 # Classification runs outside the command queue; only matching jobs are serialized.
 # jactionlint ignore=concurrency-limits
 on:
-  # Only trusted commenters and same-repository PRs pass the preflight below.
-  # Executing trusted project checks is intentional; fork code is rejected.
-  # jactionlint ignore=dangerous-triggers
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
+  # Comment triggers are paused during the upstream experiment (#90).
+  # A manual run has no comment payload and cannot pass the classifier.
+  workflow_dispatch:
 
 jobs:
   classify:
