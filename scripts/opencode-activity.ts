@@ -14,7 +14,7 @@ import { open, stat } from "node:fs/promises";
  * here is dropped instead of being guessed.
  */
 
-const observedTools = [
+export const observedTools = [
   "bash",
   "edit",
   "read",

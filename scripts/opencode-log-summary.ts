@@ -1,6 +1,6 @@
 import { open, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { formatActivityDigest, summarizeActivity } from "./opencode-activity.ts";
+import { formatActivityDigest, observedTools, summarizeActivity } from "./opencode-activity.ts";
 
 /**
  * Prints only counts of an allowlist of runtime log events. Raw log lines may
@@ -24,27 +24,6 @@ const resolvedPathEvent = /(?:^|\s)message="resolved path"(?:\s|$)/;
 const step = /(?:^|\s)step=(\d+)(?:\s|$)/;
 
 const approvedSubagents = ["implementer", "reviewer"] as const;
-
-// Permission decisions name a fixed set of tools. Only these fixed names and
-// their counts may be printed; anything else is aggregated as `other`.
-const observedTools = [
-  "bash",
-  "edit",
-  "read",
-  "glob",
-  "grep",
-  "list",
-  "todowrite",
-  "webfetch",
-  "websearch",
-  "skill",
-  "task",
-  "external_directory",
-  "question",
-  "plan_enter",
-  "plan_exit",
-  "doom_loop",
-] as const;
 
 export type RuntimeLogSummary = {
   lines: number;
