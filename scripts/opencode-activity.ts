@@ -210,8 +210,11 @@ export function sanitizeCommandFamily(value: string | undefined): string | undef
   if (!value) return undefined;
   const tokens: string[] = [];
   for (const token of value.trim().split(/\s+/)) {
-    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(token)) break;
-    if (tokens.length === 0 && !knownCommands.has(token)) return undefined;
+    const allowed =
+      tokens.length === 0
+        ? /^[A-Za-z][A-Za-z0-9_-]*$/.test(token) && knownCommands.has(token)
+        : /^[a-z][a-z-]{0,20}$/.test(token);
+    if (!allowed) break;
     tokens.push(token);
     if (tokens.length === maxDescriptionTokens) break;
   }
@@ -558,8 +561,8 @@ export function startActivityWatch(options: {
       stopped = true;
       if (timer) clearTimeout(timer);
       await poll();
-      const event = partial ? parser.parseLine(partial) : undefined;
-      if (event) report(formatEvent(event));
+      // An incomplete line may be cut mid-value; the post-run digest parses the
+      // complete file instead of guessing from a partial event.
       partial = "";
     },
   };

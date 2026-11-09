@@ -93,8 +93,9 @@ Live activity lines look like `OpenCode activity: event=...` and can show:
   (`allow`/`deny`/`ask`), including subagents requested through `task` and the
   approved subagent type;
 - redacted command families for shell permission decisions, for example
-  `family="mise run check"`. Only known command words are kept; quoted values,
-  paths, URLs, flags and all arguments stop the summary;
+  `family="mise run check"`. The first word must be a known command and later
+  words must be short lowercase words; quoted values, paths, URLs, flags,
+  arguments and mixed-case or digit-heavy tokens stop the summary;
 - which checks ran: a command family matching known check commands is counted in
   `checks=`, with the result left unknown (see the compromise below);
 - whether a permission request is pending and which one (`event=waiting_permission

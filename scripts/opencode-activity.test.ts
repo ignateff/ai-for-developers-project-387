@@ -74,6 +74,9 @@ it("turns the runtime log into allowlisted activity events without raw fields", 
 it("keeps only command families that cannot carry arguments or inline data", () => {
   expect(sanitizeCommandFamily("mise run check > /tmp/private.log")).toBe("mise run check");
   expect(sanitizeCommandFamily("git commit -m 'feat: private'")).toBe("git commit");
+  expect(sanitizeCommandFamily("mise run test:e2e")).toBe("mise run");
+  expect(sanitizeCommandFamily("echo abc123")).toBe("echo");
+  expect(sanitizeCommandFamily("git push origin main")).toBe("git push origin main");
   expect(sanitizeCommandFamily("echo 'private value'")).toBe("echo");
   expect(sanitizeCommandFamily("pnpm exec playwright test")).toBe("pnpm exec playwright test");
   expect(sanitizeCommandFamily("/tmp/private-secret")).toBeUndefined();
@@ -122,7 +125,7 @@ async function waitFor(check: () => boolean, timeoutMs = 3000) {
   throw new Error("Timed out waiting for activity watcher");
 }
 
-it("tails the runtime log live and flushes the last line on stop", async () => {
+it("tails the runtime log live and stops without parsing an incomplete line", async () => {
   const directory = await mkdtemp(join(tmpdir(), "oc-activity-"));
   try {
     const logPath = join(directory, "opencode.log");
