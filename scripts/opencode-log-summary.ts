@@ -5,6 +5,12 @@ import { join } from "node:path";
  * Prints only counts of an allowlist of runtime log events. Raw log lines may
  * contain prompts, tool output, credentials or API payloads, so they are never
  * printed: the summary must stay safe to copy into an Actions log.
+ *
+ * Subagent delegation is summarized from events the pinned runtime actually
+ * emits: `evaluated` permission=task (approved type), `created` sessions with a
+ * parent (start of a subagent), `exiting loop` (completion), `cancel`, `errors`
+ * and the runtime timestamps. Tool names and individual tool durations are not
+ * emitted as a generic event, so they stay `unknown` instead of being guessed.
  */
 const maxLogBytes = 32 * 1024 * 1024;
 
@@ -16,6 +22,8 @@ const shellEvent = /(?:^|\s)message="shell tool using shell"(?:\s|$)/;
 const resolvedPathEvent = /(?:^|\s)message="resolved path"(?:\s|$)/;
 const step = /(?:^|\s)step=(\d+)(?:\s|$)/;
 
+const approvedSubagents = ["implementer", "reviewer"] as const;
+
 export type RuntimeLogSummary = {
   lines: number;
   truncated: boolean;
@@ -26,10 +34,42 @@ export type RuntimeLogSummary = {
   asking: number;
   shell: number;
   paths: number;
+  sessions: number;
+  subagentSessions: number;
+  subagentTypes: Record<(typeof approvedSubagents)[number], number> & { other: number };
+  taskAllowed: number;
+  taskDenied: number;
+  taskAsk: number;
+  starts: number;
+  completions: number;
+  cancellations: number;
+  errors: number;
+  maxSubagentSeconds: number | null;
+  maxConcurrentSubagents: number | null;
+  concurrencyExceeded: "yes" | "no" | "unknown";
 };
 
-export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLogSummary {
-  const summary: RuntimeLogSummary = {
+function field(line: string, name: string): string | undefined {
+  const match = new RegExp(`(?:^|\\s)${name}=("(?:[^"\\\\]|\\\\.)*"|\\S*)`).exec(line);
+  if (!match) return undefined;
+  const value = match[1];
+  if (!value.startsWith('"')) return value;
+  try {
+    return JSON.parse(value) as string;
+  } catch {
+    return undefined;
+  }
+}
+
+function timestamp(line: string): number | undefined {
+  const value = field(line, "timestamp");
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function emptySummary(truncated = false): RuntimeLogSummary {
+  return {
     lines: 0,
     truncated,
     loop: 0,
@@ -39,27 +79,119 @@ export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLog
     asking: 0,
     shell: 0,
     paths: 0,
+    sessions: 0,
+    subagentSessions: 0,
+    subagentTypes: { implementer: 0, reviewer: 0, other: 0 },
+    taskAllowed: 0,
+    taskDenied: 0,
+    taskAsk: 0,
+    starts: 0,
+    completions: 0,
+    cancellations: 0,
+    errors: 0,
+    maxSubagentSeconds: null,
+    maxConcurrentSubagents: null,
+    concurrencyExceeded: "unknown",
   };
+}
+
+function messageOf(line: string): string | undefined {
+  return field(line, "message");
+}
+
+export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLogSummary {
+  const summary = emptySummary(truncated);
+  const sessions = new Map<string, { at: number; subagent: boolean }>();
+  const activeSubagents = new Set<string>();
+  let sawSessionCreated = false;
   for (const line of text.split("\n")) {
     if (!line) continue;
     summary.lines++;
+    const message = messageOf(line);
     if (loopEvent.test(line)) {
       summary.loop++;
       const match = step.exec(line);
       if (match) summary.maxStep = Math.max(summary.maxStep ?? 0, Number(match[1]));
     }
     if (processEvent.test(line)) summary.process++;
-    if (evaluatedEvent.test(line)) summary.evaluated++;
+    if (evaluatedEvent.test(line)) {
+      summary.evaluated++;
+      summarizeTaskDecision(line, summary);
+    }
     if (askingEvent.test(line)) summary.asking++;
     if (shellEvent.test(line)) summary.shell++;
     if (resolvedPathEvent.test(line)) summary.paths++;
+    if (message === "created") {
+      summary.sessions++;
+      sawSessionCreated = true;
+      const parent = field(line, "parentID");
+      const subagent = !!parent && parent !== "undefined" && parent !== "null";
+      const agent = field(line, "agent");
+      const id = field(line, "id");
+      if (subagent) {
+        summary.starts++;
+        summary.subagentSessions++;
+        if (id) activeSubagents.add(id);
+        if (agent === "implementer" || agent === "reviewer") summary.subagentTypes[agent]++;
+        else if (agent) summary.subagentTypes.other++;
+      }
+      const at = timestamp(line);
+      if (id && at !== undefined) sessions.set(id, { at, subagent });
+      summary.maxConcurrentSubagents = Math.max(
+        summary.maxConcurrentSubagents ?? 0,
+        activeSubagents.size,
+      );
+    }
+    if (message === "exiting loop" || message === "cancel") {
+      if (message === "exiting loop") {
+        const id = field(line, "session.id") ?? field(line, "sessionID");
+        const started = id ? sessions.get(id) : undefined;
+        if (started) {
+          summary.completions++;
+          const at = timestamp(line);
+          if (started.subagent && at !== undefined) {
+            const seconds = Math.max(0, Math.round((at - started.at) / 1000));
+            summary.maxSubagentSeconds = Math.max(summary.maxSubagentSeconds ?? 0, seconds);
+          }
+        }
+      } else {
+        summary.cancellations++;
+      }
+      const id = field(line, "session.id") ?? field(line, "sessionID");
+      if (id) activeSubagents.delete(id);
+    }
+    if (field(line, "level") === "ERROR") summary.errors++;
+  }
+  if (!sawSessionCreated) {
+    summary.maxConcurrentSubagents = null;
+    summary.concurrencyExceeded = "unknown";
+  } else if ((summary.maxConcurrentSubagents ?? 0) > 2) {
+    summary.concurrencyExceeded = "yes";
+  } else {
+    // A truncated log can hide later parallel starts; never claim compliance from partial data.
+    summary.concurrencyExceeded = truncated ? "unknown" : "no";
   }
   return summary;
 }
 
+function summarizeTaskDecision(line: string, summary: RuntimeLogSummary) {
+  if (field(line, "permission") !== "task") return;
+  const pattern = field(line, "pattern") ?? field(line, "action.pattern") ?? "";
+  // The runtime flattens the matched rule; prefer the nested action when present.
+  const action = field(line, "action.action") ?? field(line, "action");
+  if (action === "allow") summary.taskAllowed++;
+  else if (action === "deny") summary.taskDenied++;
+  else if (action === "ask") summary.taskAsk++;
+}
+
 export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
+  const subagentTypes = [
+    ...approvedSubagents.map((name) => `${name}:${summary.subagentTypes[name]}`),
+    `other:${summary.subagentTypes.other}`,
+  ].join(",");
   return [
     "OpenCode runtime log:",
+    "stage=command",
     `loop=${summary.loop}`,
     `max_step=${summary.maxStep ?? "none"}`,
     `process=${summary.process}`,
@@ -67,6 +199,23 @@ export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
     `asking=${summary.asking}`,
     `shell=${summary.shell}`,
     `paths=${summary.paths}`,
+    `sessions=${summary.sessions}`,
+    `subagent_sessions=${summary.subagentSessions}`,
+    `subagent_types=${subagentTypes}`,
+    `task_allowed=${summary.taskAllowed}`,
+    `task_denied=${summary.taskDenied}`,
+    `task_ask=${summary.taskAsk}`,
+    `starts=${summary.starts}`,
+    `completions=${summary.completions}`,
+    `cancellations=${summary.cancellations}`,
+    `errors=${summary.errors}`,
+    `max_subagent_seconds=${summary.maxSubagentSeconds ?? "none"}`,
+    "concurrency_limit=2",
+    `max_concurrent_subagents=${summary.maxConcurrentSubagents ?? "unknown"}`,
+    "concurrency_enforced=no",
+    `concurrency_exceeded=${summary.concurrencyExceeded}`,
+    "tool_name=unknown",
+    "result=unknown",
     `lines=${summary.lines}`,
     `truncated=${summary.truncated ? "yes" : "no"}`,
   ].join(" ");
