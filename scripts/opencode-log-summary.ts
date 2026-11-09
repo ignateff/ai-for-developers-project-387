@@ -24,6 +24,27 @@ const step = /(?:^|\s)step=(\d+)(?:\s|$)/;
 
 const approvedSubagents = ["implementer", "reviewer"] as const;
 
+// Permission decisions name a fixed set of tools. Only these fixed names and
+// their counts may be printed; anything else is aggregated as `other`.
+const observedTools = [
+  "bash",
+  "edit",
+  "read",
+  "glob",
+  "grep",
+  "list",
+  "todowrite",
+  "webfetch",
+  "websearch",
+  "skill",
+  "task",
+  "external_directory",
+  "question",
+  "plan_enter",
+  "plan_exit",
+  "doom_loop",
+] as const;
+
 export type RuntimeLogSummary = {
   lines: number;
   truncated: boolean;
@@ -40,6 +61,7 @@ export type RuntimeLogSummary = {
   taskAllowed: number;
   taskDenied: number;
   taskAsk: number;
+  toolPermissions: Record<(typeof observedTools)[number], number> & { other: number };
   starts: number;
   completions: number;
   cancellations: number;
@@ -85,6 +107,10 @@ function emptySummary(truncated = false): RuntimeLogSummary {
     taskAllowed: 0,
     taskDenied: 0,
     taskAsk: 0,
+    toolPermissions: {
+      ...Object.fromEntries(observedTools.map((name) => [name, 0])),
+      other: 0,
+    } as RuntimeLogSummary["toolPermissions"],
     starts: 0,
     completions: 0,
     cancellations: 0,
@@ -116,6 +142,10 @@ export function summarizeRuntimeLog(text: string, truncated = false): RuntimeLog
     if (processEvent.test(line)) summary.process++;
     if (evaluatedEvent.test(line)) {
       summary.evaluated++;
+      const permission = field(line, "permission");
+      if (permission && (observedTools as readonly string[]).includes(permission))
+        summary.toolPermissions[permission as (typeof observedTools)[number]]++;
+      else if (permission) summary.toolPermissions.other++;
       summarizeTaskDecision(line, summary);
     }
     if (askingEvent.test(line)) summary.asking++;
@@ -185,6 +215,12 @@ function summarizeTaskDecision(line: string, summary: RuntimeLogSummary) {
 }
 
 export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
+  const permissions = [
+    ...observedTools
+      .filter((name) => summary.toolPermissions[name] > 0)
+      .map((name) => `${name}:${summary.toolPermissions[name]}`),
+    ...(summary.toolPermissions.other > 0 ? [`other:${summary.toolPermissions.other}`] : []),
+  ].join(",");
   const subagentTypes = [
     ...approvedSubagents.map((name) => `${name}:${summary.subagentTypes[name]}`),
     `other:${summary.subagentTypes.other}`,
@@ -205,6 +241,8 @@ export function formatRuntimeLogSummary(summary: RuntimeLogSummary): string {
     `task_allowed=${summary.taskAllowed}`,
     `task_denied=${summary.taskDenied}`,
     `task_ask=${summary.taskAsk}`,
+    `tool_permissions=${permissions || "none"}`,
+    "tool_duration=unknown",
     `starts=${summary.starts}`,
     `completions=${summary.completions}`,
     `cancellations=${summary.cancellations}`,

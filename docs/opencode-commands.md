@@ -82,9 +82,11 @@ subagent starts with their approved type counts (`implementer`, `reviewer`, othe
 counted but never named), `task` permission allow/deny decisions, loop
 completions, cancellations, error-line count, the longest observed subagent
 session in seconds, and whether observation exceeded two concurrent subagents.
-Unknown or unobservable data stays explicitly unknown: tool names, individual
-tool durations and a definitive result are not emitted as a generic event by
-1.19.5, so the summary prints `tool_name=unknown`, `result=unknown`, and
+Tool decisions are observable only as allowlisted permission names with counts
+(`tool_permissions`, fixed tool names only; anything unrecognized is aggregated as
+`other`). The runtime does not log a generic tool-execution event, so individual
+tool durations and a definitive result stay unknown: the summary prints
+`tool_duration=unknown`, `tool_name=unknown`, `result=unknown`, and
 `concurrency_enforced=no` instead of inferring them. A truncated log downgrades a
 concurrency conclusion to `unknown`. The policy is to publish only counts,
 allowlisted fixed names, booleans and durations; prompts, file contents, commands

@@ -542,6 +542,8 @@ async function probeDelegation(binary) {
     const formatted = formatRuntimeLogSummary(summary);
     assert.match(formatted, /subagent_types=implementer:\d+,reviewer:\d+,other:0/);
     assert.match(formatted, /task_allowed=\d+/);
+    assert.match(formatted, /tool_permissions=[^ ]*task:\d+/);
+    assert.match(formatted, /tool_duration=unknown/);
     assert.match(formatted, /tool_name=unknown/);
     assert.match(formatted, /concurrency_enforced=no/);
     assert.match(formatted, /concurrency_exceeded=yes/);

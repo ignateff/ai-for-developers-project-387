@@ -36,6 +36,25 @@ it("counts only allowlisted runtime events and never prints raw fields", () => {
     taskAllowed: 0,
     taskDenied: 0,
     taskAsk: 0,
+    toolPermissions: {
+      bash: 1,
+      edit: 0,
+      read: 0,
+      glob: 0,
+      grep: 0,
+      list: 0,
+      todowrite: 0,
+      webfetch: 0,
+      websearch: 0,
+      skill: 0,
+      task: 0,
+      external_directory: 0,
+      question: 0,
+      plan_enter: 0,
+      plan_exit: 0,
+      doom_loop: 0,
+      other: 0,
+    },
     starts: 0,
     completions: 0,
     cancellations: 0,
@@ -48,6 +67,8 @@ it("counts only allowlisted runtime events and never prints raw fields", () => {
   expect(output).toContain(
     "OpenCode runtime log: stage=command loop=2 max_step=2 process=1 evaluated=1 asking=1 shell=1 paths=1",
   );
+  expect(output).toContain("tool_permissions=bash:1");
+  expect(output).toContain("tool_duration=unknown");
   expect(output).toContain("tool_name=unknown");
   expect(output).toContain("result=unknown");
   expect(output).not.toContain("private");
@@ -74,6 +95,8 @@ it("reports delegation starts, approved types, completions and durations without
   expect(summary.taskAllowed).toBe(1);
   expect(summary.taskDenied).toBe(2);
   expect(summary.taskAsk).toBe(0);
+  expect(summary.toolPermissions.task).toBe(3);
+  expect(summary.toolPermissions.other).toBe(0);
   expect(summary.completions).toBe(2);
   expect(summary.cancellations).toBe(1);
   expect(summary.errors).toBe(1);
@@ -85,6 +108,8 @@ it("reports delegation starts, approved types, completions and durations without
   expect(output).toContain("subagent_types=implementer:1,reviewer:1,other:0");
   expect(output).toContain("task_allowed=1");
   expect(output).toContain("task_denied=2");
+  expect(output).toContain("tool_permissions=task:3");
+  expect(output).toContain("tool_duration=unknown");
   expect(output).toContain("max_subagent_seconds=7");
   expect(output).toContain("concurrency_limit=2");
   expect(output).toContain("max_concurrent_subagents=2");
