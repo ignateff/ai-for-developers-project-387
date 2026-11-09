@@ -81,16 +81,20 @@ reports, only when the pinned runtime actually emits them: the session count,
 subagent starts with their approved type counts (`implementer`, `reviewer`, other
 counted but never named), `task` permission allow/deny decisions, loop
 completions, cancellations, error-line count, the longest observed subagent
-session in seconds, and whether observation exceeded two concurrent subagents.
-Tool decisions are observable only as allowlisted permission names with counts
-(`tool_permissions`, fixed tool names only; anything unrecognized is aggregated as
-`other`). The runtime does not log a generic tool-execution event, so individual
-tool durations and a definitive result stay unknown: the summary prints
-`tool_duration=unknown`, `tool_name=unknown`, `result=unknown`, and
-`concurrency_enforced=no` instead of inferring them. A truncated log downgrades a
-concurrency conclusion to `unknown`. The policy is to publish only counts,
-allowlisted fixed names, booleans and durations; prompts, file contents, commands
-and arguments, tool output, model text, tokens and secrets are never copied.
+session in seconds, and an observed lower bound of concurrent subagents.
+Concurrency is not reported as compliance: `exiting loop` is only a provisional
+boundary and a session can be resumed, so `concurrency_exceeded=yes` means a
+breach was observed, `no` is emitted only when no subagent session started, and
+anything else is `unknown` (`concurrency_observation=observed_lower_bound`,
+`concurrency_enforced=no`). A truncated log can only hide starts, never prove
+compliance. Tool decisions are observable only as allowlisted permission names
+with counts (`tool_permissions`, fixed tool names only; anything unrecognized is
+aggregated as `other`). The runtime does not log a generic tool-execution event,
+so individual tool durations and a definitive result stay unknown: the summary
+prints `tool_duration=unknown`, `tool_name=unknown` and `result=unknown` instead
+of inferring them. The policy is to publish only counts, allowlisted fixed names,
+booleans and durations; prompts, file contents, commands and arguments, tool
+output, model text, tokens and secrets are never copied.
 
 HOME, XDG state and TMPDIR/TMP/TEMP are dedicated to the run. Mise's installed
 tool directory is retained explicitly, without copying developer configuration
@@ -145,11 +149,16 @@ Subagents run in the same process, checkout and working directory as the parent
 and inherit its environment, including `GH_TOKEN` and the provider key. An
 implementer with shell access can therefore read or forward those credentials;
 the reviewer cannot execute shell. Treat any delegated implementer as equivalent
-to the trusted command agent itself. Git worktrees created inside the checkout
-are technically permitted by the shell and external-directory policy, but they
-are untracked and the handler publishes the single shared checkout as one branch;
-the preparation instruction therefore forbids nested worktrees instead of relying
-on a permission boundary.
+to the trusted command agent itself.
+
+`implement-spec` needs one worktree per implementer and merge subagents, so the
+preparation instruction allows each implementer a separate git worktree and
+branch under TMPDIR (outside the checkout). The worktree must be merged back into
+this checkout's branch, and the worktree and temporary branch removed, before the
+final response, because the upstream handler publishes only this checkout.
+Worktrees are a shell-level mechanism, not an enforced sandbox: the residual risk
+is that an implementer leaves an unmerged branch or an unclean worktree, so review
+the resulting PR and its commits instead of trusting the agent's report.
 
 There is **no hard runtime cap** on parallel subagents on 1.19.5. The runtime has
 no semaphore or concurrency setting, the plugin hook that could enforce one is
@@ -157,11 +166,12 @@ disabled by `OPENCODE_PURE=1`, and the project configuration remains rejected.
 Empirical runs created up to five concurrent child sessions from one assistant
 message. The agreement is therefore a target of at most two concurrently running
 subagents, backed by two mechanisms that are not enforcement: the preparation
-instruction asks the agent to serialize beyond two, and the safe log summary
-reports `max_concurrent_subagents` and `concurrency_exceeded` (detecting a breach
-after the fact, and reporting `unknown` when the log is missing or truncated). A
-run that exceeded two is visible in the summary but was not prevented by the
-runtime; do not describe the instruction as a guarantee.
+instruction asks the agent to keep at most two running at any time (further
+subagents may run sequentially), and the safe log summary reports an observed
+lower bound with a breach flag. The flag is `yes` only when a breach was observed,
+`no` only when no subagent session started, and `unknown` otherwise, because loop
+completion is provisional. A run that exceeded two is visible in the summary but
+was not prevented by the runtime; do not describe the instruction as a guarantee.
 
 ## Limits and queue
 
@@ -173,17 +183,22 @@ additional runs.
 
 Cancellation forwards SIGTERM/SIGINT to the whole detached handler process group
 and escalates to SIGKILL after a grace period even when the direct handler already
-exited, so same-group descendants are still killed. Descendants that deliberately
-leave the group (`setsid`, detached) are not guaranteed to be killed; the GitHub
-runner's job teardown is the backstop. The escalation is covered by
-`scripts/opencode-handler.test.ts`, including a grandchild that ignores SIGTERM.
+exited, so same-group descendants are still killed. The referenced escalation
+timer keeps the wrapper process alive until it fires; a standalone-process test
+covers that lifecycle, not just the in-process unit path. Descendants that
+deliberately leave the group (`setsid`, detached) are not guaranteed to be killed;
+the GitHub runner's job teardown is the backstop.
 
 Failure, cancellation and timeout are not successful fixes, and partial output is
 not evidence of completion. When the agent times out, fails or cannot start, a
 separate reporting job posts a human-readable reason, the SHA and the run link,
-and states explicitly that task completion is not confirmed. A failed comment
-publication fails that job instead of looking like a notification. Forced
-cancellation or runner loss can still prevent any report; inspect the run.
+and states explicitly that task completion is not confirmed. It comments on the
+triggering issue or pull request using the event target, so ordinary issue
+commands are reported too even though they have no admission PR; the job has
+`issues: write` and `pull-requests: write` and no model credentials. A failed
+comment publication fails that job instead of looking like a notification.
+Untrusted or skipped admissions stay silent. Forced cancellation or runner loss
+can still prevent any report; inspect the run.
 
 Commands for one issue/PR are serialized without cancelling the active run.
 GitHub's `queue: max` permits up to 100 pending runs; additional runs are cancelled
@@ -207,9 +222,11 @@ mise run check
 The real-runtime regression exercises the pinned runtime with a local fixture
 provider: subagent resolution and the `task` allow/deny patterns, the
 implementer/reviewer permission split, immediate denials with no pending request,
-and the safe log summary against a real runtime log. Handler process-group
-termination is covered separately by `scripts/opencode-handler.test.ts`; the
-workflow's `timeout -> mise -> pnpm -> node` link is covered only by the live run. It downloads the pinned public release and checks
+an implementer worktree under TMPDIR that is merged, removed and cleaned up, and
+the safe log summary against a real runtime log. Handler process-group
+termination, including the standalone-process escalation lifecycle, is covered by
+`scripts/opencode-handler.test.ts`; the workflow's `timeout -> mise -> pnpm ->
+node` link is covered only by the live run. It downloads the pinned public release and checks
 its archive and executable SHA256 before use. For an offline run,
 `CALENDAR_OPENCODE_ARCHIVE=/absolute/path/to/the/release/archive` can supply the
 public artifact instead; the same hard-coded checksum is mandatory. It never
