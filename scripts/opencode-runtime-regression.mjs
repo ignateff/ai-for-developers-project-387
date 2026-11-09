@@ -121,6 +121,13 @@ async function probeDelegation(binary) {
       packages: { "": { dependencies: { "@opencode-ai/plugin": runtimeVersion } } },
     }),
   );
+  for (const [key, value] of [
+    ["user.email", "fixture@example.invalid"],
+    ["user.name", "Fixture"],
+  ])
+    await execute("git", ["config", key, value], { cwd: project });
+  await execute("git", ["add", "-A"], { cwd: project });
+  await execute("git", ["commit", "-qm", "fixture baseline"], { cwd: project });
 
   // Resolve every configured agent exactly as preparation does; this fails if the
   // pinned runtime disagrees with the approved implementer/reviewer policy.
@@ -196,13 +203,14 @@ async function probeDelegation(binary) {
     name: "edit",
     args: { filePath: path, oldString: "original", newString: "edited by implementer" },
   });
-  const bashCall = (id) => ({
+  const bashCall = (id, command) => ({
     id,
     name: "bash",
     args: {
       command:
+        command ??
         'test -n "$GH_TOKEN" && echo GH_TOKEN_PRESENT; test -n "$DEEPSEEK_API_KEY" && echo DEEPSEEK_API_KEY_PRESENT; pwd',
-      description: "fixture credential presence and working directory",
+      description: "fixture command",
       workdir: project,
     },
   });
@@ -295,6 +303,17 @@ async function probeDelegation(binary) {
           return respond(response, [
             chunk({ role: "assistant" }),
             toolChunk([bashCall("call_i_bash")]),
+            chunk({}, "tool_calls"),
+          ]);
+        if (toolResults === 2)
+          return respond(response, [
+            chunk({ role: "assistant" }),
+            toolChunk([
+              bashCall(
+                "call_i_worktree",
+                'git worktree add "$TMPDIR/ticket-worktree" -b ticket-worktree && test -f "$TMPDIR/ticket-worktree/AGENTS.md" && git worktree remove --force "$TMPDIR/ticket-worktree" && git branch -D ticket-worktree',
+              ),
+            ]),
             chunk({}, "tool_calls"),
           ]);
         return respond(response, done);
@@ -452,12 +471,31 @@ async function probeDelegation(binary) {
     const implementerTools = toolParts(delegation.childMessages.get(implementer.id));
     assert.deepEqual(
       implementerTools.map((part) => part.tool),
-      ["edit", "bash"],
+      ["edit", "bash", "bash"],
     );
     assert.equal(implementerTools[0].state.status, "completed");
     assert.equal(implementerTools[1].state.status, "completed");
+    assert.equal(implementerTools[2].state.status, "completed");
     assert.match(implementerTools[1].state.output, /GH_TOKEN_PRESENT/);
     assert.match(implementerTools[1].state.output, /DEEPSEEK_API_KEY_PRESENT/);
+    // Implementer ticket work may use an isolated worktree under TMPDIR, and the
+    // fixture removes it again so only the shared checkout is published.
+    const worktrees = await execute("git", ["worktree", "list", "--porcelain"], {
+      cwd: project,
+      encoding: "utf8",
+    });
+    assert.equal(
+      worktrees.stdout
+        .trim()
+        .split("\n")
+        .filter((line) => line.startsWith("worktree ")).length,
+      1,
+    );
+    const branches = await execute("git", ["branch", "--list", "ticket-worktree"], {
+      cwd: project,
+      encoding: "utf8",
+    });
+    assert.equal(branches.stdout.trim(), "");
     assert.equal(
       await readFile(join(project, "edit-target.txt"), "utf8"),
       "edited by implementer\n",
