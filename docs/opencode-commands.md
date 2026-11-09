@@ -12,12 +12,13 @@ The workflow listens for newly created `issue_comment` and
 checks still decide whether the command can run. The command environment sets
 `share: "disabled"` and `SHARE=false`; it does not publish shared sessions.
 
-**Temporary experiment #90:** the comment triggers of this workflow are currently
-replaced by `workflow_dispatch`, and `/oc` is handled by
-`opencode-upstream-experiment.yml`. The experimental workflow is not disabled by
-this change and the old comment handler is not enabled, so at most one `/oc`
-handler reacts to a comment. The detailed logging and two-hour limits below are
-prepared for review and only take effect when the normal handler is restored.
+**Restored after experiment #90:** the comment triggers for `issue_comment` and
+`pull_request_review_comment` were moved back from
+`opencode-upstream-experiment.yml`, the experiment workflow was deleted and the
+manual `workflow_dispatch` entry point was removed. `scripts/opencode-workflow.test.ts`
+asserts that only `opencode.yml` subscribes to these events, so exactly one `/oc`
+handler reacts to a comment. The triggers and the two-hour limits below take
+effect only after this change merges to the default branch.
 
 ## Trust boundary
 
@@ -130,9 +131,10 @@ That leaves a real diagnostic gap — check exit codes and tool results are not
 visible, so the activity log can say that `mise run check` was requested but not
 whether it passed. A human decision is required before closing that gap:
 
-1. keep the structured activity log and use the temporary
-   `opencode-upstream-experiment.yml` workflow for raw diagnostics on trusted test
-   issues (current state);
+1. keep the structured activity log and accept that raw diagnostics are not
+   available in this workflow (current state); to inspect a raw run, restore the
+   #90 experiment workflow from Git history (PR #91) only with explicit human
+   approval and while the normal handler is disabled;
 2. explicitly approve a separate opt-in raw-output mode for the normal workflow,
    with a documented warning that public Actions logs may contain prompts, file
    contents, commands and dynamically obtained tokens; it should not be the
@@ -304,9 +306,8 @@ relying on an Actions job's success status.
 
 The workflow and the bootstrap scripts come from the default branch, so this
 recorded live check is necessarily a post-merge step; a branch run cannot exercise
-this workflow. While the #90 experiment is active this workflow is manual-only;
-the live check applies to the change that restores the normal comment handler, and
-exactly one `/oc` handler must be active at that point.
+this workflow. After merge, confirm that exactly one `/oc` handler reacts to a
+command comment, then run the checks below on a trusted test issue.
 
 1. Prepare a small test issue with one verifiable change and a trusted maintainer
    comment `/oc ...`.
