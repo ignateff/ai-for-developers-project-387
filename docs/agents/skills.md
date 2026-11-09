@@ -26,20 +26,31 @@ To update, review a specific upstream revision and its license, replace all six 
 
 `mise run test:opencode-runtime` installs the checksum-verified OpenCode 1.19.5 binary and checks isolated discovery and actual tool calls with a fixture provider. This is a local simulation of the runner, not an actual Actions execution or an end-to-end test of the workflows.
 
-The GitHub command runtime disables external skill discovery. It copies only the nine pinned directories into isolated runtime state after checking their exact file sets and hashes; it rechecks the copy before starting the handler. The `skill` tool is allowed only for those nine names. `question` and `task` remain denied.
+The GitHub command runtime disables external skill discovery. It copies only the nine pinned directories into isolated runtime state after checking their exact file sets and hashes; it rechecks the copy before starting the handler. The `skill` tool is allowed only for those nine names. `question` remains denied in every command session.
+
+### Command delegation for issue #83
+
+The command workflow allows the `task` tool only for two explicitly configured and validated subagent types. Any other type — including the built-in `general`, `explore` and `plan` agents — is denied before the runtime looks it up, and the denial is immediate rather than an interactive prompt.
+
+| Subagent      | Effective tools                                                                                       | Purpose                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `implementer` | `bash`, `edit`/`write`, `read`, `glob`, `grep`, `todowrite`, `webfetch`, `websearch`, the nine skills | implementation, exploration, tests and merges in the shared checkout |
+| `reviewer`    | `read`, `glob`, `grep` only (the pinned runtime has no separate `list` tool)                          | read-only review such as the parallel sub-agents of `code-review`    |
+
+The split is enforced by each subagent's own permission ruleset, not by prompt text: editing and shell tools are absent from the reviewer's tool schema, and `.env`/outside-checkout reads stay denied. Subagents inherit the parent checkout, working directory and process environment; they cannot load external skills or delegate further (`subagent_depth: 1`). `implement-spec`, `tdd` and `code-review` can therefore delegate under this policy, subject to the residual limitations documented in [the command runtime guide](../opencode-commands.md#subagent-delegation): there is no hard runtime cap on parallel subagents (only diagnostics), and an `implementer` with shell access can read the credentials present in its environment.
+
+The delegation policy applies only to the command workflow. Automatic PR review and issue triage keep `task` denied and were not changed by issue #83.
 
 ### Agreed scope for issue #22
 
 The approved allowlist comprises the original six pinned Matt Pocock skills plus
 `triage`, `grilling` and `domain-modeling`, requested for the new triage workflow.
 Other repository, user-global, remote and built-in skills remain denied.
-`question` and `task` remain denied. If an instruction
-requires a user answer or delegation and cannot safely proceed without it, the
-agent must report a blocker and hand the decision to a human. Silence is neither
-consent nor successful completion. In particular, `implement-spec` requires
-subagents, so allowing the skill does not make that workflow runnable under this
-policy. The unchanged skills remain authoritative and must not be rewritten to
-hide incompatible requirements.
+`question` remains denied; delegation was later agreed for issue #83 as described
+above. When an instruction requires a user answer and cannot safely proceed
+without it, the agent must report a blocker and hand the decision to a human.
+Silence is neither consent nor successful completion. The unchanged skills remain
+authoritative and must not be rewritten to hide incompatible requirements.
 
 The upstream GitHub handler publishes its own response; a denied tool call or
 model instruction alone does not prove a blocked workflow cannot be presented as

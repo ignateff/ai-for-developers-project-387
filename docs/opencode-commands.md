@@ -70,13 +70,25 @@ its normal response on the issue/PR. A cancellation remains a failure even if th
 child exits with code zero after receiving the signal.
 
 After an admitted command, a separate `continue-on-error` step reads the runtime's
-own log from the prepared command directory and prints only counts of an allowlist
-of events (`loop`, `process`, `evaluated`, `asking`, `shell tool using shell`,
-`resolved path`) and the highest loop step. It never prints raw log lines, tool
-output, prompts or credentials, reports a missing log as `unavailable`, and runs
-after failures and timeouts except cancellation. It does not change the recorded
-outcome; the summary distinguishes a model call from a running shell command or a
-pending permission request only when the corresponding allowlisted events exist.
+own log from the prepared command directory and prints only allowlisted
+aggregates. It never prints raw log lines, tool output, prompts or credentials,
+reports a missing log as `unavailable`, and runs after failures and timeouts
+except cancellation. It does not change the recorded outcome.
+
+The summary distinguishes a model call from a running shell command or a pending
+permission request only when the corresponding allowlisted events exist. It also
+reports, only when the pinned runtime actually emits them: the session count,
+subagent starts with their approved type counts (`implementer`, `reviewer`, other
+counted but never named), `task` permission allow/deny decisions, loop
+completions, cancellations, error-line count, the longest observed subagent
+session in seconds, and whether observation exceeded two concurrent subagents.
+Unknown or unobservable data stays explicitly unknown: tool names, individual
+tool durations and a definitive result are not emitted as a generic event by
+1.19.5, so the summary prints `tool_name=unknown`, `result=unknown`, and
+`concurrency_enforced=no` instead of inferring them. A truncated log downgrades a
+concurrency conclusion to `unknown`. The policy is to publish only counts,
+allowlisted fixed names, booleans and durations; prompts, file contents, commands
+and arguments, tool output, model text, tokens and secrets are never copied.
 
 HOME, XDG state and TMPDIR/TMP/TEMP are dedicated to the run. Mise's installed
 tool directory is retained explicitly, without copying developer configuration
@@ -92,16 +104,74 @@ just the supplied JSON. Invalid configuration must fail rather than silently use
 defaults.
 
 The command agent must have no effective `ask` rules. Interactive questions,
-subagents, plan transitions and doom-loop approval are disabled. Detected access
+plan transitions and doom-loop approval are disabled. Delegation is limited to
+the two validated subagent types in [Subagent delegation](#subagent-delegation);
+every other type is denied. Detected access
 outside the checkout, dedicated temporary directory and explicitly justified
 tool paths is rejected without waiting. A blanket `/tmp/*` allowance is not used.
 Changing TMPDIR does not redirect hard-coded paths or `homedir()`; the environment
 and tests must account for those separately.
 
+## Subagent delegation
+
+Issue #83 allows the command agent to delegate through `task`, because
+`implement-spec`, `tdd` and `code-review` require subagents. The pinned runtime is
+OpenCode 1.19.5; its subagent model is a set of named agents with `mode:
+"subagent"` and a `task` permission whose patterns match the requested
+`subagent_type`. Preparation and every run resolve and validate all three agents
+(`build`, `implementer`, `reviewer`) with `opencode debug agent` and compare the
+resolved tail of the policy with the expected rules; an unknown, missing,
+interactive or drifted policy fails closed before the handler starts.
+
+Only these types are allowed; the built-in `general`, `explore` and `plan` agents
+and any other name are denied by the `task` pattern before the runtime looks the
+name up. Denial is immediate — the verification runs and the runtime regression
+observe no `permission.asked` event and an empty pending-permission list.
+
+| Type          | Tool schema on the pinned runtime                                                                            | Intended work                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `implementer` | `bash`, `edit`/`write`, `read`, `glob`, `grep`, `todowrite`, `webfetch`, `websearch`, the nine pinned skills | implementation, exploration, tests, merges in the shared checkout      |
+| `reviewer`    | `read`, `glob`, `grep` only (1.19.5 has no separate `list` tool)                                             | read-only review, for example the parallel sub-agents of `code-review` |
+
+The reviewer restriction is enforced by its own permission ruleset, not by an
+instruction: the editing and shell tools are absent from its tool schema, and
+`.env` files, outside-checkout paths, skills, web access and nested delegation
+stay denied. The implementer inherits the command agent's editing and shell
+capability but not `task`.
+
+Subagents run in the same process, checkout and working directory as the parent
+and inherit its environment, including `GH_TOKEN` and the provider key. An
+implementer with shell access can therefore read or forward those credentials;
+the reviewer cannot execute shell. Treat any delegated implementer as equivalent
+to the trusted command agent itself. Do not create nested Git worktrees: the
+upstream handler publishes the single shared checkout as one branch.
+
+There is **no hard runtime cap** on parallel subagents on 1.19.5. The runtime has
+no semaphore or concurrency setting, the plugin hook that could enforce one is
+disabled by `OPENCODE_PURE=1`, and the project configuration remains rejected.
+Empirical runs created up to five concurrent child sessions from one assistant
+message. The agreement is therefore a target of at most two concurrently running
+subagents, backed by two mechanisms that are not enforcement: the preparation
+instruction asks the agent to serialize beyond two, and the safe log summary
+reports `max_concurrent_subagents` and `concurrency_exceeded` (detecting a breach
+after the fact, and reporting `unknown` when the log is missing or truncated). A
+run that exceeded two is visible in the summary but was not prevented by the
+runtime; do not describe the instruction as a guarantee.
+
 ## Limits and queue
 
-The command job has a 30-minute limit. Failure, cancellation and timeout are not
-successful fixes, and partial output is not evidence of completion.
+The agent has 45 minutes of work inside a 50-minute command step and a 55-minute
+job, leaving room for preparation, signal delivery, the safe log summary and
+reporting. The attempt budget is unchanged and best effort, not a monetary
+ceiling; all subagents run inside the same admitted attempt and do not admit
+additional runs.
+
+Failure, cancellation and timeout are not successful fixes, and partial output is
+not evidence of completion. When the agent times out, fails or cannot start, a
+separate reporting job posts a human-readable reason, the SHA and the run link,
+and states explicitly that task completion is not confirmed. A failed comment
+publication fails that job instead of looking like a notification. Forced
+cancellation or runner loss can still prevent any report; inspect the run.
 
 Commands for one issue/PR are serialized without cancelling the active run.
 GitHub's `queue: max` permits up to 100 pending runs; additional runs are cancelled
@@ -116,18 +186,24 @@ pending request from immediate allow/deny. `debug agent --tool` alone cannot pro
 this: this version's debug tool path does not wait on `ask`.
 
 ```sh
-mise run test -- scripts/opencode-command.test.ts scripts/opencode-trust.test.ts
+mise run test -- scripts/opencode-command.test.ts scripts/opencode-handler.test.ts scripts/opencode-log-summary.test.ts scripts/opencode-workflow.test.ts scripts/opencode-trust.test.ts
 mise run test:opencode-runtime
 mise run lint:opencode-workflow
 mise run check
 ```
 
-The real-runtime regression is included in `mise run check`. It downloads the
-pinned public release and checks its archive and executable SHA256 before use.
-For an offline run, `CALENDAR_OPENCODE_ARCHIVE=/absolute/path/to/the/release/archive`
-can supply the public artifact instead; the same hard-coded checksum is mandatory.
-It never selects a PATH binary or uses model/GitHub credentials. Each run extracts
-a fresh executable; production installation has no floating runtime cache.
+The real-runtime regression exercises the pinned runtime with a local fixture
+provider: subagent resolution and the `task` allow/deny patterns, the
+implementer/reviewer permission split, immediate denials with no pending request,
+and process-group termination. It downloads the pinned public release and checks
+its archive and executable SHA256 before use. For an offline run,
+`CALENDAR_OPENCODE_ARCHIVE=/absolute/path/to/the/release/archive` can supply the
+public artifact instead; the same hard-coded checksum is mandatory. It never
+selects a PATH binary or uses model/GitHub credentials. Each run extracts a fresh
+executable; production installation has no floating runtime cache. As of this
+writing the runtime regressions are temporarily excluded from `mise run check`
+because they can hang; run them separately and report a hang as a blocker rather
+than treating the check as green.
 
 Local tests alone cannot prove App/OIDC authorization or GitHub publication.
 A real command listed project skills in [issue #26](https://github.com/ignateff/ai-for-developers-project-387/issues/26#issuecomment-6665575831),
@@ -136,3 +212,32 @@ and [#34](https://github.com/ignateff/ai-for-developers-project-387/issues/34).
 These observations do not establish every issue-to-PR or correction scenario.
 Check each created issue or PR, its links and actual CI results rather than
 relying on an Actions job's success status.
+
+### Controlled live run required by #83
+
+The workflow and the bootstrap scripts come from the default branch, so this
+recorded live check is necessarily a post-merge step; a branch run cannot exercise
+this workflow.
+
+1. Prepare a small test issue with one verifiable change and a trusted maintainer
+   comment `/oc ...`.
+2. Confirm admission and preparation succeed, then inspect the run log for the
+   fixed handler phases and the safe runtime summary: subagent starts, approved
+   type counts, `task_allowed`/`task_denied`, completions/cancellations and
+   `concurrency_exceeded`. Confirm the summary never prints prompts, file
+   contents, commands, tool output, model text, tokens or secrets.
+3. Confirm the published PR or comment and its real CI result; a successful
+   handler is delivery, not proof that the change is correct.
+4. Separately exercise failure handling: cancel a run, and confirm from the
+   runner process list that the handler child group is gone; let a run hit the
+   45-minute work limit or force a command failure in a controlled way, and
+   confirm the issue/PR receives the truthful not-confirmed outcome with the run
+   link. Forced cancellation may prevent the final comment by design.
+5. Record the run URLs and outcomes on the issue, then run `mise run check` on the
+   final commit. Local and live checks do not substitute for each other; an
+   unavailable check or an unverified criterion stays a blocker.
+
+The 45-minute timeout and signal propagation through
+`timeout -> mise -> pnpm -> node` are verified locally only for the layers that
+can run on this host; the GNU `timeout` link and the real runner path must be
+confirmed by the live cancellation run above.
