@@ -35,7 +35,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.command == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     outputs:
       pr: ${{ steps.admission.outputs.pr }}
       sha: ${{ steps.admission.outputs.sha }}
@@ -85,7 +85,7 @@ jobs:
       - name: Run admitted command
         id: command
         if: steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success'
-        timeout-minutes: 22
+        timeout-minutes: 50
         continue-on-error: true
         run: |
           if [ -z "$DEEPSEEK_API_KEY" ]; then
@@ -93,7 +93,7 @@ jobs:
             exit 1
           fi
           set +e
-          timeout --signal=TERM --kill-after=10s 19m mise run opencode:run
+          timeout --signal=TERM --kill-after=10s 45m mise run opencode:run
           result=$?
           set -e
           if [ "$result" -eq 124 ]; then
@@ -150,4 +150,18 @@ jobs:
           REASON: ${{ needs.opencode.outputs.reason }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f "body=OpenCode: $REASON. Нужен человек. SHA: $PR_SHA. Логи: $RUN_URL"
+          set -euo pipefail
+          case "$REASON" in
+            timeout) explanation="the agent hit the 45-minute work limit before publishing a verified result" ;;
+            limit_exhausted) explanation="the attempt budget for this issue or pull request is exhausted" ;;
+            infra) explanation="the workflow could not start the agent (infrastructure or preparation failure)" ;;
+            agent_failed) explanation="the agent failed before publishing a verified result" ;;
+            *) explanation="unknown cause" ;;
+          esac
+          body=$(printf '**OpenCode command failed. Task completion is NOT confirmed.**\n\nThe command did not finish successfully, so there is no verified result.\n\nReason: %s - %s\nSHA: %s\nActions run: %s\n' "$REASON" "$explanation" "$PR_SHA" "$RUN_URL")
+          comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f "body=$body" --jq .id)
+          if [ -z "$comment_id" ]; then
+            echo "Failed to publish the failure comment: no comment id was returned." >&2
+            exit 1
+          fi
+          echo "Published failure comment $comment_id for reason $REASON."
