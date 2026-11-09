@@ -6,6 +6,116 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { runGitHubHandler } from "./opencode-handler.ts";
 
+async function waitFor(check: () => Promise<boolean> | boolean, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((accept) => setTimeout(accept, 25));
+  }
+  throw new Error("Timed out waiting for handler fixture");
+}
+
+function alive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function handlerFixture(pidFile: string, ignoreSignals: boolean) {
+  const trap = ignoreSignals
+    ? "process.on('SIGTERM', () => {}); process.on('SIGINT', () => {});"
+    : "process.on('SIGTERM', () => process.exit(0)); process.on('SIGINT', () => process.exit(0));";
+  return `#!${process.execPath}
+import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+const child = spawn(process.execPath, ['-e', ${JSON.stringify(`${trap} setInterval(() => {}, 1000);`)}], { stdio: 'ignore' });
+writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));
+${trap}
+console.log('Sending message to opencode...');
+setInterval(() => {}, 1000);
+`;
+}
+
+it("kills the whole handler process group on cancellation and reports failure", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-handler-kill-"));
+  const baseline = process.listenerCount("SIGTERM");
+  try {
+    const binary = join(directory, "handler");
+    const pidFile = join(directory, "grandchild.pid");
+    await writeFile(binary, handlerFixture(pidFile, false), { mode: 0o700 });
+    const lines: string[] = [];
+    const run = runGitHubHandler({
+      binary,
+      workspace: directory,
+      env: { PATH: process.env.PATH },
+      report: (line) => lines.push(line),
+      heartbeatMs: 60_000,
+      killGraceMs: 1000,
+    }).then(
+      () => null,
+      (error: Error) => error,
+    );
+    await waitFor(async () => {
+      try {
+        await readFile(pidFile, "utf8");
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    const grandchild = Number(await readFile(pidFile, "utf8"));
+    expect(alive(grandchild)).toBe(true);
+    process.emit("SIGTERM");
+    const error = await run;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/failed or was cancelled; fix is not confirmed/);
+    await waitFor(() => !alive(grandchild));
+    expect(alive(grandchild)).toBe(false);
+    expect(process.listenerCount("SIGTERM")).toBe(baseline);
+    expect(lines).toContain("OpenCode: handler started");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+it("escalates to a group SIGKILL when the handler ignores the signal", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "oc-handler-kill9-"));
+  try {
+    const binary = join(directory, "handler");
+    const pidFile = join(directory, "grandchild.pid");
+    await writeFile(binary, handlerFixture(pidFile, true), { mode: 0o700 });
+    const run = runGitHubHandler({
+      binary,
+      workspace: directory,
+      env: { PATH: process.env.PATH },
+      report: () => {},
+      heartbeatMs: 60_000,
+      killGraceMs: 100,
+    }).then(
+      () => null,
+      (error: Error) => error,
+    );
+    await waitFor(async () => {
+      try {
+        await readFile(pidFile, "utf8");
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    const grandchild = Number(await readFile(pidFile, "utf8"));
+    process.emit("SIGINT");
+    expect(await run).toBeInstanceOf(Error);
+    await waitFor(() => !alive(grandchild));
+    expect(alive(grandchild)).toBe(false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 it("reports process activity without exposing untrusted output", async () => {
   const directory = await mkdtemp(join(tmpdir(), "oc-handler-activity-"));
   try {
