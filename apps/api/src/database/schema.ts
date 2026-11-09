@@ -32,6 +32,7 @@ export const bookings = sqliteTable(
     meetingTypeDurationMinutes: integer("meeting_type_duration_minutes").notNull(),
     guestName: text("guest_name").notNull(),
     guestEmail: text("guest_email").notNull(),
+    topic: text(),
     startsAt: integer("starts_at").notNull(),
     endsAt: integer("ends_at").notNull(),
     createdAt: integer("created_at").notNull(),

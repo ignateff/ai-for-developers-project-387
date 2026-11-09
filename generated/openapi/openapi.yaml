@@ -452,6 +452,7 @@ components:
         - guestName
         - guestEmail
         - createdAt
+        - topic
       properties:
         id:
           type: string
@@ -477,6 +478,9 @@ components:
         createdAt:
           type: string
           format: date-time
+        topic:
+          type: string
+          nullable: true
     BookingInput:
       type: object
       required:
@@ -502,6 +506,10 @@ components:
           type: string
           minLength: 1
           maxLength: 254
+        topic:
+          type: string
+          nullable: true
+          maxLength: 500
     MeetingType:
       type: object
       required:

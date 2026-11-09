@@ -53,6 +53,7 @@ model BookingInput {
   startsAt: utcDateTime;
   @minLength(1) @maxLength(100) guestName: string;
   @minLength(1) @maxLength(254) guestEmail: string;
+  @maxLength(500) topic?: string | null;
 }
 model Booking {
   id: string;
@@ -65,6 +66,7 @@ model Booking {
   guestName: string;
   guestEmail: string;
   createdAt: utcDateTime;
+  topic: string | null;
 }
 @route("/api/bookings")
 @post
