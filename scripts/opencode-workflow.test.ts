@@ -152,3 +152,16 @@ it("summarizes only allowlisted runtime log events after a failed command", () =
   });
   expect(JSON.stringify(steps[summary])).not.toContain("secrets.");
 });
+
+it("bounds preparation and diagnostics so the job keeps room to report", () => {
+  const steps = workflow().jobs.opencode.steps;
+  const prepare = steps.find((step: { id?: string }) => step.id === "prepare");
+  const summary = steps.find(
+    (step: { run?: string }) => step.run === "mise run opencode:log-summary",
+  );
+  expect(prepare["timeout-minutes"]).toBe(6);
+  expect(summary["timeout-minutes"]).toBe(2);
+  expect(workflow().jobs.opencode["timeout-minutes"]).toBeGreaterThan(
+    45 + prepare["timeout-minutes"] + summary["timeout-minutes"],
+  );
+});
