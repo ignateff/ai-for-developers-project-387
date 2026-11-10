@@ -55,7 +55,7 @@ agent's published results; a successful run is not proof of an authorized action
 ## Runtime and delivery
 
 The local adapter retains upstream `opencode github run`, App/OIDC token exchange,
-and `deepseek/deepseek-flash`. It replaces the floating installation performed by
+and the OpenCode Go provider model `opencode-go/deepseek-v4.1-flash`. It replaces the floating installation performed by
 the upstream composite Action. The pinned CLI must be verified before the handler
 starts; a version-specific cache key alone is insufficient. The runtime archive
 download is retried a bounded number of times within a fixed time budget; failures

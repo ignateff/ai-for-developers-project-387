@@ -81,7 +81,7 @@ it("records admission before giving the model access to credentials", () => {
   expect(admission).toBeGreaterThan(0);
   expect(marker).toBeGreaterThan(admission);
   expect(command).toBeGreaterThan(marker);
-  expect(steps[command].env.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
+  expect(steps[command].env.OPENCODE_API_KEY).toBe("${{ secrets.OPENCODE_API_KEY }}");
   expect(JSON.stringify(steps.slice(0, command))).not.toContain("secrets.");
   expect(job.permissions).toMatchObject({ actions: "read", issues: "write", contents: "read" });
 });
@@ -95,6 +95,7 @@ it("isolates PR reporting permission from the model job", () => {
   expect(jobs.report.if).toContain("needs.opencode.outputs.reason != ''");
   const report = JSON.stringify(jobs.report);
   expect(report).not.toContain("DEEPSEEK_API_KEY");
+  expect(report).not.toContain("OPENCODE_API_KEY");
   expect(report).not.toContain("secrets.");
 });
 

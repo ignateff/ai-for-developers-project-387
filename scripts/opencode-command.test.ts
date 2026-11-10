@@ -26,7 +26,7 @@ it("builds a dedicated command environment instead of inheriting developer confi
       PATH: "/tools/bin:/usr/bin:/bin",
       HOME: "/runner/home",
       GH_TOKEN: "read-token",
-      DEEPSEEK_API_KEY: "provider-key",
+      OPENCODE_API_KEY: "provider-key",
       RENDER_API_KEY: "unrelated-secret",
       OPENCODE_PERMISSION: '{"*":"allow"}',
       OPENCODE_CONFIG: "/unsafe/config.json",
@@ -40,7 +40,8 @@ it("builds a dedicated command environment instead of inheriting developer confi
   expect(env.OPENCODE_CONFIG).toBeUndefined();
   expect(env.NODE_OPTIONS).toBeUndefined();
   expect(env.RENDER_API_KEY).toBeUndefined();
-  expect(env.DEEPSEEK_API_KEY).toBe("provider-key");
+  expect(env.OPENCODE_API_KEY).toBe("provider-key");
+  expect(env.MODEL).toBe("opencode-go/deepseek-v4.1-flash");
   const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
   expect(config.default_agent).toBe("build");
   expect(config.permission["*"]).toBe("deny");
