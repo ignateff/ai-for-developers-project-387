@@ -84,6 +84,7 @@ model UpcomingEvent {
   endsAt: utcDateTime;
   guestName: string;
   guestEmail: string;
+  topic: string | null;
 }
 @route("/api/events/upcoming")
 @get

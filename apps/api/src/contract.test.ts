@@ -336,9 +336,22 @@ test("upcoming events responses conform to OpenAPI and avoid caching contacts", 
         startsAt: "2026-10-30T09:00:00Z",
         guestName: "Guest",
         guestEmail: "guest@example.com",
+        topic: "Discuss the roadmap",
       }),
     });
     expect(booked.status).toBe(201);
+    const bookedWithoutTopic = await fetch(`${address}/api/bookings`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "test-key-2" },
+      body: JSON.stringify({
+        meetingTypeId: type.id,
+        meetingTypeVersion: 1,
+        startsAt: "2026-10-30T09:30:00Z",
+        guestName: "Another guest",
+        guestEmail: "another@example.com",
+      }),
+    });
+    expect(bookedWithoutTopic.status).toBe(201);
     async function validate(status: number) {
       const response = await fetch(`${address}/api/events/upcoming`);
       expect(response.status).toBe(status);
@@ -348,7 +361,12 @@ test("upcoming events responses conform to OpenAPI and avoid caching contacts", 
       return body;
     }
     expect(await validate(200)).toMatchObject([
-      { guestName: "Guest", guestEmail: "guest@example.com" },
+      {
+        guestName: "Guest",
+        guestEmail: "guest@example.com",
+        topic: "Discuss the roadmap",
+      },
+      { guestName: "Another guest", guestEmail: "another@example.com", topic: null },
     ]);
     db.exec("BEGIN EXCLUSIVE");
     await validate(503);

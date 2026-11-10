@@ -580,6 +580,7 @@ components:
         - endsAt
         - guestName
         - guestEmail
+        - topic
       properties:
         id:
           type: string
@@ -595,3 +596,6 @@ components:
           type: string
         guestEmail:
           type: string
+        topic:
+          type: string
+          nullable: true

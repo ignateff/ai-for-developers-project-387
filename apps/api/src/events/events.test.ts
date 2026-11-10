@@ -27,7 +27,7 @@ it("returns only future bookings in chronological order with the original type a
       })
     ).json();
     const insert = db.prepare(
-      "INSERT INTO bookings (id, meeting_type_id, meeting_type_name, meeting_type_description, meeting_type_duration_minutes, guest_name, guest_email, starts_at, ends_at, created_at, idempotency_key_hash, request_fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO bookings (id, meeting_type_id, meeting_type_name, meeting_type_description, meeting_type_duration_minutes, guest_name, guest_email, topic, starts_at, ends_at, created_at, idempotency_key_hash, request_fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     );
     for (const [id, start] of [
       ["later", now + 120000],
@@ -43,6 +43,7 @@ it("returns only future bookings in chronological order with the original type a
         30,
         `Guest ${id}`,
         `${id}@example.com`,
+        id === "soon" ? "First question\nSecond question" : null,
         start,
         start + 1800000,
         now - 1000,
@@ -64,6 +65,7 @@ it("returns only future bookings in chronological order with the original type a
         endsAt: "2026-10-30T10:30:00.001Z",
         guestName: "Guest soon",
         guestEmail: "soon@example.com",
+        topic: "First question\nSecond question",
       },
       {
         id: "later",
@@ -72,6 +74,7 @@ it("returns only future bookings in chronological order with the original type a
         endsAt: "2026-10-30T10:32:00.000Z",
         guestName: "Guest later",
         guestEmail: "later@example.com",
+        topic: null,
       },
     ]);
   } finally {

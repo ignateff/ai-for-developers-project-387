@@ -90,6 +90,14 @@
   flex-shrink: 0;
 }
 
+.event-topic {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .event-status {
   margin-left: auto;
   flex-shrink: 0;

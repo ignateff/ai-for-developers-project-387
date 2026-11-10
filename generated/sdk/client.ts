@@ -99,6 +99,8 @@ export interface UpcomingEvent {
   endsAt: string;
   guestName: string;
   guestEmail: string;
+  /** @nullable */
+  topic: string | null;
 }
 
 export type Health200Status = typeof Health200Status[keyof typeof Health200Status];
