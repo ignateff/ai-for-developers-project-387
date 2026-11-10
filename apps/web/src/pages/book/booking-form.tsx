@@ -10,8 +10,10 @@ export function BookingForm({
   startsAt,
   name,
   email,
+  topic,
   setName,
   setEmail,
+  setTopic,
   onBack,
   onConflict,
   onTypeChanged,
@@ -23,8 +25,10 @@ export function BookingForm({
   startsAt: string;
   name: string;
   email: string;
+  topic: string;
   setName: (value: string) => void;
   setEmail: (value: string) => void;
+  setTopic: (value: string) => void;
   onBack: () => void;
   onConflict: () => void;
   onTypeChanged: () => void;
@@ -34,7 +38,6 @@ export function BookingForm({
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
   const [error, setError] = useState("");
-  const [topic, setTopic] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault();
     const guestName = name.trim(),

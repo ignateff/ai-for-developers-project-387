@@ -27,16 +27,20 @@ export function Availability({
   onBack,
   name,
   email,
+  topic,
   setName,
   setEmail,
+  setTopic,
 }: {
   type: MeetingType;
   onUnknown: (attempt: Attempt) => void;
   onBack: () => void;
   name: string;
   email: string;
+  topic: string;
   setName: (value: string) => void;
   setEmail: (value: string) => void;
+  setTopic: (value: string) => void;
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [bookingPending, setBookingPending] = useState(false);
@@ -140,8 +144,10 @@ export function Availability({
             startsAt={selected}
             name={name}
             email={email}
+            topic={topic}
             setName={setName}
             setEmail={setEmail}
+            setTopic={setTopic}
             onBack={() => setFormOpen(false)}
             onSuccess={setConfirmation}
             onTypeChanged={() => {

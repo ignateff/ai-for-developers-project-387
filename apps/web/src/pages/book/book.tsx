@@ -11,6 +11,7 @@ export function BookPage() {
   const [attempt, setAttempt] = useState<Attempt | null>(loadAttempt);
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+  const [guestTopic, setGuestTopic] = useState("");
   const [selectedType, setSelectedType] = useState<MeetingType | null>(null);
   const list = useQuery({
     queryKey: ["meeting-types"],
@@ -37,8 +38,10 @@ export function BookPage() {
         onUnknown={setAttempt}
         name={guestName}
         email={guestEmail}
+        topic={guestTopic}
         setName={setGuestName}
         setEmail={setGuestEmail}
+        setTopic={setGuestTopic}
         type={selectedType}
         onBack={() => {
           setSelectedType(null);
