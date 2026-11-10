@@ -96,6 +96,7 @@ export async function reviewWorkflow(
     ref: string,
     repo = repository,
     maxBytes = 1024 * 1024,
+    allowBinary = false,
   ) => {
     if (
       typeof name !== "string" ||
@@ -121,17 +122,30 @@ export async function reviewWorkflow(
       throw new Error();
     const bytes = Buffer.from(encoded, "base64");
     if (bytes.length !== data.size) throw new Error();
+    let decoded: string;
+    try {
+      decoded = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+      if (decoded.includes("\0")) throw new TypeError("Binary content");
+    } catch (error) {
+      if (!allowBinary || !(error instanceof TypeError)) throw error;
+      return { bytes, decoded: "", binary: true };
+    }
     return {
       bytes,
-      // Preserve a possible UTF-8 BOM so re-encoded content keeps the pinned size.
-      decoded: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes),
+      decoded,
+      binary: false,
     };
   };
   let sourceBytes = 0;
+  const binaryLimitations = new Set<string>();
   const source = async (name: unknown, ref: string, repo = repository) => {
-    const { bytes, decoded } = await readContent(name, ref, repo);
+    const { bytes, decoded, binary } = await readContent(name, ref, repo, 1024 * 1024, true);
     if (sourceBytes + bytes.length > 2 * 1024 * 1024) throw new Error();
     sourceBytes += bytes.length;
+    if (binary) {
+      binaryLimitations.add(`Binary content was not reviewed: ${String(name)}`);
+      return null;
+    }
     return decoded;
   };
   const changes = [];
@@ -155,7 +169,7 @@ export async function reviewWorkflow(
     });
   }
   // Optional context is untrusted evidence, never a reason to broaden API access.
-  const limitations: string[] = [];
+  const limitations: string[] = [...binaryLimitations];
   const essentialLimitations = new Set<string>();
   const essential = (...items: string[]) => {
     for (const item of items) {
