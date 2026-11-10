@@ -43,6 +43,30 @@ const subagentPermission: Record<CommandSubagent, Record<string, unknown>> = {
   },
 };
 
+/**
+ * The instruction file written into the command runtime directory. It is a
+ * public seam so tests can assert the policy without downloading the runtime.
+ */
+export function commandInstructions(): string {
+  return [
+    "Implement the approved request and follow the explicitly loaded AGENTS.md.",
+    "Use TMPDIR for temporary files. Hard-coded external paths may be denied; do not broaden permissions.",
+    "This is a headless build session: do not enter plan mode or request interactive approval; report a blocker instead.",
+    "Delegate only through the task tool and only to the implementer or reviewer subagent types; every other type is denied.",
+    "Use implementer for code changes, exploration, tests and merges: it can edit files and run commands.",
+    "For parallel tickets, each implementer may use its own git worktree and branch created under TMPDIR, never inside this checkout. Merge the work back into this checkout's branch and remove the worktree and temporary branch before your final response; the upstream handler publishes only this checkout.",
+    "Use reviewer only for read-only review work such as the code-review skill; it cannot edit files, run commands or load skills.",
+    "Run at most two subagents concurrently at any time. Start further subagents after an earlier one finishes, and serialize implementations that touch the same files.",
+    "Run mise install, mise run install, and the relevant tests; run mise run check before reporting completion.",
+    "Report failed checks or blockers honestly. Do not call partial work a successful fix.",
+    'Write every commit message in English using a Conventional Commits 1.0.0 header, for example "fix(api): handle empty slot". Do not add a trailing period to the header.',
+    'Include a "Refs: #<issue>" footer in every implementation commit, using the issue number from the task context. Never invent an issue number; if no number is available, stop and report the blocker.',
+    "Commit your own changes with that message and leave the working tree clean before your final response. The pinned upstream handler pushes existing commits and, when uncommitted changes remain, creates a fallback commit from a short model summary of your final response.",
+    'Begin your final response with a valid Conventional Commits header in English and the "Refs: #<issue>" footer, because that fallback commit is generated from a short model summary of your final response and can be shortened or rewritten.',
+    "The upstream GitHub handler handles publication after your final response.",
+  ].join("\n");
+}
+
 type EnvironmentOptions = {
   workspace: string;
   directory: string;
@@ -320,23 +344,10 @@ export async function prepareCommand(base: NodeJS.ProcessEnv) {
   await mkdir(env.TMPDIR!, { recursive: true, mode: 0o700 });
   await verifyCommandSkills(paths.workspace, paths.directory, true);
   await verifyCommandSkills(paths.workspace, paths.directory, false);
-  await writeFile(
-    join(paths.directory, "instructions.md"),
-    [
-      "Implement the approved request and follow the explicitly loaded AGENTS.md.",
-      "Use TMPDIR for temporary files. Hard-coded external paths may be denied; do not broaden permissions.",
-      "This is a headless build session: do not enter plan mode or request interactive approval; report a blocker instead.",
-      "Delegate only through the task tool and only to the implementer or reviewer subagent types; every other type is denied.",
-      "Use implementer for code changes, exploration, tests and merges: it can edit files and run commands.",
-      "For parallel tickets, each implementer may use its own git worktree and branch created under TMPDIR, never inside this checkout. Merge the work back into this checkout's branch and remove the worktree and temporary branch before your final response; the upstream handler publishes only this checkout.",
-      "Use reviewer only for read-only review work such as the code-review skill; it cannot edit files, run commands or load skills.",
-      "Run at most two subagents concurrently at any time. Start further subagents after an earlier one finishes, and serialize implementations that touch the same files.",
-      "Run mise install, mise run install, and the relevant tests; run mise run check before reporting completion.",
-      "Report failed checks or blockers honestly. Do not call partial work a successful fix.",
-      "The upstream GitHub handler handles publication after your final response.",
-    ].join("\n"),
-    { mode: 0o600, flag: "wx" },
-  );
+  await writeFile(join(paths.directory, "instructions.md"), commandInstructions(), {
+    mode: 0o600,
+    flag: "wx",
+  });
   const binary = await installRuntime({ directory: join(paths.directory, "runtime") });
   await verifyInstalledRuntime(binary);
   for (const name of ["build", ...commandSubagents] as const)

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   assertCommandAgent,
+  commandInstructions,
   commandSubagents,
   createCommandEnvironment,
   expectedAgentRules,
@@ -57,6 +58,23 @@ it("builds a dedicated command environment instead of inheriting developer confi
     expect(config.permission[name]).toBe("deny");
   }
   expect(config.subagent_depth).toBe(1);
+});
+
+it("requires English Conventional Commits with an issue reference in the command runtime", () => {
+  const instructions = commandInstructions();
+  expect(instructions).toContain("commit message in English");
+  expect(instructions).toContain("Conventional Commits 1.0.0 header");
+  expect(instructions).toContain("Do not add a trailing period");
+  expect(instructions).toContain('"Refs: #<issue>" footer');
+  expect(instructions).toContain("Never invent an issue number");
+  expect(instructions).toContain("Commit your own changes");
+  expect(instructions).toContain("leave the working tree clean");
+  expect(instructions).toContain(
+    "Begin your final response with a valid Conventional Commits header",
+  );
+  expect(instructions).toContain("fallback commit");
+  expect(instructions).toContain("can be shortened or rewritten");
+  expect(instructions).toContain("mise run check");
 });
 
 it("allows only the approved subagent types through task", () => {
