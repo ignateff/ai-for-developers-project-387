@@ -129,6 +129,37 @@ from the command step in `.github/workflows/opencode.yml`.
 Do not treat the structured activity log as proof that checks passed or that the
 task is complete.
 
+### Commit message policy
+
+The pinned runtime 1.19.5 does not use the final response verbatim as the commit
+message. After the agent stops, `opencode github run` calls its `summarize`
+helper: a second model request asks for a summary of the final response in fewer
+than 40 characters. When uncommitted changes remain, the handler runs
+`git add .` and `git commit -m <summary>`; when the agent already committed all
+changes, the handler pushes those commits without adding another one. This was
+verified against the pinned release binary (OpenCode 1.19.5, source commit
+`810c0eb`), including its embedded handler code, not inferred from the final
+response wording.
+
+The prepared `instructions.md` therefore requires the agent to:
+
+- write every commit message in English with a Conventional Commits 1.0.0
+  header, without a trailing period;
+- add a `Refs: #<issue>` footer using the issue number from the task context and
+  never invent one;
+- commit its own changes and leave the working tree clean before the final
+  response;
+- begin the final response with a valid Conventional Commits header and the
+  `Refs` footer, because the handler may still summarize it for a fallback
+  commit.
+
+This instruction reduces the risk of `check:commits` failing, but it is not a
+guarantee. The fallback summary can be shortened, translated or punctuated by
+the model, and an agent that ignores the instruction or leaves uncommitted
+changes can still produce a non-conforming upstream commit. The publication
+mechanism, permissions and attempt budget are unchanged, and no commit check is
+disabled.
+
 HOME, XDG state and TMPDIR/TMP/TEMP are dedicated to the run. Mise's installed
 tool directory is retained explicitly, without copying developer configuration
 or credentials. The short run-directory name leaves room for the homedir-based
