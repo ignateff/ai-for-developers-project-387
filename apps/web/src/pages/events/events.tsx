@@ -65,6 +65,7 @@ export function EventsPage() {
                     {event.meetingTypeName} · {formatTimeRange(event.startsAt, event.endsAt)} · UTC
                   </span>
                 </p>
+                {event.topic && <p className="event-topic">{event.topic}</p>}
               </div>
               <div className="event-status">Подтверждено</div>
             </article>

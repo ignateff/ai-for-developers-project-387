@@ -11,6 +11,7 @@ export function listUpcomingEvents(storage: Storage, now: number) {
       endsAt: bookings.endsAt,
       guestName: bookings.guestName,
       guestEmail: bookings.guestEmail,
+      topic: bookings.topic,
     })
     .from(bookings)
     .where(gt(bookings.startsAt, now))

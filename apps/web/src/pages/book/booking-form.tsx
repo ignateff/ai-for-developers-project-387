@@ -10,8 +10,10 @@ export function BookingForm({
   startsAt,
   name,
   email,
+  topic,
   setName,
   setEmail,
+  setTopic,
   onBack,
   onConflict,
   onTypeChanged,
@@ -23,8 +25,10 @@ export function BookingForm({
   startsAt: string;
   name: string;
   email: string;
+  topic: string;
   setName: (value: string) => void;
   setEmail: (value: string) => void;
+  setTopic: (value: string) => void;
   onBack: () => void;
   onConflict: () => void;
   onTypeChanged: () => void;
@@ -37,11 +41,13 @@ export function BookingForm({
   async function submit(event: FormEvent) {
     event.preventDefault();
     const guestName = name.trim(),
-      guestEmail = email.trim();
+      guestEmail = email.trim(),
+      guestTopic = topic.trim();
     const next: Record<string, string> = {};
     if (!guestName || [...guestName].length > 100) next.guestName = "Введите имя до 100 символов";
     if (!guestEmail || [...guestEmail].length > 254 || !isValidEmail(guestEmail))
       next.guestEmail = "Введите корректный email до 254 символов";
+    if ([...guestTopic].length > 500) next.topic = "Введите тему до 500 символов";
     setErrors(next);
     if (Object.keys(next).length || pendingRef.current) return;
     const input = {
@@ -50,6 +56,7 @@ export function BookingForm({
       startsAt,
       guestName,
       guestEmail,
+      ...(guestTopic ? { topic: guestTopic } : {}),
     };
     let attempt: Attempt;
     try {
@@ -133,6 +140,26 @@ export function BookingForm({
               aria-invalid={errors.guestEmail ? "true" : undefined}
             />
             {errors.guestEmail && <p className="field-error">{errors.guestEmail}</p>}
+          </div>
+          <div className="field">
+            <label className="field-label" htmlFor="guest-topic">
+              Что вы хотите обсудить?
+            </label>
+            <textarea
+              id="guest-topic"
+              className="field-input"
+              placeholder="Опишите тему, если хотите"
+              disabled={pending}
+              value={topic}
+              onChange={(event) => setTopic(event.currentTarget.value)}
+              aria-invalid={errors.topic ? "true" : undefined}
+              aria-describedby="guest-topic-warning"
+            />
+            <p id="guest-topic-warning" className="form-hint">
+              Тема будет видна всем, кто открывает список предстоящих событий. Не указывайте
+              конфиденциальные данные
+            </p>
+            {errors.topic && <p className="field-error">{errors.topic}</p>}
           </div>
           {error && (
             <p role="alert" className="alert form-alert">

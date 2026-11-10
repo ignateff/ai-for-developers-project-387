@@ -227,7 +227,8 @@ it("accepts Unicode code points at the length limits and rejects values above th
   expect(screen.getByText("Введите описание до 1000 символов")).toBeInTheDocument();
 });
 
-it("keeps contacts when returning to slot selection and confirms the booking", async () => {
+it("keeps contacts and topic when returning to slot selection and confirms the booking", async () => {
+  const bodies: Record<string, unknown>[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -248,6 +249,7 @@ it("keeps contacts when returning to slot selection and confirms the booking", a
         };
       else if (url.endsWith("/bookings")) {
         expect(new Headers(init?.headers).get("idempotency-key")).toBeTruthy();
+        bodies.push(JSON.parse(String(init?.body)));
         data = {
           id: "booking",
           meetingTypeName: "Call",
@@ -279,11 +281,98 @@ it("keeps contacts when returning to slot selection and confirms the booking", a
   fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
   fireEvent.change(screen.getByLabelText(/Имя/), { target: { value: "Alice" } });
   fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "a@example.com" } });
+  fireEvent.change(screen.getByLabelText("Что вы хотите обсудить?"), {
+    target: { value: "Первый вопрос" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Изменить время" }));
   fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
   expect(screen.getByLabelText(/Имя/)).toHaveValue("Alice");
+  expect(screen.getByLabelText(/Email/)).toHaveValue("a@example.com");
+  expect(screen.getByLabelText("Что вы хотите обсудить?")).toHaveValue("Первый вопрос");
   fireEvent.click(screen.getByRole("button", { name: "Подтвердить запись" }));
   expect(await screen.findByText("Бронь подтверждена")).toBeInTheDocument();
+  expect(bodies[0].topic).toBe("Первый вопрос");
+});
+
+it.each([
+  ["SLOT_UNAVAILABLE", "Слот уже недоступен. Выберите другое время."],
+  ["MEETING_TYPE_CHANGED", "Тип встречи изменился. Выберите актуальный тип заново."],
+])("keeps the topic after a %s conflict", async (code, message) => {
+  const bodies: Record<string, unknown>[] = [];
+  let bookingAttempts = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let data: unknown;
+      if (url.endsWith("/availability"))
+        data = { version: 1, days: [{ date: "2026-11-02", availableCount: 1 }] };
+      else if (url.includes("/slots?"))
+        data = {
+          version: 1,
+          slots: [
+            {
+              startsAt: "2026-11-02T09:00:00.000Z",
+              endsAt: "2026-11-02T10:00:00.000Z",
+              available: true,
+            },
+          ],
+        };
+      else if (url.endsWith("/bookings")) {
+        bookingAttempts++;
+        if (bookingAttempts === 1)
+          return new Response(JSON.stringify({ code, message: "conflict" }), {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          });
+        bodies.push(JSON.parse(String(init?.body)));
+        data = {
+          id: "booking",
+          meetingTypeName: "Call",
+          startsAt: "2026-11-02T09:00:00.000Z",
+          endsAt: "2026-11-02T10:00:00.000Z",
+          guestName: "Alice",
+          guestEmail: "a@example.com",
+          topic: "Первый вопрос",
+        };
+      } else
+        data = [{ id: "one", name: "Call", description: "Intro", durationMinutes: 60, version: 1 }];
+      return new Response(JSON.stringify(data), {
+        status: url.endsWith("/bookings") ? 201 : 200,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MantineProvider>
+        <BookPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Выбрать Call" }));
+  fireEvent.click(await screen.findByRole("button", { name: /2026-11-02/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "09:00 UTC" }));
+  fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+  fireEvent.change(screen.getByLabelText(/Имя/), { target: { value: "Alice" } });
+  fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "a@example.com" } });
+  fireEvent.change(screen.getByLabelText("Что вы хотите обсудить?"), {
+    target: { value: "Первый вопрос" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Подтвердить запись" }));
+  expect(await screen.findByText(message)).toBeInTheDocument();
+  const retrySlot = await screen.findByRole("button", { name: "09:00 UTC" });
+  await vi.waitFor(() => expect(retrySlot).toBeEnabled());
+  fireEvent.click(retrySlot);
+  fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+  expect(screen.getByLabelText(/Имя/)).toHaveValue("Alice");
+  expect(screen.getByLabelText(/Email/)).toHaveValue("a@example.com");
+  expect(screen.getByLabelText("Что вы хотите обсудить?")).toHaveValue("Первый вопрос");
+  fireEvent.click(screen.getByRole("button", { name: "Подтвердить запись" }));
+  expect(await screen.findByText("Бронь подтверждена")).toBeInTheDocument();
+  expect(bodies[0].topic).toBe("Первый вопрос");
 });
 
 it("restores an unknown booking attempt, retries the same key and clears it on success", async () => {
@@ -530,4 +619,146 @@ it("disables changing the meeting type while the booking request is in flight", 
   expect(screen.getByRole("button", { name: /Выбрать другой тип/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Изменить время" })).toBeDisabled();
   sessionStorage.clear();
+});
+
+it("shows a persistent topic warning and sends the normalized topic", async () => {
+  const bodies: { topic?: string | null }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let data: unknown;
+      if (url.endsWith("/availability"))
+        data = { version: 1, days: [{ date: "2026-11-02", availableCount: 1 }] };
+      else if (url.includes("/slots?"))
+        data = {
+          version: 1,
+          slots: [
+            {
+              startsAt: "2026-11-02T09:00:00.000Z",
+              endsAt: "2026-11-02T10:00:00.000Z",
+              available: true,
+            },
+          ],
+        };
+      else if (url.endsWith("/bookings")) {
+        bodies.push(JSON.parse(String(init?.body)));
+        data = {
+          id: "booking",
+          meetingTypeName: "Call",
+          startsAt: "2026-11-02T09:00:00.000Z",
+          endsAt: "2026-11-02T10:00:00.000Z",
+          guestName: "Alice",
+          guestEmail: "a@example.com",
+          topic: "Первый вопрос\nВторой вопрос",
+        };
+      } else
+        data = [{ id: "one", name: "Call", description: "Intro", durationMinutes: 60, version: 1 }];
+      return new Response(JSON.stringify(data), {
+        status: url.endsWith("/bookings") ? 201 : 200,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MantineProvider>
+        <BookPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Выбрать Call" }));
+  fireEvent.click(await screen.findByRole("button", { name: /2026-11-02/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "09:00 UTC" }));
+  fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+  const topic = screen.getByLabelText("Что вы хотите обсудить?");
+  expect(topic.tagName).toBe("TEXTAREA");
+  expect(topic).toHaveAccessibleDescription(
+    /Тема будет видна всем, кто открывает список предстоящих событий\. Не указывайте конфиденциальные данные/,
+  );
+  expect(
+    screen.getByText(
+      /Тема будет видна всем, кто открывает список предстоящих событий\. Не указывайте конфиденциальные данные/,
+    ),
+  ).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/Имя/), { target: { value: "Alice" } });
+  fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "a@example.com" } });
+  fireEvent.change(topic, { target: { value: "  Первый вопрос\nВторой вопрос  " } });
+  fireEvent.click(screen.getByRole("button", { name: "Подтвердить запись" }));
+  expect(await screen.findByText("Бронь подтверждена")).toBeInTheDocument();
+  expect(bodies[0].topic).toBe("Первый вопрос\nВторой вопрос");
+  expect(screen.queryByText(/Первый вопрос/)).not.toBeInTheDocument();
+});
+
+it("rejects a topic above 500 code points and omits a whitespace-only topic", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let data: unknown;
+      if (url.endsWith("/availability"))
+        data = { version: 1, days: [{ date: "2026-11-02", availableCount: 1 }] };
+      else if (url.includes("/slots?"))
+        data = {
+          version: 1,
+          slots: [
+            {
+              startsAt: "2026-11-02T09:00:00.000Z",
+              endsAt: "2026-11-02T10:00:00.000Z",
+              available: true,
+            },
+          ],
+        };
+      else if (url.endsWith("/bookings")) {
+        bodies.push(JSON.parse(String(init?.body)));
+        data = {
+          id: "booking",
+          meetingTypeName: "Call",
+          startsAt: "2026-11-02T09:00:00.000Z",
+          endsAt: "2026-11-02T10:00:00.000Z",
+          guestName: "Alice",
+          guestEmail: "a@example.com",
+          topic: null,
+        };
+      } else
+        data = [{ id: "one", name: "Call", description: "Intro", durationMinutes: 60, version: 1 }];
+      return new Response(JSON.stringify(data), {
+        status: url.endsWith("/bookings") ? 201 : 200,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MantineProvider>
+        <BookPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Выбрать Call" }));
+  fireEvent.click(await screen.findByRole("button", { name: /2026-11-02/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "09:00 UTC" }));
+  fireEvent.click(screen.getByRole("button", { name: "Продолжить" }));
+  fireEvent.change(screen.getByLabelText(/Имя/), { target: { value: "Alice" } });
+  fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "a@example.com" } });
+  const topic = screen.getByLabelText("Что вы хотите обсудить?");
+  fireEvent.change(topic, { target: { value: "😀".repeat(501) } });
+  fireEvent.click(screen.getByRole("button", { name: "Подтвердить запись" }));
+  expect(screen.getByText("Введите тему до 500 символов")).toBeInTheDocument();
+  expect(topic).toHaveAttribute("aria-invalid", "true");
+  expect(bodies).toHaveLength(0);
+  expect(
+    screen.getByText(
+      /Тема будет видна всем, кто открывает список предстоящих событий\. Не указывайте конфиденциальные данные/,
+    ),
+  ).toBeInTheDocument();
+  fireEvent.change(topic, { target: { value: " \n\t " } });
+  fireEvent.click(screen.getByRole("button", { name: "Подтвердить запись" }));
+  expect(await screen.findByText("Бронь подтверждена")).toBeInTheDocument();
+  expect(bodies[0]).not.toHaveProperty("topic");
 });

@@ -40,8 +40,10 @@ it("persists the attempt before sending, preserving it when the response is lost
         startsAt="2026-11-02T09:00:00.000Z"
         name="Alice"
         email="a@example.com"
+        topic=""
         setName={() => {}}
         setEmail={() => {}}
+        setTopic={() => {}}
         onBack={() => {}}
         onConflict={() => {}}
         onTypeChanged={() => {}}
@@ -69,8 +71,10 @@ it("prevents navigation and edits while a booking is being sent", async () => {
         startsAt="2026-11-02T09:00:00.000Z"
         name="Alice"
         email="a@example.com"
+        topic=""
         setName={() => {}}
         setEmail={() => {}}
+        setTopic={() => {}}
         onBack={() => {}}
         onConflict={() => {}}
         onTypeChanged={() => {}}

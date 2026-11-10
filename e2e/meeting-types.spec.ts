@@ -75,6 +75,7 @@ test("guest resolves a conflict without losing contacts and confirms a booking",
   await page.getByRole("button", { name: "Продолжить" }).click();
   await page.getByLabel("Имя").fill("Алиса");
   await page.getByLabel("Email").fill("alice@example.com");
+  await page.getByLabel("Что вы хотите обсудить?").fill("Обсудить детали");
   const other = await request.post("/api/bookings", {
     headers: { "Idempotency-Key": "e2e-conflict-attempt" },
     data: {
@@ -95,6 +96,7 @@ test("guest resolves a conflict without losing contacts and confirms a booking",
   await page.getByRole("button", { name: "Продолжить" }).click();
   await expect(page.getByLabel("Имя")).toHaveValue("Алиса");
   await expect(page.getByLabel("Email")).toHaveValue("alice@example.com");
+  await expect(page.getByLabel("Что вы хотите обсудить?")).toHaveValue("Обсудить детали");
   await page.getByRole("button", { name: "Подтвердить запись" }).click();
   await expect(page.getByRole("heading", { name: "Бронь подтверждена" })).toBeVisible();
   await expect(page.getByText(/· \d\d:\d\d – \d\d:\d\d · UTC/)).toBeVisible();
