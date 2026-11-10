@@ -69,10 +69,12 @@ it("requires English Conventional Commits with an issue reference in the command
   expect(instructions).toContain("Never invent an issue number");
   expect(instructions).toContain("Commit your own changes");
   expect(instructions).toContain("leave the working tree clean");
-  expect(instructions).toContain(
-    "Begin your final response with a valid Conventional Commits header",
-  );
-  expect(instructions).toContain("fallback commit");
+  const finalResponseInstruction = instructions
+    .split("\n")
+    .find((line) => line.startsWith("Begin your final response"));
+  expect(finalResponseInstruction).toContain("valid Conventional Commits header");
+  expect(finalResponseInstruction).toContain('"Refs: #<issue>" footer');
+  expect(finalResponseInstruction).toContain("fallback commit");
   expect(instructions).toContain("can be shortened or rewritten");
   expect(instructions).toContain("mise run check");
 });
