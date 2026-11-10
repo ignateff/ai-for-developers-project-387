@@ -72,7 +72,7 @@ export function createCommandEnvironment({
         "NODE_ENV",
         "PNPM_HOME",
         "GH_TOKEN",
-        "DEEPSEEK_API_KEY",
+        "OPENCODE_API_KEY",
         "HTTP_PROXY",
         "HTTPS_PROXY",
         "NO_PROXY",
@@ -154,7 +154,7 @@ export function createCommandEnvironment({
         ),
       },
     }),
-    MODEL: "deepseek/deepseek-flash",
+    MODEL: "opencode-go/deepseek-v4.1-flash",
     USE_GITHUB_TOKEN: "false",
     SHARE: "false",
   });
@@ -251,7 +251,7 @@ async function inspectAgent(
   name: "build" | CommandSubagent,
 ) {
   const inspection = { ...env };
-  for (const key of ["DEEPSEEK_API_KEY", "GH_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"])
+  for (const key of ["OPENCODE_API_KEY", "GH_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"])
     delete inspection[key];
   let output: string;
   try {
@@ -310,7 +310,7 @@ async function pathsFromEnvironment(base: NodeJS.ProcessEnv) {
 export async function prepareCommand(base: NodeJS.ProcessEnv) {
   const paths = await pathsFromEnvironment(base);
   await inspectSource(base, paths.workspace);
-  if (base.DEEPSEEK_API_KEY)
+  if (base.OPENCODE_API_KEY)
     throw new Error("OpenCode preparation must not receive provider credentials");
   // An existing state directory is not trusted, restored or silently cleaned.
   await mkdir(paths.directory, { mode: 0o700 });
@@ -377,7 +377,7 @@ export async function runCommand(base: NodeJS.ProcessEnv) {
   const env = createCommandEnvironment({ ...paths, base });
   for (const name of ["build", ...commandSubagents] as const)
     await inspectAgent(state.binary, env, paths, name);
-  if (!env.DEEPSEEK_API_KEY) throw new Error("OpenCode provider credentials are missing");
+  if (!env.OPENCODE_API_KEY) throw new Error("OpenCode provider credentials are missing");
   const activity = startActivityWatch({
     logPath: join(paths.directory, "home", ".local/share/opencode/log/opencode.log"),
   });

@@ -27,10 +27,13 @@ export async function runBudgetCli(options: {
   const appIds = (env.OPENCODE_REVIEW_APP_IDS ?? "").split(",").filter(Boolean);
   if (appIds.some((id) => !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))))
     throw new Error();
-  // The trusted orchestrator holds the key, but preparation and its subprocesses
-  // receive an environment without it. It is handed to the runtime only after admission.
-  const key = env.DEEPSEEK_API_KEY;
+  // The trusted orchestrator holds the provider keys, but preparation and its
+  // subprocesses receive an environment without them. Each key is handed to the
+  // runtime only after admission, and only to the workflow that uses its provider.
+  const deepseekKey = env.DEEPSEEK_API_KEY;
+  const opencodeKey = env.OPENCODE_API_KEY;
   delete env.DEEPSEEK_API_KEY;
+  delete env.OPENCODE_API_KEY;
   const base = { ...env };
   // Three minutes remain for job setup uncertainty, artifact upload and reporting.
   const started = Number(env.OPENCODE_REVIEW_STARTED_AT);
@@ -90,7 +93,11 @@ export async function runBudgetCli(options: {
     (async (identity: { number?: number; sha?: string }) => {
       const runtime = {
         ...base,
-        DEEPSEEK_API_KEY: key,
+        // The command workflow authenticates through the OpenCode provider key;
+        // the review workflow keeps using the DeepSeek provider key.
+        ...(kind === "command"
+          ? { OPENCODE_API_KEY: opencodeKey }
+          : { DEEPSEEK_API_KEY: deepseekKey }),
         OPENCODE_PR_NUMBER: identity.number?.toString(),
         OPENCODE_HEAD_SHA: identity.sha,
       };

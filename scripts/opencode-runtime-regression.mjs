@@ -102,7 +102,7 @@ async function probeDelegation(binary) {
       HOME: process.env.HOME,
       // Fixture values only; never real credentials.
       GH_TOKEN: "fixture-token-not-real",
-      DEEPSEEK_API_KEY: "fixture-key-not-real",
+      OPENCODE_API_KEY: "fixture-key-not-real",
     },
   });
   const configDirectory = join(env.XDG_CONFIG_HOME, "opencode");
@@ -133,7 +133,7 @@ async function probeDelegation(binary) {
   // Resolve every configured agent exactly as preparation does; this fails if the
   // pinned runtime disagrees with the approved implementer/reviewer policy.
   const inspection = { ...env };
-  for (const key of ["DEEPSEEK_API_KEY", "GH_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"])
+  for (const key of ["OPENCODE_API_KEY", "GH_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"])
     delete inspection[key];
   await assertSafeProject(project);
   for (const name of ["build", ...commandSubagents]) {
@@ -210,7 +210,7 @@ async function probeDelegation(binary) {
     args: {
       command:
         command ??
-        'test -n "$GH_TOKEN" && echo GH_TOKEN_PRESENT; test -n "$DEEPSEEK_API_KEY" && echo DEEPSEEK_API_KEY_PRESENT; pwd',
+        'test -n "$GH_TOKEN" && echo GH_TOKEN_PRESENT; test -n "$OPENCODE_API_KEY" && echo OPENCODE_API_KEY_PRESENT; pwd',
       description: "fixture command",
       workdir: project,
     },
@@ -478,7 +478,7 @@ async function probeDelegation(binary) {
     assert.equal(implementerTools[1].state.status, "completed");
     assert.equal(implementerTools[2].state.status, "completed");
     assert.match(implementerTools[1].state.output, /GH_TOKEN_PRESENT/);
-    assert.match(implementerTools[1].state.output, /DEEPSEEK_API_KEY_PRESENT/);
+    assert.match(implementerTools[1].state.output, /OPENCODE_API_KEY_PRESENT/);
     // Implementer ticket work may use an isolated worktree under TMPDIR, and the
     // fixture removes it again so only the shared checkout is published.
     const worktrees = await execute("git", ["worktree", "list", "--porcelain"], {
@@ -1028,7 +1028,7 @@ async function probeAdapter(archivePath) {
   // No OIDC request URL/token exists in this local fixture. The real upstream
   // handler must fail, and the adapter must propagate failure instead of success.
   const failed = await execute(process.execPath, [script, "run"], {
-    env: { ...env, DEEPSEEK_API_KEY: "not-a-real-key" },
+    env: { ...env, OPENCODE_API_KEY: "not-a-real-key" },
     encoding: "utf8",
     timeout: 60000,
     killSignal: "SIGKILL",
