@@ -286,20 +286,24 @@ it.each([
   }
 });
 
-it("reports an unresolved push after inspecting the registry manifest", async () => {
-  const f = fixture({ pushFails: true, manifestExists: true });
-  try {
-    const port = await f.start();
-    const result = await f.run(port);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("registry push outcome is unresolved");
-    expect(result.stderr).toContain("manifest exists");
-    expect(result.stderr).toContain("Do NOT retry blindly");
-    expect(f.log("fly").some((args) => args[0] === "deploy")).toBe(false);
-  } finally {
-    f.cleanup();
-  }
-});
+it(
+  "reports an unresolved push after inspecting the registry manifest",
+  { timeout: scenarioTestTimeoutMs },
+  async () => {
+    const f = fixture({ pushFails: true, manifestExists: true });
+    try {
+      const port = await f.start();
+      const result = await f.run(port, scenarioTimeoutMs);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("registry push outcome is unresolved");
+      expect(result.stderr).toContain("manifest exists");
+      expect(result.stderr).toContain("Do NOT retry blindly");
+      expect(f.log("fly").some((args) => args[0] === "deploy")).toBe(false);
+    } finally {
+      f.cleanup();
+    }
+  },
+);
 
 it(
   "publishes and rolls out to the app selected by the fast-forwarded configuration",
