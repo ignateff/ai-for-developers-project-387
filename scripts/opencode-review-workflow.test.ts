@@ -18,7 +18,7 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
       number: 7,
       state: "open",
       draft: false,
-      changed_files: 1,
+      changed_files: 2,
       body: "Request: #33\nAgreement: https://github.com/ignateff/ai-for-developers-project-386/issues/2#issuecomment-123",
       base: { sha: base, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
       head: { sha, repo: { id: 1, full_name: "ignateff/ai-for-developers-project-387" } },
@@ -27,7 +27,12 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
       const url = new URL(String(input));
       if (url.pathname.endsWith("/pulls/7")) return Response.json(pr);
       if (url.pathname.endsWith("/pulls/7/files"))
-        return Response.json([{ filename: "a", status: "added" }]);
+        return Response.json([
+          { filename: "a", status: "added" },
+          { filename: "image.png", status: "added" },
+        ]);
+      if (url.pathname.endsWith("/contents/image.png"))
+        return Response.json({ type: "file", encoding: "base64", content: "iVBORw==", size: 4 });
       if (url.pathname.includes("/contents/"))
         return Response.json({ type: "file", encoding: "base64", content: "eA==", size: 1 });
       if (url.pathname.endsWith("/issues/33"))
@@ -66,6 +71,8 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
       },
     );
     expect(snapshot).toContain("Booking requirements");
+    expect(snapshot).toContain("image.png");
+    expect(snapshot).toContain("Binary content was not reviewed");
     expect(snapshot).toContain("Approved requirements");
     expect(snapshot).toContain("unconfirmed");
     expect(JSON.parse(snapshot).agreement.sources[0]).toMatchObject({
