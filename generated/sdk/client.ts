@@ -33,6 +33,8 @@ export interface Booking {
   guestName: string;
   guestEmail: string;
   createdAt: string;
+  /** @nullable */
+  topic: string | null;
 }
 
 export interface BookingInput {
@@ -49,6 +51,11 @@ export interface BookingInput {
      * @maxLength 254
      */
   guestEmail: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  topic?: string | null;
 }
 
 export interface MeetingTypeInput {

@@ -404,3 +404,239 @@ it("rejects email addresses containing consecutive dots", async () => {
     await app.close();
   }
 });
+
+it("normalizes the topic and treats absent, null, empty and whitespace-only values as no topic", async () => {
+  const app = buildApp({ now: () => Date.parse("2026-10-30T08:00:00Z") });
+  try {
+    const type = (
+      await app.inject({
+        method: "POST",
+        url: "/api/meeting-types",
+        payload: { name: "Call", description: "Intro", durationMinutes: 30 },
+      })
+    ).json();
+    const send = (topic: unknown, key: string, startsAt: string, includeTopic = true) =>
+      app.inject({
+        method: "POST",
+        url: "/api/bookings",
+        headers: { "idempotency-key": key },
+        payload: {
+          meetingTypeId: type.id,
+          meetingTypeVersion: 1,
+          startsAt,
+          guestName: "Alice",
+          guestEmail: "a@example.com",
+          ...(includeTopic ? { topic } : {}),
+        },
+      });
+    const cases = [
+      { topic: undefined, key: "absent", startsAt: "2026-10-30T09:00:00.000Z", include: false },
+      { topic: null, key: "null", startsAt: "2026-10-30T09:30:00.000Z", include: true },
+      { topic: "", key: "empty", startsAt: "2026-10-30T10:00:00.000Z", include: true },
+      { topic: " \n\t ", key: "whitespace", startsAt: "2026-10-30T10:30:00.000Z", include: true },
+    ];
+    for (const item of cases) {
+      const response = await send(item.topic, item.key, item.startsAt, item.include);
+      expect(response.statusCode).toBe(201);
+      expect(response.json().topic).toBeNull();
+    }
+    const trimmed = await send(
+      "  Первый вопрос\nВторой вопрос  ",
+      "trimmed",
+      "2026-10-30T11:00:00.000Z",
+    );
+    expect(trimmed.statusCode).toBe(201);
+    expect(trimmed.json().topic).toBe("Первый вопрос\nВторой вопрос");
+  } finally {
+    await app.close();
+  }
+});
+
+it("accepts 500 topic code points and rejects 501 or a non-string topic", async () => {
+  const app = buildApp({ now: () => Date.parse("2026-10-30T08:00:00Z") });
+  try {
+    const type = (
+      await app.inject({
+        method: "POST",
+        url: "/api/meeting-types",
+        payload: { name: "Call", description: "Intro", durationMinutes: 30 },
+      })
+    ).json();
+    const send = (topic: unknown, key: string, startsAt: string) =>
+      app.inject({
+        method: "POST",
+        url: "/api/bookings",
+        headers: { "idempotency-key": key },
+        payload: {
+          meetingTypeId: type.id,
+          meetingTypeVersion: 1,
+          startsAt,
+          guestName: "Alice",
+          guestEmail: "a@example.com",
+          topic,
+        },
+      });
+    const exact = await send("😀".repeat(500), "exact", "2026-10-30T09:00:00.000Z");
+    expect(exact.statusCode).toBe(201);
+    expect([...(exact.json().topic as string)].length).toBe(500);
+    const tooLong = await send("😀".repeat(501), "long", "2026-10-30T09:30:00.000Z");
+    expect(tooLong.statusCode).toBe(400);
+    expect(tooLong.json().code).toBe("VALIDATION_ERROR");
+    expect(tooLong.json().fields).toHaveProperty("topic");
+    const wrongType = await send(42, "type", "2026-10-30T10:00:00.000Z");
+    expect(wrongType.statusCode).toBe(400);
+    expect(wrongType.json().code).toBe("VALIDATION_ERROR");
+    expect(wrongType.json().fields).toHaveProperty("topic");
+  } finally {
+    await app.close();
+  }
+});
+
+it("keeps the topic as a snapshot when the meeting type changes", async () => {
+  const app = buildApp({ now: () => Date.parse("2026-10-30T08:00:00Z") });
+  try {
+    const type = (
+      await app.inject({
+        method: "POST",
+        url: "/api/meeting-types",
+        payload: { name: "Original", description: "Original description", durationMinutes: 30 },
+      })
+    ).json();
+    const payload = {
+      meetingTypeId: type.id,
+      meetingTypeVersion: 1,
+      startsAt: "2026-10-30T09:00:00.000Z",
+      guestName: "Alice",
+      guestEmail: "a@example.com",
+      topic: "Discuss the project",
+    };
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/bookings",
+      headers: { "idempotency-key": "snapshot-key" },
+      payload,
+    });
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toMatchObject({
+      meetingTypeName: "Original",
+      topic: "Discuss the project",
+    });
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/api/meeting-types/${type.id}`,
+      headers: { "if-match": '"1"' },
+      payload: { name: "Changed", description: "Changed description", durationMinutes: 45 },
+    });
+    expect(updated.statusCode).toBe(200);
+    const replay = await app.inject({
+      method: "POST",
+      url: "/api/bookings",
+      headers: { "idempotency-key": "snapshot-key" },
+      payload,
+    });
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json()).toEqual(first.json());
+  } finally {
+    await app.close();
+  }
+});
+
+it("keeps idempotency fingerprints compatible with old bookings and includes normalized topics", async () => {
+  const { createHash } = await import("node:crypto");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { default: Database } = await import("better-sqlite3");
+  const directory = mkdtempSync(join(tmpdir(), "calendar-topic-idempotency-"));
+  const path = join(directory, "db.sqlite");
+  const app = buildApp({ databasePath: path, now: () => Date.parse("2026-10-30T08:00:00Z") });
+  const db = new Database(path);
+  const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+  try {
+    const type = (
+      await app.inject({
+        method: "POST",
+        url: "/api/meeting-types",
+        payload: { name: "Call", description: "Intro", durationMinutes: 30 },
+      })
+    ).json();
+    const legacyStart = "2026-10-30T09:00:00.000Z";
+    db.prepare(
+      "INSERT INTO bookings (id, meeting_type_id, meeting_type_name, meeting_type_description, meeting_type_duration_minutes, guest_name, guest_email, starts_at, ends_at, created_at, idempotency_key_hash, request_fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      "legacy",
+      type.id,
+      type.name,
+      type.description,
+      30,
+      "Legacy",
+      "legacy@example.com",
+      Date.parse(legacyStart),
+      Date.parse(legacyStart) + 1_800_000,
+      Date.parse("2026-10-30T08:00:00Z"),
+      hash("legacy-key"),
+      hash(JSON.stringify([type.id, 1, legacyStart, "Legacy", "legacy@example.com"])),
+    );
+    const send = (data: object, key: string) =>
+      app.inject({
+        method: "POST",
+        url: "/api/bookings",
+        headers: { "idempotency-key": key },
+        payload: data,
+      });
+    const legacyPayload = {
+      meetingTypeId: type.id,
+      meetingTypeVersion: 1,
+      startsAt: legacyStart,
+      guestName: "Legacy",
+      guestEmail: "legacy@example.com",
+    };
+    const replay = await send(legacyPayload, "legacy-key");
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json()).toMatchObject({ id: "legacy", topic: null });
+    const explicitNull = await send({ ...legacyPayload, topic: null }, "legacy-key");
+    expect(explicitNull.statusCode).toBe(201);
+    expect(explicitNull.json()).toEqual(replay.json());
+    expect((await send({ ...legacyPayload, topic: "New topic" }, "legacy-key")).json().code).toBe(
+      "IDEMPOTENCY_KEY_REUSED",
+    );
+
+    const topicPayload = {
+      meetingTypeId: type.id,
+      meetingTypeVersion: 1,
+      startsAt: "2026-10-30T09:30:00.000Z",
+      guestName: "Alice",
+      guestEmail: "a@example.com",
+      topic: "  Discuss the roadmap  ",
+    };
+    const created = await send(topicPayload, "topic-key");
+    expect(created.statusCode).toBe(201);
+    expect(created.json().topic).toBe("Discuss the roadmap");
+    const equivalent = await send({ ...topicPayload, topic: "Discuss the roadmap\n" }, "topic-key");
+    expect(equivalent.statusCode).toBe(201);
+    expect(equivalent.json()).toEqual(created.json());
+    expect(
+      (await send({ ...topicPayload, topic: "Different topic" }, "topic-key")).json().code,
+    ).toBe("IDEMPOTENCY_KEY_REUSED");
+
+    const plainPayload = {
+      meetingTypeId: type.id,
+      meetingTypeVersion: 1,
+      startsAt: "2026-10-30T10:00:00.000Z",
+      guestName: "Bob",
+      guestEmail: "b@example.com",
+    };
+    const plain = await send(plainPayload, "plain-key");
+    expect(plain.statusCode).toBe(201);
+    expect(plain.json().topic).toBeNull();
+    const rows = db
+      .prepare("SELECT id, topic, request_fingerprint FROM bookings ORDER BY starts_at")
+      .all() as { id: string; topic: string | null; request_fingerprint: string }[];
+    expect(rows.map((row) => row.topic)).toEqual([null, "Discuss the roadmap", null]);
+    expect(new Set(rows.map((row) => row.request_fingerprint)).size).toBe(rows.length);
+  } finally {
+    db.close();
+    await app.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

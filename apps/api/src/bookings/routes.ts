@@ -3,6 +3,15 @@ import type { Storage } from "../database/database.js";
 import { isValidEmail } from "./email.js";
 import { createBooking } from "./service.js";
 
+function normalizeTopic(value: unknown): { ok: true; topic: string | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, topic: null };
+  if (typeof value !== "string") return { ok: false };
+  const topic = value.trim();
+  if (!topic) return { ok: true, topic: null };
+  if ([...topic].length > 500) return { ok: false };
+  return { ok: true, topic };
+}
+
 export async function bookingRoutes(
   app: FastifyInstance,
   {
@@ -17,6 +26,7 @@ export async function bookingRoutes(
     const key = request.headers["idempotency-key"];
     const name = typeof input?.guestName === "string" ? input.guestName.trim() : "";
     const email = typeof input?.guestEmail === "string" ? input.guestEmail.trim() : "";
+    const topic = normalizeTopic(input?.topic);
     const fields: Record<string, string> = {};
     if (!name || [...name].length > 100) fields.guestName = "Введите имя до 100 символов";
     if (!email || [...email].length > 254 || !isValidEmail(email))
@@ -39,6 +49,7 @@ export async function bookingRoutes(
       fields.meetingTypeVersion = "Выберите актуальный тип встречи";
     if (typeof key !== "string" || !key.trim() || key.length > 200)
       fields.idempotencyKey = "Укажите ключ попытки";
+    if (!topic.ok) fields.topic = "Введите тему до 500 символов";
     if (
       Object.keys(fields).length ||
       typeof key !== "string" ||
@@ -57,6 +68,7 @@ export async function bookingRoutes(
         start,
         name,
         email,
+        topic: topic.ok ? topic.topic : null,
       },
       { clock, onBookingLocked },
     );

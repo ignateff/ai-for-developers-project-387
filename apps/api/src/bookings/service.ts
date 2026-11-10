@@ -13,17 +13,22 @@ export function createBooking(
     start: number;
     name: string;
     email: string;
+    topic: string | null;
   },
   { clock, onBookingLocked }: { clock?: () => number; onBookingLocked?: () => void },
 ) {
-  const { key, start, name, email } = input;
+  const { key, start, name, email, topic } = input;
   const keyHash = createHash("sha256").update(key).digest("hex");
   const canonicalStart = new Date(start).toISOString();
-  const fingerprint = createHash("sha256")
-    .update(
-      JSON.stringify([input.meetingTypeId, input.meetingTypeVersion, canonicalStart, name, email]),
-    )
-    .digest("hex");
+  const fingerprintPayload: (string | number)[] = [
+    input.meetingTypeId,
+    input.meetingTypeVersion,
+    canonicalStart,
+    name,
+    email,
+  ];
+  if (topic !== null) fingerprintPayload.push(topic);
+  const fingerprint = createHash("sha256").update(JSON.stringify(fingerprintPayload)).digest("hex");
   const typeId = input.meetingTypeId;
   const version = input.meetingTypeVersion;
   return storage.db.transaction(
@@ -65,6 +70,7 @@ export function createBooking(
         meetingTypeDurationMinutes: type.durationMinutes,
         guestName: name,
         guestEmail: email,
+        topic,
         startsAt: start,
         endsAt: end,
         createdAt: now,
@@ -87,6 +93,7 @@ function bookingResponse(booking: typeof bookings.$inferSelect) {
     meetingTypeDurationMinutes: booking.meetingTypeDurationMinutes,
     guestName: booking.guestName,
     guestEmail: booking.guestEmail,
+    topic: booking.topic ?? null,
     startsAt: new Date(booking.startsAt).toISOString(),
     endsAt: new Date(booking.endsAt).toISOString(),
     createdAt: new Date(booking.createdAt).toISOString(),

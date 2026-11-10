@@ -417,3 +417,76 @@ test("meeting type management responses conform to OpenAPI over HTTP", async () 
     await app.close();
   }
 });
+
+test("booking topic scenarios conform to OpenAPI", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "booking-topic-contract-"));
+  const path = join(directory, "db.sqlite");
+  const app = buildApp({ databasePath: path, now: () => Date.parse("2026-10-30T08:00:00Z") });
+  const api = new OpenAPIBackend({ definition, strict: true });
+  await api.init();
+  try {
+    const address = await app.listen({ host: "127.0.0.1", port: 0 });
+    const type = await (
+      await fetch(`${address}/api/meeting-types`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Call", description: "Intro", durationMinutes: 30 }),
+      })
+    ).json();
+    const payload = {
+      meetingTypeId: type.id,
+      meetingTypeVersion: 1,
+      guestName: "Guest",
+      guestEmail: "guest@example.com",
+    };
+    const send = (data: object, key: string) =>
+      fetch(`${address}/api/bookings`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": key },
+        body: JSON.stringify(data),
+      });
+    const validate = async (response: Response, status: number) => {
+      expect(response.status).toBe(status);
+      const body = await response.json();
+      expect(api.validateResponse(body, "createBooking", status).errors).toBeNull();
+      return body;
+    };
+    const withTopic = await validate(
+      await send({ ...payload, startsAt: "2026-10-30T09:00:00.000Z", topic: "Discuss" }, "topic"),
+      201,
+    );
+    expect(withTopic.topic).toBe("Discuss");
+    const withoutTopic = await validate(
+      await send({ ...payload, startsAt: "2026-10-30T09:30:00.000Z" }, "without"),
+      201,
+    );
+    expect(withoutTopic.topic).toBeNull();
+    const explicitNull = await validate(
+      await send({ ...payload, startsAt: "2026-10-30T10:00:00.000Z", topic: null }, "null"),
+      201,
+    );
+    expect(explicitNull.topic).toBeNull();
+    const tooLong = await validate(
+      await send(
+        { ...payload, startsAt: "2026-10-30T10:30:00.000Z", topic: "😀".repeat(501) },
+        "long",
+      ),
+      400,
+    );
+    expect(tooLong).toMatchObject({
+      code: "VALIDATION_ERROR",
+      fields: { topic: expect.any(String) },
+    });
+    const wrongType = await validate(
+      await send({ ...payload, startsAt: "2026-10-30T11:00:00.000Z", topic: 42 }, "type"),
+      400,
+    );
+    expect(wrongType).toMatchObject({
+      code: "VALIDATION_ERROR",
+      fields: { topic: expect.any(String) },
+    });
+  } finally {
+    await app.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
