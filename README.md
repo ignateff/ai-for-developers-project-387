@@ -94,11 +94,17 @@ mise run test:e2e         # Playwright, включая визуальные пр
 
 ### Команды GitHub-агента
 
-Workflow `.github/workflows/opencode.yml` запускается по созданному комментарию к issue или строке diff PR. Классификатор принимает команды `/oc` и `/opencode`; далее проверяются права автора и происхождение PR. Доступны владелец и участники с правами `write`, `maintain` или `admin`; команды ботов и PR из fork отклоняются. Команды для одного issue или PR выполняются последовательно, задача ограничена 30 минутами.
+Workflow `.github/workflows/opencode.yml` запускается по созданному комментарию к issue или строке diff PR. Классификатор принимает команды `/oc` и `/opencode`; далее проверяются права автора и происхождение PR. Доступны владелец и участники с правами `write`, `maintain` или `admin`; команды ботов и PR из fork отклоняются. Команды для одного issue или PR выполняются последовательно. Задача ограничена 150 минутами, из которых на работу агента отведено до 120 минут.
 
 Адаптер использует OpenCode GitHub App с OIDC и модель `deepseek/deepseek-flash`; ключ передаётся через GitHub Secret `DEEPSEEK_API_KEY`. Вместо стандартной установки через composite Action используется закреплённая версия CLI с проверкой целостности и дополнительными проверками доступа. Публикация сеанса отключена: `share: disabled` и `SHARE=false`. Checkout не сохраняет credentials. Подробнее о правах, ограничениях и диагностике — в [docs/opencode-commands.md](docs/opencode-commands.md).
 
 Агент может отвечать на вопросы и готовить изменения или задачи. Например, в [issue № 26](https://github.com/ignateff/ai-for-developers-project-387/issues/26#issuecomment-6665575831) он перечислил доступные скиллы со ссылкой на прогон. Результат команды и проверки созданного PR необходимо проверять отдельно.
+
+Для диагностики включён вывод stdout и stderr обработчика в публичный лог Actions. Он может содержать чувствительные данные, в том числе учётные данные; ограничения и способ отключения описаны в [docs/opencode-commands.md](docs/opencode-commands.md#publication-risk).
+
+### Состояние учебного цикла
+
+Для доработки темы звонка актуальны [обращение № 79](https://github.com/ignateff/ai-for-developers-project-387/issues/79), [спецификация № 80](https://github.com/ignateff/ai-for-developers-project-387/issues/80) и тикеты [№ 81](https://github.com/ignateff/ai-for-developers-project-387/issues/81) и [№ 82](https://github.com/ignateff/ai-for-developers-project-387/issues/82). На 10 ноября 2026 они открыты. Полный цикл реализации, ревью, исправлений и мержа по этой спецификации ещё предстоит подтвердить; отдельные успешные запуски автоматизации не заменяют его приёмку.
 
 ### Автоматический предварительный триаж
 
