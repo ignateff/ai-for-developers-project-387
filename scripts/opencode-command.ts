@@ -64,6 +64,7 @@ export function commandInstructions(): string {
     "Run at most two subagents concurrently at any time. Start further subagents after an earlier one finishes, and serialize implementations that touch the same files.",
     "Run mise install, mise run install, and the relevant tests; run mise run check before reporting completion.",
     "Report failed checks or blockers honestly. Do not call partial work a successful fix.",
+    "Write user-facing explanations in the final response in Russian. Keep code, paths, identifiers, JSON field names and technical headings unchanged.",
     'Write every commit message in English using a Conventional Commits 1.0.0 header, for example "fix(api): handle empty slot". Do not add a trailing period to the header.',
     'Include a "Refs: #<issue>" footer in every implementation commit, using the issue number from the task context. Never invent an issue number; if no number is available, stop and report the blocker.',
     "Commit your own changes with that message and leave the working tree clean before your final response. The pinned upstream handler pushes existing commits and, when uncommitted changes remain, creates a fallback commit from a short model summary of your final response.",

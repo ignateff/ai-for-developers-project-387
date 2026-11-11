@@ -21,15 +21,15 @@ const modelSteps = {
     ),
   triage: () =>
     workflow(".github/workflows/opencode-triage.yml").jobs.triage.steps.find(
-      (step: { name?: string }) => step.name === "Preliminary triage",
+      (step: { name?: string }) => step.name === "Предварительный триаж",
     ),
   scheduledAudit: () =>
     workflow(".github/workflows/scheduled-performance-audit.yml").jobs.lighthouse.steps.find(
-      (step: { name?: string }) => step.name === "Analyze with OpenCode",
+      (step: { name?: string }) => step.name === "Проанализировать с помощью OpenCode",
     ),
   performanceCheck: () =>
     workflow(".github/workflows/performance-check.yml").jobs.lighthouse.steps.find(
-      (step: { name?: string }) => step.name === "Analyze with OpenCode",
+      (step: { name?: string }) => step.name === "Проанализировать с помощью OpenCode",
     ),
 };
 

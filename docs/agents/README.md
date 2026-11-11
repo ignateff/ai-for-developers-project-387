@@ -7,6 +7,7 @@
 - [OpenCode model configuration](../opencode-models.md): shared model variable, defaults, credentials and switching.
 - [Domain](domain.md): glossary and ADR conventions.
 - [Testing](testing.md): full checks, contract, browser, visual and Docker verification.
+- [Workflow localization](../workflow-localization.md): Russian user-facing workflow text, preserved identifiers and known limitations.
 - [Quality gates](../quality-gates.md): scanner scope, accepted findings and dated exception review.
 - [Triage labels](triage-labels.md): issue classification.
 - [Implementation traceability](implementation-traceability.md): historical first-project evidence, not a fresh test report.

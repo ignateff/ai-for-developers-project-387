@@ -95,6 +95,7 @@ it("rejects an unsafe or unsupported configured model before building the runtim
 
 it("requires English Conventional Commits with an issue reference in the command runtime", () => {
   const instructions = commandInstructions();
+  expect(instructions).toContain("Write user-facing explanations in the final response in Russian");
   expect(instructions).toContain("commit message in English");
   expect(instructions).toContain("Conventional Commits 1.0.0 header");
   expect(instructions).toContain("Do not add a trailing period");
