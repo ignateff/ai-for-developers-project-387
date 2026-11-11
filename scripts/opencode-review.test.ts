@@ -192,14 +192,32 @@ it("reports explicitly when there are no confirmed defects", async () => {
     readEvent() +
     JSON.stringify({
       type: "text",
-      part: { text: '{"summary":"Review completed","limitations":[],"findings":[]}' },
+      part: { text: '{"summary":"Ревью завершено","limitations":[],"findings":[]}' },
     }) +
     '\n{"type":"step_finish","part":{"reason":"stop"}}';
   const result = await createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({
     binary: "/runtime",
     context,
   });
-  expect(result.summary).toMatch(/no confirmed defects/i);
+  expect(result.summary).toBe("Подтверждённых дефектов не найдено. Ревью завершено");
+});
+
+it("does not duplicate an explicit Russian no-defects statement", async () => {
+  const output =
+    readEvent() +
+    JSON.stringify({
+      type: "text",
+      part: {
+        text: '{"summary":"Подтверждённых дефектов не найдено. Замечаний нет.","limitations":[],"findings":[]}',
+      },
+    }) +
+    '\n{"type":"step_finish","part":{"reason":"stop"}}';
+  const result = await createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({
+    binary: "/runtime",
+    context,
+  });
+  expect(result.summary).toBe("Подтверждённых дефектов не найдено. Замечаний нет.");
+  expect(result.summary.match(/Подтверждённых дефектов не найдено/g)).toHaveLength(1);
 });
 
 it.each([
@@ -261,7 +279,7 @@ it("reports explicitly unavailable requirements even for a release review", asyn
       requirements: { availability: "unavailable", reason: "not supplied" },
     },
   });
-  expect(result.limitations).toContain("Requirements unavailable: not supplied");
+  expect(result.limitations).toContain("Требования недоступны: not supplied");
 });
 
 it("rejects a review when the CLI never reads the snapshot", async () => {

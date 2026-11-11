@@ -106,7 +106,7 @@ export async function collectRepositoryContext(options: {
     context.available = true;
   } catch {
     const message =
-      "Related repository context is unavailable: the repository trees at the pinned base and head could not be loaded, so only changed files, linked materials and base documents were collected.";
+      "Контекст связанных файлов репозитория недоступен: деревья репозитория на закреплённых base и head не удалось загрузить, поэтому собраны только изменённые файлы, связанные материалы и базовые документы.";
     limitation(message);
     essential(message);
   }
@@ -115,7 +115,7 @@ export async function collectRepositoryContext(options: {
   const headIndex = indexTree(headEntries);
   context.index = { base: baseIndex.items, head: headIndex.items };
   if (baseIndex.truncated || headIndex.truncated) {
-    const message = `The repository file index exceeds ${indexLimit} entries and was truncated; the reviewer cannot list every pinned file, although related-file selection used the full returned tree.`;
+    const message = `Индекс файлов репозитория превышает ${indexLimit} записей и был усечён; ревьюер не может перечислить все закреплённые файлы, хотя отбор связанных файлов использовал полное полученное дерево.`;
     limitation(message);
     essential(message);
   }
@@ -192,7 +192,7 @@ export async function collectRepositoryContext(options: {
       .sort((left, right) => left.path.localeCompare(right.path));
     const scan = candidates.slice(0, referenceScanLimit);
     if (candidates.length > scan.length) {
-      const message = `The reference scan was limited to ${scan.length} repository files while looking for unchanged related code.`;
+      const message = `Сканирование ссылок было ограничено ${scan.length} файлами репозитория при поиске неизменённого связанного кода.`;
       limitation(message);
       essential(message);
     }
@@ -213,7 +213,7 @@ export async function collectRepositoryContext(options: {
       );
     }
     if (scanFailures) {
-      const message = `The reference scan could not read ${scanFailures} repository file(s) for unchanged related code.`;
+      const message = `При сканировании ссылок не удалось прочитать ${scanFailures} файл(ов) репозитория для поиска неизменённого связанного кода.`;
       limitation(message);
       essential(message);
     }
@@ -230,7 +230,7 @@ export async function collectRepositoryContext(options: {
     const baseEntry = baseEntries.get(path);
     if (!entry) continue;
     if (!baseEntry || baseEntry.sha !== entry.sha) {
-      const message = `Related repository file ${path} differs between the pinned base and head but was not listed as changed; it was not included as unchanged related context.`;
+      const message = `Связанный файл репозитория ${path} отличается между закреплёнными base и head, но не указан как изменённый; он не включён как неизменённый связанный контекст.`;
       limitation(message);
       essential(message);
       continue;
@@ -249,19 +249,19 @@ export async function collectRepositoryContext(options: {
       selected.push({ path, sha: entry.sha, size: entry.size, reason, content: decoded });
       relatedBytes += bytes.length;
     } catch {
-      const message = `Related repository file ${path} could not be loaded at the pinned head.`;
+      const message = `Связанный файл репозитория ${path} не удалось загрузить на закреплённом head.`;
       limitation(message);
       essential(message);
     }
   }
   context.related = selected;
   if (omitted) {
-    const message = `Related repository context was limited to ${selected.length} unchanged file(s); ${omitted} related file(s) were omitted by count or size limits.`;
+    const message = `Контекст связанных файлов репозитория ограничен ${selected.length} неизменёнными файлами; ${omitted} связанных файлов исключены по лимиту количества или размера.`;
     limitation(message);
     essential(message);
   }
   const summary =
-    "Related repository context is limited to selected unchanged files at the pinned base and head; the full repository was not copied into the review workspace.";
+    "Контекст связанных файлов репозитория ограничен выбранными неизменёнными файлами на закреплённых base и head; полный репозиторий не копировался в рабочее пространство ревью.";
   limitation(summary);
   essential(summary);
   return context;

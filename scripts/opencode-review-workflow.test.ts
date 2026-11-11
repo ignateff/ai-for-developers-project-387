@@ -66,13 +66,13 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
         progress: (stage) => stages.push(stage),
         review: async ({ context }) => {
           snapshot = JSON.stringify(context);
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
     expect(snapshot).toContain("Booking requirements");
     expect(snapshot).toContain("image.png");
-    expect(snapshot).toContain("Binary content was not reviewed");
+    expect(snapshot).toContain("Двоичное содержимое не проверялось");
     expect(snapshot).toContain("Approved requirements");
     expect(snapshot).toContain("unconfirmed");
     expect(JSON.parse(snapshot).agreement.sources[0]).toMatchObject({
@@ -96,8 +96,8 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(report.limitations.join(" ")).toContain("CI context is incomplete");
-    expect(report.limitations.join(" ")).toContain("Previous review");
+    expect(report.limitations.join(" ")).toContain("Контекст CI неполон");
+    expect(report.limitations.join(" ")).toContain("Контекст предыдущих ревью");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -166,13 +166,17 @@ test.each([
       },
       {
         fetch: api,
-        review: async () => ({ summary: "No confirmed defects", findings: [], limitations: [] }),
+        review: async () => ({
+          summary: "Подтверждённых дефектов не найдено.",
+          findings: [],
+          limitations: [],
+        }),
       },
     );
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(report.limitations.join(" ")).toContain("context is incomplete");
+    expect(report.limitations.join(" ")).toContain("неполон");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -267,7 +271,7 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -283,9 +287,9 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
       explicitlyLinkedInPr: false,
       text: "ok",
     });
-    expect(snapshot.limitations.join(" ")).toContain("External or unsupported");
-    expect(snapshot.limitations.join(" ")).not.toContain("CI context is incomplete");
-    expect(snapshot.limitations.join(" ")).toContain("relative document link");
+    expect(snapshot.limitations.join(" ")).toContain("Внешние или неподдерживаемые");
+    expect(snapshot.limitations.join(" ")).not.toContain("Контекст CI неполон");
+    expect(snapshot.limitations.join(" ")).toContain("Относительную ссылку на документ");
     expect(requested.some((url) => url.includes("/contents/docs/historical.md"))).toBe(false);
     expect(snapshot.previousReview.reviewComments[0]).toMatchObject({
       path: "src/a.ts",
@@ -387,7 +391,11 @@ test("production review admits then calls runtime with changed file contents pin
               expect(JSON.stringify(context.requirements)).toContain("REVIEW.md");
               expect(context.baseSha).toBe(base);
               expect(context.headSha).toBe(sha);
-              return { summary: "No confirmed defects", findings: [], limitations: ["fixture"] };
+              return {
+                summary: "Подтверждённых дефектов не найдено.",
+                findings: [],
+                limitations: ["fixture"],
+              };
             },
           },
         );
@@ -415,7 +423,7 @@ test("production review admits then calls runtime with changed file contents pin
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(report.limitations.join(" ")).toContain("Related repository context");
+    expect(report.limitations.join(" ")).toContain("Контекст связанных файлов репозитория");
     env.GITHUB_RUN_ATTEMPT = "2";
     failSource = true;
     expect((await run(options)).status).toBe("infra");
@@ -566,7 +574,7 @@ test("collects pinned base and head trees with unchanged related files needed to
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -611,10 +619,10 @@ test("collects pinned base and head trees with unchanged related files needed to
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
     const limitations = saved.limitations.join(" ");
-    expect(limitations).toContain("Related repository context");
-    expect(limitations).not.toContain("Related repository context is unavailable");
-    expect(limitations).toContain("differs between the pinned base and head");
-    expect(limitations).not.toContain("Only changed files");
+    expect(limitations).toContain("Контекст связанных файлов репозитория");
+    expect(limitations).not.toContain("Контекст связанных файлов репозитория недоступен");
+    expect(limitations).toContain("отличается между закреплёнными base и head");
+    expect(limitations).not.toContain("только изменённые файлы");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -674,7 +682,7 @@ test("reports an explicit limitation when pinned repository trees are unavailabl
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -687,8 +695,8 @@ test("reports an explicit limitation when pinned repository trees are unavailabl
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
     const limitations = saved.limitations.join(" ");
-    expect(limitations).toContain("Related repository context is unavailable");
-    expect(limitations).toContain("PR commit history is incomplete or unavailable");
+    expect(limitations).toContain("Контекст связанных файлов репозитория недоступен");
+    expect(limitations).toContain("История коммитов PR неполна или недоступна");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -777,7 +785,7 @@ test("includes the pinned contract chain for API changes", async () => {
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -870,7 +878,7 @@ test("states explicitly when related context is capped", async () => {
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -878,7 +886,7 @@ test("states explicitly when related context is capped", async () => {
     const saved = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(saved.limitations.join(" ")).toContain("omitted by count or size limits");
+    expect(saved.limitations.join(" ")).toContain("исключены по лимиту количества или размера");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -944,13 +952,17 @@ test("reports a truncated index when the pinned tree exceeds the listing limit",
       },
       {
         fetch: api,
-        review: async () => ({ summary: "No confirmed defects", findings: [], limitations: [] }),
+        review: async () => ({
+          summary: "Подтверждённых дефектов не найдено.",
+          findings: [],
+          limitations: [],
+        }),
       },
     );
     const saved = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(saved.limitations.join(" ")).toContain("index exceeds 5000 entries");
+    expect(saved.limitations.join(" ")).toContain("превышает 5000 записей");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -1014,7 +1026,7 @@ test("fails closed to the unavailable-context limitation on a malformed pinned t
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -1022,7 +1034,9 @@ test("fails closed to the unavailable-context limitation on a malformed pinned t
     const saved = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(saved.limitations.join(" ")).toContain("Related repository context is unavailable");
+    expect(saved.limitations.join(" ")).toContain(
+      "Контекст связанных файлов репозитория недоступен",
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
