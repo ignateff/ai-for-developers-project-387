@@ -70,8 +70,10 @@ Validation happens in the trusted setup path and fails closed:
 
 - Command preparation and the command model check reject the value before
   runtime preparation or a model call.
-- Review admission rejects it before spending an attempt or installing the
-  runtime.
+- Review resolves it after authorization and admission, before installing the
+  runtime or calling the model. The failure follows the normal infrastructure
+  path: `review.json` and the `report`/`number`/`sha` outputs are created, so the
+  separately authorized publication step still reports the failed review.
 - Triage and performance-audit launchers reject it before spawning OpenCode.
 - Unsupported providers are rejected; the supported providers are the two in
   the table above.
@@ -115,8 +117,8 @@ model change cannot alter that diagnostic or make it depend on a paid provider.
 
 - Confirm the variable: `gh variable list`.
 - In the workflow log, find the safe line `OpenCode model: <provider/model>`.
-  It appears during command preparation/model check, review admission, and the
-  triage and audit launcher steps.
+  It appears during command preparation/model check, review preparation after
+  admission, and the triage and audit launcher steps.
 - Confirm the log does not contain either provider key.
 - Confirm the workflow reached its normal result. A model that does not exist,
   lacks access, or does not support tool calls fails at the provider and is

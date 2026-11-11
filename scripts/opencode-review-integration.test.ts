@@ -746,6 +746,99 @@ test("production CLI emits a failure artifact and workflow outputs for independe
   }
 });
 
+test.each([
+  ["unsafe model", { OPENCODE_MODEL: "deepseek/deepseek-flash; id" }],
+  ["unsupported provider", { OPENCODE_MODEL: "unknown/model" }],
+  ["missing provider credential", { OPENCODE_MODEL: "deepseek/deepseek-flash" }],
+] as const)(
+  "a %s configuration error is published as an infra review failure",
+  async (_name, configuration) => {
+    const dir = await mkdtemp(join(tmpdir(), "review-config-"));
+    const sha = "a".repeat(40);
+    const comments: { id: number; user: { id: number }; body: string }[] = [];
+    const repository = "owner/repo";
+    const api: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith("/pulls/7"))
+        return Response.json({
+          number: 7,
+          state: "open",
+          draft: false,
+          user: { type: "User", login: "owner" },
+          base: { repo: { id: 1, full_name: repository } },
+          head: { sha, repo: { id: 1, full_name: repository } },
+        });
+      if (init?.method === "POST") {
+        const comment = {
+          id: comments.length + 1,
+          user: { id: 42 },
+          body: JSON.parse(String(init.body)).body,
+        };
+        comments.push(comment);
+        return Response.json(comment);
+      }
+      const comment = comments.find((item) => path.endsWith(`/issues/comments/${item.id}`));
+      if (comment && init?.method === "PATCH") {
+        comment.body = JSON.parse(String(init.body)).body;
+        return Response.json(comment);
+      }
+      return Response.json(comments);
+    };
+    const eventPath = join(dir, "event.json");
+    const output = join(dir, "output");
+    const logs = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await writeFile(
+        eventPath,
+        JSON.stringify({
+          action: "opened",
+          repository: { full_name: repository },
+          pull_request: { number: 7 },
+        }),
+      );
+      const result = await runBudgetCli({
+        kind: "review",
+        env: {
+          RUNNER_TEMP: dir,
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_OUTPUT: output,
+          GITHUB_EVENT_NAME: "pull_request",
+          GITHUB_REPOSITORY: repository,
+          GITHUB_REPOSITORY_OWNER: "owner",
+          GITHUB_RUN_ID: "1",
+          GITHUB_RUN_ATTEMPT: "1",
+          GH_TOKEN: "token",
+          OPENCODE_API_KEY: "fixture-key",
+          OPENCODE_REVIEW_STARTED_AT: String(Date.now()),
+          ...configuration,
+        },
+        fetch: api,
+        authorId: 42,
+      });
+      expect(result).toMatchObject({ status: "infra", number: 7, sha });
+      const outputs = Object.fromEntries(
+        (await readFile(output, "utf8"))
+          .trim()
+          .split("\n")
+          .map((line) => line.split("=")),
+      );
+      expect(outputs).toMatchObject({ allowed: "false", report: "true", number: "7", sha });
+      expect(
+        JSON.parse(await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8")),
+      ).toEqual({ failure: "infra" });
+      const text = [...logs.mock.calls.flat(), ...errors.mock.calls.flat()].join("\n");
+      expect(text).toContain("OpenCode model");
+      expect(text).not.toContain("fixture-key");
+      expect(text).not.toContain("runtime installation started");
+    } finally {
+      logs.mockRestore();
+      errors.mockRestore();
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
+
 test.each(["infra", "timeout", "agent_failed"] as const)(
   "an admitted %s is independently published with SHA and logs, never as a successful review",
   async (reason) => {
