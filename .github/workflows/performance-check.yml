@@ -79,9 +79,13 @@ jobs:
             report it as unavailable, not as a regression.
             For metrics that degraded by more than 10%,
             identify likely culprits in recent commits and
-            search existing issues, then create a task only for a new finding.
+            search open and closed issues for the same finding, then create a
+            task only for a new finding.
             Include the evidence, proposed action and a link to this run.
-            Do not repeat unchanged comments or commit the report.
+            Existing findings and summaries may already be published in English:
+            reuse those issues and comments instead of creating Russian
+            duplicates. Add a comment only when the evidence or result changed,
+            and never repeat an unchanged comment. Do not commit the report.
             Write every user-facing issue title, issue body, comment and summary in Russian.
             Keep metric names (LCP, CLS, INP), identifiers, paths, URLs and code unchanged.
           PROMPT

@@ -70,7 +70,7 @@ it("asks triage for Russian prose and an explicit Russian AI marker", () => {
   expect(run.env.PROMPT).not.toContain("Respond in the language of the issue");
 });
 
-it("requests Russian audit output while preserving performance identifiers", () => {
+it("requests Russian audit output and reuses existing English findings", () => {
   const manual = workflow(".github/workflows/performance-check.yml");
   expect(manual.on.workflow_dispatch.inputs.app_url.description).toContain("URL приложения");
   const run = stepNamed(manual.jobs.lighthouse, "Проанализировать с помощью OpenCode");
@@ -79,6 +79,10 @@ it("requests Russian audit output while preserving performance identifiers", () 
     "Write every user-facing issue title, issue body, comment and summary in Russian.",
   );
   expect(prompt).toContain("Keep metric names (LCP, CLS, INP)");
+  expect(prompt).toContain("search open and closed issues");
+  expect(prompt).toContain("Existing findings and summaries may already be published in English");
+  expect(prompt).toContain("reuse those issues and comments");
+  expect(prompt).toContain("never repeat an unchanged comment");
   expect(stepNamed(manual.jobs.lighthouse, "Запустить Lighthouse").run).toContain(
     "Укажите параметр app_url или переменную репозитория APP_URL.",
   );
