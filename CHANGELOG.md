@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.11.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.10.0...v0.11.0) (2026-11-11)
+
+
+### Features
+
+* **ci:** localize workflow messages to Russian ([95430a1](https://github.com/ignateff/ai-for-developers-project-387/commit/95430a1e2aa8a3ff10a1fe2fa0d938b0ff0f091c)), closes [#106](https://github.com/ignateff/ai-for-developers-project-387/issues/106)
+* **ci:** unify OpenCode model configuration ([b344b15](https://github.com/ignateff/ai-for-developers-project-387/commit/b344b15be8518b94a3778540b2ce3d165c3acf70))
+* **ci:** unify OpenCode model configuration ([7f445eb](https://github.com/ignateff/ai-for-developers-project-387/commit/7f445ebc2e5885a21b55bd6c34341fffd3715249)), closes [#104](https://github.com/ignateff/ai-for-developers-project-387/issues/104)
+* **ci:** локализовать пользовательские сообщения GitHub Actions ([31bf929](https://github.com/ignateff/ai-for-developers-project-387/commit/31bf9296f40300bd767ab7bd983eff56156e2529))
+* **opencode:** allow validated implementer and reviewer subagents ([22dbeff](https://github.com/ignateff/ai-for-developers-project-387/commit/22dbeff0ba646c7557705eeabeef0e22fc1cf89c)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** count allowlisted tool permission decisions ([d43c942](https://github.com/ignateff/ai-for-developers-project-387/commit/d43c9429f3e4b7de678b91926e7a77c09dffcd66)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** localize automatic review output to Russian ([37fff89](https://github.com/ignateff/ai-for-developers-project-387/commit/37fff891cb2099adb0a633d8ee1f3f57f17dc849)), closes [#102](https://github.com/ignateff/ai-for-developers-project-387/issues/102)
+* **opencode:** log detailed safe activity for /oc ([40b475e](https://github.com/ignateff/ai-for-developers-project-387/commit/40b475e512f63f87c59d9a982aa89c249a238655)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83) [#90](https://github.com/ignateff/ai-for-developers-project-387/issues/90)
+* **opencode:** require conventional commits in command runtime ([a075daa](https://github.com/ignateff/ai-for-developers-project-387/commit/a075daac16d55570fcad6d366c9059919b51d8d6)), closes [#100](https://github.com/ignateff/ai-for-developers-project-387/issues/100)
+* **opencode:** restore /oc comment handler with safe logging and two-hour limits ([7bb1860](https://github.com/ignateff/ai-for-developers-project-387/commit/7bb18607d1cdd3a74c6d872d8ec6c330a4dc505a))
+* **opencode:** stream raw handler output ([9420d3a](https://github.com/ignateff/ai-for-developers-project-387/commit/9420d3a3f639636d1d5ba62aca0a7f41fde293e2))
+* **opencode:** stream raw handler output ([0b3781a](https://github.com/ignateff/ai-for-developers-project-387/commit/0b3781a1c3c9664c6ed62b5af8265c29113dc3c9)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** summarize safe subagent diagnostics ([02b4ec2](https://github.com/ignateff/ai-for-developers-project-387/commit/02b4ec2d1e8d380e49f5df21eb80b72c58dbfbf6)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** support /oc subagent delegation and transparent diagnostics ([72d7fb6](https://github.com/ignateff/ai-for-developers-project-387/commit/72d7fb606ba949afc3a78a2c5179c3dd426ae088))
+* **opencode:** перевести автоматическое ревью на русский язык ([6b0ffbd](https://github.com/ignateff/ai-for-developers-project-387/commit/6b0ffbddde7f313f9c88d66b656f4953d8ac53e5))
+
+
+### Bug Fixes
+
+* **ci:** publish review report on model config errors ([3b0100a](https://github.com/ignateff/ai-for-developers-project-387/commit/3b0100a99adc42b71eecb4ed5ead19d37ab3e739)), closes [#104](https://github.com/ignateff/ai-for-developers-project-387/issues/104)
+* **ci:** reuse existing English performance findings ([681d25b](https://github.com/ignateff/ai-for-developers-project-387/commit/681d25bd011787f051c66429b701c2bb3f8bc9a2)), closes [#106](https://github.com/ignateff/ai-for-developers-project-387/issues/106)
+* **opencode:** always state no-defects in Russian ([cc72663](https://github.com/ignateff/ai-for-developers-project-387/commit/cc72663e70e6bfc0d42ba38859680c82ed0feceb)), closes [#102](https://github.com/ignateff/ai-for-developers-project-387/issues/102)
+* **opencode:** bound diagnostic handler execution ([a7d26a7](https://github.com/ignateff/ai-for-developers-project-387/commit/a7d26a77c8389261c5f3d0263647286d8f822410))
+* **opencode:** bound diagnostic handler execution ([00ec42f](https://github.com/ignateff/ai-for-developers-project-387/commit/00ec42f1b220328e915b630157ffbccae8663887)), closes [#87](https://github.com/ignateff/ai-for-developers-project-387/issues/87)
+* **opencode:** clarify diagnostics and verify worktree merge ([606fd87](https://github.com/ignateff/ai-for-developers-project-387/commit/606fd872ab5778a4709931f423a0b8d6e361b98d)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** flush activity events on watcher stop ([9d380f5](https://github.com/ignateff/ai-for-developers-project-387/commit/9d380f5c8a8e7f6bb15901dbd5d038f892fea3e6)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** keep cancellation escalation alive in the CLI process ([196cc3a](https://github.com/ignateff/ai-for-developers-project-387/commit/196cc3a9336e5512e5bfd5bae3c46d200fa9fe5f)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** keep SIGKILL escalation after the handler exits ([27e7e54](https://github.com/ignateff/ai-for-developers-project-387/commit/27e7e54cf3375e8cd10948bc3f874652f6223a44)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** report failures for ordinary issue commands ([b5d5621](https://github.com/ignateff/ai-for-developers-project-387/commit/b5d56211f6f3391a2137fc464cbac58d1aa50b14)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** require conventional commits in command runtime ([1bca5f7](https://github.com/ignateff/ai-for-developers-project-387/commit/1bca5f706a01af494beeff6cfb90c4e0f7e3461f))
+* **opencode:** skip oversized runtime log lines ([4b7563b](https://github.com/ignateff/ai-for-developers-project-387/commit/4b7563b8a173a3aa87614990ee3c950cd34adcc0)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** stop claiming concurrency compliance from loop boundaries ([c23dd5b](https://github.com/ignateff/ai-for-developers-project-387/commit/c23dd5bbc8c40b03f85e860db2dee60ef7495fb9)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** stream the runtime log for the summary ([84d2145](https://github.com/ignateff/ai-for-developers-project-387/commit/84d21452aa19c3d129dfc510e543ca6220137788)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** support implement-spec worktrees and sequential subagents ([18d4e06](https://github.com/ignateff/ai-for-developers-project-387/commit/18d4e066618534ace55c287b5774d94b85bb4188)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **opencode:** tighten the activity command-family filter ([16f56ef](https://github.com/ignateff/ai-for-developers-project-387/commit/16f56ef998bf7f7e0f64a6dc13ff366c221e5d8f)), closes [#83](https://github.com/ignateff/ai-for-developers-project-387/issues/83)
+* **review:** handle binary files in pull requests ([c5442ae](https://github.com/ignateff/ai-for-developers-project-387/commit/c5442aea37f4b12c1dddae12cd707dbd0ddd4863))
+* **review:** handle binary files in pull requests ([8dcb810](https://github.com/ignateff/ai-for-developers-project-387/commit/8dcb8103f3b10f732fe022420b93492ef4d6b15e)), closes [#39](https://github.com/ignateff/ai-for-developers-project-387/issues/39)
+
 ## [0.10.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.9.0...v0.10.0) (2026-11-08)
 
 
