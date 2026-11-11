@@ -92,7 +92,7 @@ test.each([
     GITHUB_RUN_ATTEMPT: "1",
     GITHUB_REPOSITORY: repository,
     GH_TOKEN: "fixture-token",
-    DEEPSEEK_API_KEY: "fixture-key",
+    OPENCODE_API_KEY: "fixture-key",
     OPENCODE_PR_NUMBER: "7",
     OPENCODE_HEAD_SHA: sha,
     OPENCODE_REVIEW_ARTIFACT: "review-1-1",
@@ -345,7 +345,7 @@ test.each([false, true])(
       GITHUB_RUN_ATTEMPT: "1",
       GITHUB_REPOSITORY: repository,
       GH_TOKEN: "fixture-token",
-      DEEPSEEK_API_KEY: "fixture-key",
+      OPENCODE_API_KEY: "fixture-key",
       OPENCODE_PR_NUMBER: "7",
       OPENCODE_HEAD_SHA: sha,
       OPENCODE_REVIEW_ARTIFACT: "review-1-1",
@@ -481,7 +481,7 @@ test("a review that runs out of preparation time reports infrastructure failure 
     GITHUB_RUN_ID: "1",
     GITHUB_RUN_ATTEMPT: "1",
     GH_TOKEN: "token",
-    DEEPSEEK_API_KEY: "key",
+    OPENCODE_API_KEY: "key",
     OPENCODE_REVIEW_STARTED_AT: String(now),
   };
   let calls = 0;
@@ -573,7 +573,7 @@ test.each([
     GITHUB_RUN_ID: "1",
     GITHUB_RUN_ATTEMPT: "1",
     GH_TOKEN: "token",
-    DEEPSEEK_API_KEY: "key",
+    OPENCODE_API_KEY: "key",
     OPENCODE_REVIEW_STARTED_AT: String(Date.now()),
   };
   const comments: any[] = [];
@@ -684,7 +684,7 @@ test("production CLI emits a failure artifact and workflow outputs for independe
     GITHUB_RUN_ID: "1",
     GITHUB_RUN_ATTEMPT: "1",
     GH_TOKEN: "token",
-    DEEPSEEK_API_KEY: "key",
+    OPENCODE_API_KEY: "key",
   };
   try {
     await writeFile(
@@ -889,7 +889,7 @@ test("trusted PR event produces a separately published review, while a stale hea
     GITHUB_RUN_ATTEMPT: "1",
     GITHUB_REPOSITORY: repository,
     GH_TOKEN: "fixture-token",
-    DEEPSEEK_API_KEY: "fixture-key",
+    OPENCODE_API_KEY: "fixture-key",
     OPENCODE_PR_NUMBER: "7",
     OPENCODE_HEAD_SHA: sha,
     OPENCODE_REVIEW_ARTIFACT: "review-1-1",

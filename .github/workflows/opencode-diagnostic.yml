@@ -22,6 +22,9 @@ jobs:
           version: 2026.10.23
       - name: Run bounded handler diagnostic
         timeout-minutes: 6
+        # Intentionally does not use the shared repository model variable: the
+        # diagnostic pins a separate model and must not depend on production
+        # provider credentials.
         run: mise run opencode:github-diagnostic
         env:
           GITHUB_TOKEN: ${{ github.token }}

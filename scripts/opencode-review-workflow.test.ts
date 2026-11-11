@@ -6,6 +6,30 @@ import { expect, test } from "vitest";
 import { parse } from "yaml";
 import { reviewWorkflow } from "./opencode-review-workflow";
 import { createProductionWorkflow } from "./opencode-production-workflow";
+import { defaultOpenCodeModel } from "./opencode-model";
+
+test("review requires the credential that matches the configured provider", async () => {
+  const env = {
+    RUNNER_TEMP: "/tmp",
+    GITHUB_RUN_ID: "1",
+    GITHUB_RUN_ATTEMPT: "1",
+  };
+  await expect(
+    reviewWorkflow("run", {
+      ...env,
+      OPENCODE_MODEL: "deepseek/deepseek-flash",
+      OPENCODE_API_KEY: "wrong-provider-key",
+    }),
+  ).rejects.toThrow(/DEEPSEEK_API_KEY is required/);
+  await expect(
+    reviewWorkflow("run", { ...env, OPENCODE_MODEL: "deepseek/deepseek-flash; id" }),
+  ).rejects.toThrow(/OpenCode model configuration is invalid/);
+  await expect(reviewWorkflow("run", env)).rejects.toThrow(/OPENCODE_API_KEY is required/);
+});
+
+test("review uses the shared default model when OPENCODE_MODEL is unset", async () => {
+  expect(defaultOpenCodeModel).toBe("opencode-go/deepseek-v4.1-flash");
+});
 
 test("review collects linked requirements and identifies an unconfirmed agreement", async () => {
   const dir = await mkdtemp(join(tmpdir(), "review-context-"));
@@ -55,7 +79,7 @@ test("review collects linked requirements and identifies an unconfirmed agreemen
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "model-secret",
+        OPENCODE_API_KEY: "model-secret",
         GH_TOKEN: "github-secret",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -158,7 +182,7 @@ test.each([
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture",
+        OPENCODE_API_KEY: "fixture",
         GH_TOKEN: "fixture",
         GITHUB_REPOSITORY: "owner/repo",
         OPENCODE_PR_NUMBER: "7",
@@ -261,7 +285,7 @@ test("collects bounded nested evidence, pinned base docs and paginated CI withou
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "secret-model",
+        OPENCODE_API_KEY: "secret-model",
         GH_TOKEN: "secret-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -367,7 +391,7 @@ test("production review admits then calls runtime with changed file contents pin
       RUNNER_TEMP: dir,
       GITHUB_RUN_ID: "1",
       GITHUB_RUN_ATTEMPT: "1",
-      DEEPSEEK_API_KEY: "fixture",
+      OPENCODE_API_KEY: "fixture",
       GH_TOKEN: "fixture",
       GITHUB_REPOSITORY: "owner/repo",
     };
@@ -448,6 +472,9 @@ test("review model job spends inside the rerun job without holding the budget qu
   const model = job.steps.findIndex((s: { id?: string }) => s.id === "workflow");
   expect(model).toBeGreaterThan(-1);
   expect(job.steps[model].run).toBe("mise run opencode:budget review");
+  expect(job.steps[model].env.OPENCODE_MODEL).toBe("${{ vars.OPENCODE_MODEL }}");
+  expect(job.steps[model].env.OPENCODE_API_KEY).toBe("${{ secrets.OPENCODE_API_KEY }}");
+  expect(job.steps[model].env.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
   expect(JSON.stringify(job.steps.slice(0, model))).not.toContain("secrets.");
   const publish = workflow.jobs.publish;
   expect(publish.needs).toBe("review");
@@ -564,7 +591,7 @@ test("collects pinned base and head trees with unchanged related files needed to
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture-key",
+        OPENCODE_API_KEY: "fixture-key",
         GH_TOKEN: "fixture-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -672,7 +699,7 @@ test("reports an explicit limitation when pinned repository trees are unavailabl
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture-key",
+        OPENCODE_API_KEY: "fixture-key",
         GH_TOKEN: "fixture-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -775,7 +802,7 @@ test("includes the pinned contract chain for API changes", async () => {
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture-key",
+        OPENCODE_API_KEY: "fixture-key",
         GH_TOKEN: "fixture-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -868,7 +895,7 @@ test("states explicitly when related context is capped", async () => {
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture-key",
+        OPENCODE_API_KEY: "fixture-key",
         GH_TOKEN: "fixture-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -944,7 +971,7 @@ test("reports a truncated index when the pinned tree exceeds the listing limit",
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture-key",
+        OPENCODE_API_KEY: "fixture-key",
         GH_TOKEN: "fixture-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",
@@ -1016,7 +1043,7 @@ test("fails closed to the unavailable-context limitation on a malformed pinned t
         RUNNER_TEMP: dir,
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
-        DEEPSEEK_API_KEY: "fixture-key",
+        OPENCODE_API_KEY: "fixture-key",
         GH_TOKEN: "fixture-token",
         GITHUB_REPOSITORY: "ignateff/ai-for-developers-project-387",
         OPENCODE_PR_NUMBER: "7",

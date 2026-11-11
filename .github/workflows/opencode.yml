@@ -85,6 +85,7 @@ jobs:
         run: mise run opencode:prepare
         env:
           GH_TOKEN: ${{ github.token }}
+          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Run admitted command
@@ -93,7 +94,7 @@ jobs:
         timeout-minutes: 130
         continue-on-error: true
         run: |
-          if [ -z "$OPENCODE_API_KEY" ]; then
+          if ! node scripts/opencode-model.ts check; then
             echo "reason=infra" >> "$GITHUB_OUTPUT"
             exit 1
           fi
@@ -111,8 +112,10 @@ jobs:
           exit "$result"
         env:
           GH_TOKEN: ${{ github.token }}
+          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           # Explicitly authorized public raw diagnostic output; may expose secrets.
           OPENCODE_RAW_OUTPUT: "1"
 

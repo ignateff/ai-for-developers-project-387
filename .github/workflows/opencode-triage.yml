@@ -69,13 +69,14 @@ jobs:
 
       - name: Preliminary triage
         if: steps.trust.outputs.result == 'true'
-        run: '"$OPENCODE_BINARY" github run'
+        run: node scripts/opencode-launch.ts "$OPENCODE_BINARY" github run
         env:
           OPENCODE_BINARY: ${{ steps.runtime.outputs.path }}
+          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           USE_GITHUB_TOKEN: "true"
-          MODEL: deepseek/deepseek-flash
           OPENCODE_DISABLE_PROJECT_CONFIG: "1"
           OPENCODE_DISABLE_EXTERNAL_SKILLS: "1"
           OPENCODE_DISABLE_CLAUDE_CODE: "1"

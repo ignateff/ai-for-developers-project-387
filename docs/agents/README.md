@@ -4,6 +4,7 @@
 - [Project history](project-history.md): inherited specifications, decisions and migration boundary.
 - [Skill configuration](skills.md): project-local skills, dependency lock and OpenCode configuration.
 - [OpenCode command execution](../opencode-commands.md): `/oc` runtime, trust boundary, commit policy and limits.
+- [OpenCode model configuration](../opencode-models.md): shared model variable, defaults, credentials and switching.
 - [Domain](domain.md): glossary and ADR conventions.
 - [Testing](testing.md): full checks, contract, browser, visual and Docker verification.
 - [Quality gates](../quality-gates.md): scanner scope, accepted findings and dated exception review.

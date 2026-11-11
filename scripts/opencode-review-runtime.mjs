@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installRuntime, runtimeVersion, verifyInstalledRuntime } from "./opencode-install.ts";
+import { defaultOpenCodeModel } from "./opencode-model.ts";
 import { createReviewAdapter, runReviewProcess } from "./opencode-review.ts";
 
 const root = await realpath(await mkdtemp(join(tmpdir(), "calendar-review-runtime-")));
@@ -226,8 +227,8 @@ async function probe(binary, scenario) {
             },
           };
           env.OPENCODE_CONFIG_CONTENT = JSON.stringify(config);
-          assert.equal(args[args.indexOf("--model") + 1], "deepseek/deepseek-flash");
-          args = args.map((arg) => (arg === "deepseek/deepseek-flash" ? "fixture/fixture" : arg));
+          assert.equal(args[args.indexOf("--model") + 1], defaultOpenCodeModel);
+          args = args.map((arg) => (arg === defaultOpenCodeModel ? "fixture/fixture" : arg));
         }
         try {
           const stdout = await runReviewProcess(executable, args, {

@@ -55,11 +55,14 @@ agent's published results; a successful run is not proof of an authorized action
 ## Runtime and delivery
 
 The local adapter retains upstream `opencode github run`, App/OIDC token exchange,
-and the OpenCode Go provider model `opencode-go/deepseek-v4.1-flash`. It replaces the floating installation performed by
+and the model selected by the repository variable `OPENCODE_MODEL`
+(`opencode-go/deepseek-v4.1-flash` when unset). It replaces the floating installation performed by
 the upstream composite Action. The pinned CLI must be verified before the handler
 starts; a version-specific cache key alone is insufficient. The runtime archive
 download is retried a bounded number of times within a fixed time budget; failures
-stay generic and never include response bodies or raw errors.
+stay generic and never include response bodies or raw errors. See
+[OpenCode model configuration](opencode-models.md) for supported providers,
+credentials and switching.
 
 The handler creates a branch and PR for issue commands. For comments on an
 existing internal PR it updates that PR instead of creating another one. The

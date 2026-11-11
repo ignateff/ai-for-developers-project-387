@@ -82,6 +82,8 @@ it("records admission before giving the model access to credentials", () => {
   expect(marker).toBeGreaterThan(admission);
   expect(command).toBeGreaterThan(marker);
   expect(steps[command].env.OPENCODE_API_KEY).toBe("${{ secrets.OPENCODE_API_KEY }}");
+  expect(steps[command].env.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
+  expect(steps[command].env.OPENCODE_MODEL).toBe("${{ vars.OPENCODE_MODEL }}");
   expect(JSON.stringify(steps.slice(0, command))).not.toContain("secrets.");
   expect(job.permissions).toMatchObject({ actions: "read", issues: "write", contents: "read" });
 });
