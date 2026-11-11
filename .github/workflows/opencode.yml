@@ -1,4 +1,4 @@
-name: Opencode
+name: "OpenCode: команды /oc и /opencode"
 
 # Classification runs outside the command queue; only matching jobs are serialized.
 # jactionlint ignore=concurrency-limits
@@ -20,7 +20,7 @@ jobs:
     outputs:
       command: ${{ steps.match.outputs.command }}
     steps:
-      - name: Classify comment without credentials
+      - name: Классифицировать комментарий без доступа к секретам
         id: match
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
@@ -32,6 +32,8 @@ jobs:
           NODE
 
   opencode:
+    # This job name is read from Actions history by scripts/opencode-actions-budget.ts.
+    # Keep it unchanged so attempts made before the localization remain countable.
     name: opencode-command-v2-pr-${{ github.event.issue.number || github.event.pull_request.number }}
     needs: classify
     if: needs.classify.outputs.command == 'true'
@@ -56,28 +58,31 @@ jobs:
       # The agent publishes approved specifications and tickets via gh.
       issues: write
     steps:
-      - name: Checkout repository
+      - name: Получить репозиторий
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Install project tooling
+      - name: Установить инструменты проекта
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
         with:
           version: 2026.10.23
 
-      - name: Authorize and check Actions history
+      - name: Проверить права и историю Actions
         id: admission
         run: mise run opencode:actions-budget
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # The job name and this step name are read from Actions history by
+      # scripts/opencode-actions-budget.ts. Keep them unchanged so attempts made
+      # before the localization remain countable.
       - name: Record command admission v2
         if: steps.admission.outputs.status == 'allowed'
-        run: echo "Command admitted"
+        run: echo "Команда допущена"
 
-      - name: Prepare command
+      - name: Подготовить команду
         id: prepare
         if: steps.admission.outputs.status == 'allowed'
         timeout-minutes: 6
@@ -88,7 +93,7 @@ jobs:
           OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Run admitted command
+      - name: Запустить допущенную команду
         id: command
         if: steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success'
         timeout-minutes: 130
@@ -119,7 +124,7 @@ jobs:
           # Explicitly authorized public raw diagnostic output; may expose secrets.
           OPENCODE_RAW_OUTPUT: "1"
 
-      - name: Summarize runtime log safely
+      - name: Безопасно суммировать лог выполнения
         if: ${{ !cancelled() && steps.admission.outputs.status == 'allowed' && steps.prepare.outcome == 'success' }}
         timeout-minutes: 5
         continue-on-error: true
@@ -127,7 +132,7 @@ jobs:
         env:
           OPENCODE_COMMAND_DIR: ${{ runner.temp }}/oc-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Classify command outcome
+      - name: Классифицировать результат команды
         id: outcome
         # Issue commands have no admission PR, so failures on issues must be
         # classified too. Untrusted/skipped admissions stay silent (no notification
@@ -146,7 +151,7 @@ jobs:
           fi
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
 
-      - name: Fail for command errors
+      - name: Завершить с ошибкой команды
         if: ${{ !cancelled() && (steps.prepare.outcome == 'failure' || steps.command.outcome == 'failure') }}
         run: exit 1
 
@@ -160,7 +165,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - name: Report command outcome
+      - name: Сообщить о результате команды
         env:
           GH_TOKEN: ${{ github.token }}
           # The triggering issue or PR number, available even when the agent was
@@ -174,16 +179,16 @@ jobs:
           : "${TARGET_NUMBER:?missing source issue or pull request number}"
           sha=${PR_SHA:-unknown}
           case "$REASON" in
-            timeout) explanation="the agent hit the 2-hour work limit before publishing a verified result" ;;
-            limit_exhausted) explanation="the attempt budget for this issue or pull request is exhausted" ;;
-            infra) explanation="the workflow could not start the agent (infrastructure or preparation failure)" ;;
-            agent_failed) explanation="the agent failed before publishing a verified result" ;;
-            *) explanation="unknown cause" ;;
+            timeout) explanation="агент исчерпал лимит работы 2 часа до публикации проверенного результата" ;;
+            limit_exhausted) explanation="бюджет попыток для этой задачи или pull request исчерпан" ;;
+            infra) explanation="workflow не смог запустить агента (инфраструктурная ошибка или ошибка подготовки)" ;;
+            agent_failed) explanation="агент завершился с ошибкой до публикации проверенного результата" ;;
+            *) explanation="неизвестная причина" ;;
           esac
-          body=$(printf '**OpenCode command failed. Task completion is NOT confirmed.**\n\nThe command did not finish successfully, so there is no verified result.\n\nReason: %s - %s\nSHA: %s\nActions run: %s\n' "$REASON" "$explanation" "$sha" "$RUN_URL")
+          body=$(printf '**Команда OpenCode завершилась ошибкой. Завершение задачи НЕ подтверждено.**\n\nКоманда не завершилась успешно, поэтому проверенного результата нет.\n\nПричина: %s — %s\nSHA: %s\nЗапуск Actions: %s\n' "$REASON" "$explanation" "$sha" "$RUN_URL")
           comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$TARGET_NUMBER/comments" -f "body=$body" --jq .id)
           if [ -z "$comment_id" ] || [ "$comment_id" = "null" ]; then
-            echo "Failed to publish the failure comment: no comment id was returned." >&2
+            echo "Не удалось опубликовать комментарий об ошибке: GitHub не вернул id комментария." >&2
             exit 1
           fi
-          echo "Published failure comment $comment_id for reason $REASON on issue or PR $TARGET_NUMBER."
+          echo "Опубликован комментарий об ошибке $comment_id: причина $REASON, задача или PR $TARGET_NUMBER."

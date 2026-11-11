@@ -38,12 +38,17 @@ enabled separately, with owner agreement, before it can run.
 
 ## Verification
 
-Inspect the **Release please** run on the latest `main`. If a release PR is
+Inspect the **Релиз release-please** run on the latest `main`. If a release PR is
 created, review its proposed version against the latest published release, its
 notes and links against the relevant history, and its CI status. Report
 discrepancies rather than merging the PR. If no PR is created, explain whether
 there are no releasable changes or whether the run failed. Merging a release PR
 and creating a GitHub Release require a separate human decision.
+
+Release Please generates the release PR title, changelog and GitHub Release notes
+itself. Those texts remain English because the third-party action and the
+project's English Conventional Commit messages determine them; the workflow
+display names are localized separately.
 
 Reference: [Release Please Action](https://github.com/googleapis/release-please-action)
 and [manifest configuration](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md).

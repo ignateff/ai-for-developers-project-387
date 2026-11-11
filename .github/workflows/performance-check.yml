@@ -1,10 +1,10 @@
-name: Performance check
+name: Проверка производительности
 
 on:
   workflow_dispatch:
     inputs:
       app_url:
-        description: Application URL to audit (defaults to APP_URL or the deployed application)
+        description: URL приложения для аудита (по умолчанию APP_URL или развёрнутое приложение)
         required: false
         type: string
 
@@ -18,23 +18,23 @@ jobs:
       contents: read
       issues: write
     steps:
-      - name: Checkout repository
+      - name: Получить репозиторий
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Install Node.js
+      - name: Установить Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24.22.2"
 
-      - name: Run Lighthouse
+      - name: Запустить Lighthouse
         env:
           APP_URL: ${{ inputs.app_url || vars.APP_URL || 'https://call-calendar-k7f2.fly.dev' }}
         run: |
           if [ -z "$APP_URL" ]; then
-            echo "Set the app_url input or the APP_URL repository variable." >&2
+            echo "Укажите параметр app_url или переменную репозитория APP_URL." >&2
             exit 1
           fi
           mkdir -p .audit
@@ -43,7 +43,7 @@ jobs:
             --output-path=.audit/lighthouse-report.json \
             --chrome-flags="--headless"
 
-      - name: Save report
+      - name: Сохранить отчёт
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: lighthouse-report
@@ -51,12 +51,12 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-      - name: Install project tooling
+      - name: Установить инструменты проекта
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
         with:
           version: 2026.10.23
 
-      - name: Install OpenCode
+      - name: Установить OpenCode
         id: opencode
         shell: bash
         run: |
@@ -64,7 +64,7 @@ jobs:
           test -x "$executable"
           echo "executable=$executable" >> "$GITHUB_OUTPUT"
 
-      - name: Analyze with OpenCode
+      - name: Проанализировать с помощью OpenCode
         env:
           OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -79,8 +79,14 @@ jobs:
             report it as unavailable, not as a regression.
             For metrics that degraded by more than 10%,
             identify likely culprits in recent commits and
-            search existing issues, then create a task only for a new finding.
+            search open and closed issues for the same finding, then create a
+            task only for a new finding.
             Include the evidence, proposed action and a link to this run.
-            Do not repeat unchanged comments or commit the report.
+            Existing findings and summaries may already be published in English:
+            reuse those issues and comments instead of creating Russian
+            duplicates. Add a comment only when the evidence or result changed,
+            and never repeat an unchanged comment. Do not commit the report.
+            Write every user-facing issue title, issue body, comment and summary in Russian.
+            Keep metric names (LCP, CLS, INP), identifiers, paths, URLs and code unchanged.
           PROMPT
           )"

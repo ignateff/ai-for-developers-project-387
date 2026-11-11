@@ -103,7 +103,7 @@ it("isolates PR reporting permission from the model job", () => {
 
 it("explains each failure reason without confirming task completion", () => {
   const report = workflow().jobs.report.steps[0];
-  expect(report.name).toBe("Report command outcome");
+  expect(report.name).toBe("Сообщить о результате команды");
   expect(report.env).toEqual({
     GH_TOKEN: "${{ github.token }}",
     TARGET_NUMBER: "${{ github.event.issue.number || github.event.pull_request.number }}",
@@ -111,18 +111,20 @@ it("explains each failure reason without confirming task completion", () => {
     REASON: "${{ needs.opencode.outputs.reason }}",
     RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
   });
-  expect(report.run).toContain("**OpenCode command failed. Task completion is NOT confirmed.**");
-  expect(report.run).toContain('timeout) explanation="the agent hit the 2-hour work limit');
   expect(report.run).toContain(
-    'limit_exhausted) explanation="the attempt budget for this issue or pull request is exhausted"',
+    "**Команда OpenCode завершилась ошибкой. Завершение задачи НЕ подтверждено.**",
+  );
+  expect(report.run).toContain('timeout) explanation="агент исчерпал лимит работы 2 часа');
+  expect(report.run).toContain(
+    'limit_exhausted) explanation="бюджет попыток для этой задачи или pull request исчерпан"',
   );
   expect(report.run).toContain(
-    'infra) explanation="the workflow could not start the agent (infrastructure or preparation failure)"',
+    'infra) explanation="workflow не смог запустить агента (инфраструктурная ошибка или ошибка подготовки)"',
   );
   expect(report.run).toContain(
-    'agent_failed) explanation="the agent failed before publishing a verified result"',
+    'agent_failed) explanation="агент завершился с ошибкой до публикации проверенного результата"',
   );
-  expect(report.run).toContain('*) explanation="unknown cause"');
+  expect(report.run).toContain('*) explanation="неизвестная причина"');
   expect(report.run).toContain('"$REASON"');
   expect(report.run).toContain("sha=${PR_SHA:-unknown}");
   expect(report.run).toContain('"$sha"');
@@ -138,7 +140,7 @@ it("fails the report step when the failure comment cannot be published", () => {
   expect(report.run).toContain("--jq .id");
   expect(report.run).toContain('if [ -z "$comment_id" ] || [ "$comment_id" = "null" ]');
   expect(report.run.indexOf('if [ -z "$comment_id" ]')).toBeLessThan(
-    report.run.indexOf('echo "Published failure comment'),
+    report.run.indexOf('echo "Опубликован комментарий об ошибке'),
   );
   expect(report.run).toContain("exit 1");
 });
@@ -226,7 +228,7 @@ it("comments on the source issue and fails if the comment is not published", () 
     const args = readFileSync(argsFile, "utf8");
     expect(args).toContain("repos/fixture/repo/issues/83/comments");
     expect(args).toContain("--jq");
-    expect(args).toContain("Task completion is NOT confirmed");
+    expect(args).toContain("Завершение задачи НЕ подтверждено");
     expect(args).toContain("SHA: unknown");
     expect(args).toContain("https://example.invalid/run/1");
     expect(args).not.toContain("fixture-token");

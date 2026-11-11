@@ -156,6 +156,11 @@ The prepared `instructions.md` therefore requires the agent to:
   `Refs` footer, because the handler may still summarize it for a fallback
   commit.
 
+The same instruction asks the agent to write user-facing explanations in the
+final response in Russian, while keeping code, paths, identifiers and technical
+headings unchanged. The Conventional Commits header and `Refs` footer remain
+English because the upstream handler may use them for a fallback commit.
+
 This instruction reduces the risk of `check:commits` failing, but it is not a
 guarantee. The fallback summary can be shortened, translated or punctuated by
 the model, and an agent that ignores the instruction or leaves uncommitted

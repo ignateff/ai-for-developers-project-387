@@ -719,8 +719,9 @@ test("production CLI emits a failure artifact and workflow outputs for independe
       "steps.workflow.outputs.report == 'true'",
     );
     expect(
-      steps.find((step: { name?: string }) => step.name === "Save review result for publication")
-        .if,
+      steps.find(
+        (step: { name?: string }) => step.name === "Сохранить результат ревью для публикации",
+      ).if,
     ).toContain("steps.workflow.outputs.report == 'true'");
     expect(workflow.jobs.publish.if).toContain("needs.review.outputs.artifact != ''");
     const artifact = join(dir, "opencode-review-1-1", "review.json");

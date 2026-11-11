@@ -43,12 +43,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout exact PR head
+      - name: Получить точный head PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Record and verify head SHA
+      - name: Зафиксировать и проверить head SHA
         id: revision
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
@@ -63,21 +63,21 @@ jobs:
           version: 2026.10.23
       - run: mise run install
       - run: mise run test:e2e:install
-      - name: Run booking browser scenarios
+      - name: Запустить браузерные сценарии записи
         id: browser
         env:
           EVIDENCE_DIR: ${{ runner.temp }}/head-browser-evidence
         run: |
           set -o pipefail
           mise run test:e2e -- e2e/meeting-types.spec.ts e2e/copy-booking.spec.ts --trace on --output="$EVIDENCE_DIR/traces" 2>&1 | tee "$EVIDENCE_DIR/results.log"
-      - name: Record browser result
+      - name: Зафиксировать результат браузерной проверки
         if: ${{ !cancelled() && steps.revision.outputs.sha != '' }}
         env:
           HEAD_SHA: ${{ steps.revision.outputs.sha }}
           BROWSER_OUTCOME: ${{ steps.browser.outcome }}
         run: |
           printf 'head_sha=%s\nresult=%s\nscenarios=e2e/meeting-types.spec.ts,e2e/copy-booking.spec.ts\n' "$HEAD_SHA" "$BROWSER_OUTCOME" > "$RUNNER_TEMP/head-browser-evidence/result.txt"
-      - name: Upload browser evidence
+      - name: Загрузить браузерные свидетельства
         if: ${{ !cancelled() && steps.revision.outputs.sha != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
