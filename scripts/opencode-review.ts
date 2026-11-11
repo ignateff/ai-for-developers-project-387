@@ -209,7 +209,7 @@ function parseOutput(
     throw new Error();
   if (
     result.findings.length === 0 &&
-    !/(?:no (?:confirmed )?defects|(?:подтвержд[её]нных\s+)?(?:дефектов|находок)\s+не\s+(?:найдено|обнаружено))/iu.test(
+    !/(?:подтвержд[её]нных\s+)?(?:дефектов|находок)\s+не\s+(?:найдено|обнаружено)/iu.test(
       result.summary,
     )
   )
