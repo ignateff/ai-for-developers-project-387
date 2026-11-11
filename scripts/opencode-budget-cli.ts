@@ -6,6 +6,7 @@ import { reviewWorkflow } from "./opencode-review-workflow.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
 import { installRuntime } from "./opencode-install.ts";
 import { safeOpenCodeError } from "./opencode-error.ts";
+import { openCodeModelFromEnvironment } from "./opencode-model.ts";
 import { ReviewFailure } from "./opencode-review-failure.ts";
 
 // github-actions[bot] on github.com; checked by numeric identity, not display name.
@@ -30,11 +31,27 @@ export async function runBudgetCli(options: {
   // The trusted orchestrator holds the provider keys, but preparation and its
   // subprocesses receive an environment without them. Each key is handed to the
   // runtime only after admission, and only to the workflow that uses its provider.
-  const deepseekKey = env.DEEPSEEK_API_KEY;
-  const opencodeKey = env.OPENCODE_API_KEY;
+  // Resolve the model inside the workflow callbacks so a configuration error
+  // follows the normal infra-failure path and still produces a review report.
+  const requestedModel = env.OPENCODE_MODEL;
+  const providerKeys = {
+    OPENCODE_API_KEY: env.OPENCODE_API_KEY,
+    DEEPSEEK_API_KEY: env.DEEPSEEK_API_KEY,
+  };
   delete env.DEEPSEEK_API_KEY;
   delete env.OPENCODE_API_KEY;
   const base = { ...env };
+  let configuration: ReturnType<typeof openCodeModelFromEnvironment> | undefined;
+  const configure = () => {
+    if (!configuration) {
+      configuration = openCodeModelFromEnvironment({
+        ...providerKeys,
+        OPENCODE_MODEL: requestedModel,
+      });
+      console.log(`OpenCode model: ${configuration.model}`);
+    }
+    return configuration;
+  };
   // Three minutes remain for job setup uncertainty, artifact upload and reporting.
   const started = Number(env.OPENCODE_REVIEW_STARTED_AT);
   const deadline =
@@ -72,6 +89,7 @@ export async function runBudgetCli(options: {
   const prepare =
     options.prepare ??
     (async () => {
+      configure();
       if (kind === "command") return prepareCommand(base);
       const temp = base.RUNNER_TEMP;
       const run = base.GITHUB_RUN_ID ?? "";
@@ -91,13 +109,11 @@ export async function runBudgetCli(options: {
   const model =
     options.model ??
     (async (identity: { number?: number; sha?: string }) => {
+      const { model: configuredModel, credential, apiKey } = configure();
       const runtime = {
         ...base,
-        // The command workflow authenticates through the OpenCode provider key;
-        // the review workflow keeps using the DeepSeek provider key.
-        ...(kind === "command"
-          ? { OPENCODE_API_KEY: opencodeKey }
-          : { DEEPSEEK_API_KEY: deepseekKey }),
+        OPENCODE_MODEL: configuredModel,
+        [credential]: apiKey,
         OPENCODE_PR_NUMBER: identity.number?.toString(),
         OPENCODE_HEAD_SHA: identity.sha,
       };

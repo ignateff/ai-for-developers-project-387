@@ -111,9 +111,12 @@ Local Vitest covers the related-context collection (pinned trees, cross-director
 
 `scripts/opencode-review.ts` exports `reviewSnapshot`. It accepts a path to the
 checksum- and version-verified OpenCode runtime, a prepared `ReviewContext`, an
-optional DeepSeek API key, and an optional `AbortSignal`. It
-returns structured findings or rejects; failures are not reviews. Install the
-pinned runtime with `mise run opencode:install -- <directory>`.
+optional model (`provider/model`) and provider API key, and an optional
+`AbortSignal`. The provider key is placed in the credential variable that the
+selected provider requires. It returns structured findings or rejects; failures
+are not reviews. Install the pinned runtime with
+`mise run opencode:install -- <directory>`. The shared default and credential
+mapping are described in [OpenCode model configuration](opencode-models.md).
 
 The caller must prepare the snapshot from trusted base tooling. Include the
 requirements and agreement (or mark them unavailable), base and head SHA,

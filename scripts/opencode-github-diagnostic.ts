@@ -10,6 +10,10 @@ import { formatRuntimeLogSummary, summarizeRuntimeLog } from "./opencode-log-sum
 const root = await mkdtemp(join(tmpdir(), "oc-github-diagnostic-"));
 const workspace = join(root, "project");
 const directory = join(root, "runtime");
+// This diagnostic intentionally pins its own model instead of OPENCODE_MODEL:
+// it exercises the handler with a bounded fixture and must not consume the
+// shared production model or depend on its provider credential.
+const diagnosticModel = "opencode/big-pickle";
 try {
   await mkdir(workspace, { recursive: true });
   await mkdir(directory, { recursive: true });
@@ -23,7 +27,11 @@ try {
   git("config", "user.name", "Fixture");
   git("add", "README.md");
   git("commit", "-qm", "fixture");
-  const env = createCommandEnvironment({ workspace, directory, base: process.env });
+  const env = createCommandEnvironment({
+    workspace,
+    directory,
+    base: { ...process.env, OPENCODE_MODEL: "" },
+  });
   const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
   const permission = {
     "*": "deny",
@@ -37,7 +45,7 @@ try {
   config.agent.build.permission = permission;
   config.instructions = [];
   env.OPENCODE_CONFIG_CONTENT = JSON.stringify(config);
-  env.MODEL = "opencode/big-pickle";
+  env.MODEL = diagnosticModel;
   env.USE_GITHUB_TOKEN = "true";
   env.GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   env.PROMPT =

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createReviewAdapter, runReviewProcess, type ReviewContext } from "./opencode-review.ts";
 import { ReviewFailure } from "./opencode-review-failure.ts";
+import { defaultOpenCodeModel } from "./opencode-model.ts";
 
 const context: ReviewContext = {
   requirements: { availability: "available", text: "Booking works" },
@@ -469,6 +470,7 @@ it("uses a new empty workspace, excludes ambient credentials, and keeps snapshot
       workspaces.push(options.cwd);
       expect(await readdir(options.cwd)).toEqual([]);
       expect(options.env.GITHUB_TOKEN).toBeUndefined();
+      expect(options.env.OPENCODE_API_KEY).toBeUndefined();
       expect(options.env.DEEPSEEK_API_KEY).toBeUndefined();
       expect(options.env.OPENCODE_CONFIG_CONTENT).not.toContain("hostile-config");
       const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT!);
@@ -481,7 +483,15 @@ it("uses a new empty workspace, excludes ambient credentials, and keeps snapshot
         })),
       });
     }
-    expect(options.env.DEEPSEEK_API_KEY).toBe("provider-key");
+    const model = args[args.indexOf("--model") + 1];
+    if (model === "deepseek/deepseek-flash") {
+      expect(options.env.DEEPSEEK_API_KEY).toBe("deepseek-key");
+      expect(options.env.OPENCODE_API_KEY).toBeUndefined();
+    } else {
+      expect(model).toBe(defaultOpenCodeModel);
+      expect(options.env.OPENCODE_API_KEY).toBe("provider-key");
+      expect(options.env.DEEPSEEK_API_KEY).toBeUndefined();
+    }
     expect(args.at(-1)).not.toContain("hostile-config");
     expect(await readFile(`${options.cwd}/snapshot-0001.jsonl`, "utf8")).toContain(
       "hostile-config",
@@ -507,6 +517,12 @@ it("uses a new empty workspace, excludes ambient credentials, and keeps snapshot
     binary: "/runtime",
     context: { ...context, changes: "hostile-config" },
     apiKey: "provider-key",
+  });
+  await review({
+    binary: "/runtime",
+    context: { ...context, changes: "hostile-config" },
+    model: "deepseek/deepseek-flash",
+    apiKey: "deepseek-key",
   });
   expect(workspaces[0]).not.toBe(workspaces[1]);
 });

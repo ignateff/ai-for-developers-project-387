@@ -94,7 +94,7 @@ it.each(["timeout", "pre-model", "cancelled"] as const)(
           GITHUB_RUN_ID: "1",
           GITHUB_RUN_ATTEMPT: "1",
           GH_TOKEN: "token",
-          DEEPSEEK_API_KEY: "key",
+          OPENCODE_API_KEY: "key",
           OPENCODE_REVIEW_STARTED_AT: String(Date.now()),
         },
         prepare: async () => {
@@ -169,7 +169,7 @@ it("deadline kills active preparation descendants and produces an independently 
         GITHUB_RUN_ID: "1",
         GITHUB_RUN_ATTEMPT: "1",
         GH_TOKEN: "token",
-        DEEPSEEK_API_KEY: "key",
+        OPENCODE_API_KEY: "key",
         OPENCODE_REVIEW_STARTED_AT: String(Date.now() - 12 * 60_000 + 400),
       },
       prepare: async (signal) => {

@@ -42,6 +42,7 @@ it("builds a dedicated command environment instead of inheriting developer confi
   expect(env.NODE_OPTIONS).toBeUndefined();
   expect(env.RENDER_API_KEY).toBeUndefined();
   expect(env.OPENCODE_API_KEY).toBe("provider-key");
+  expect(env.DEEPSEEK_API_KEY).toBeUndefined();
   expect(env.MODEL).toBe("opencode-go/deepseek-v4.1-flash");
   const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
   expect(config.default_agent).toBe("build");
@@ -58,6 +59,38 @@ it("builds a dedicated command environment instead of inheriting developer confi
     expect(config.permission[name]).toBe("deny");
   }
   expect(config.subagent_depth).toBe(1);
+});
+
+it("uses the configured model and forwards only its provider credential", () => {
+  const env = createCommandEnvironment({
+    workspace: "/trusted/checkout",
+    directory: "/runner/command-9",
+    base: {
+      OPENCODE_MODEL: "deepseek/deepseek-flash",
+      OPENCODE_API_KEY: "opencode-go-key",
+      DEEPSEEK_API_KEY: "deepseek-key",
+    },
+  });
+  expect(env.MODEL).toBe("deepseek/deepseek-flash");
+  expect(env.DEEPSEEK_API_KEY).toBe("deepseek-key");
+  expect(env.OPENCODE_API_KEY).toBeUndefined();
+});
+
+it("rejects an unsafe or unsupported configured model before building the runtime", () => {
+  for (const value of [
+    "deepseek/deepseek-flash; touch /tmp/owned",
+    "deepseek/deepseek-flash\nOPENCODE_MODEL=attacker/model",
+    "../../escape",
+    "unknown/model",
+  ]) {
+    expect(() =>
+      createCommandEnvironment({
+        workspace: "/trusted/checkout",
+        directory: "/runner/command-9",
+        base: { OPENCODE_MODEL: value },
+      }),
+    ).toThrow(/OpenCode model/);
+  }
 });
 
 it("requires English Conventional Commits with an issue reference in the command runtime", () => {

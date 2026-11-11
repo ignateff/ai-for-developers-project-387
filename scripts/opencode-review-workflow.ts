@@ -8,6 +8,11 @@ import {
 } from "./opencode-review-repository.ts";
 import { reviewSnapshot } from "./opencode-review.ts";
 import { formatReviewBody, reviewBodyLimit } from "./opencode-review-publish.ts";
+import {
+  openCodeModelFromEnvironment,
+  openCodeProviderCredentials,
+  resolveOpenCodeModel,
+} from "./opencode-model.ts";
 
 export async function reviewWorkflow(
   mode: string,
@@ -28,14 +33,16 @@ export async function reviewWorkflow(
     !/^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? "")
   )
     throw new Error();
+  const model = resolveOpenCodeModel(env.OPENCODE_MODEL);
   if (mode === "prepare") {
-    if (env.DEEPSEEK_API_KEY) throw new Error();
+    if (openCodeProviderCredentials.some((name) => env[name])) throw new Error();
     await mkdir(root, { mode: 0o700 });
     const binary = await installRuntime({ directory: join(root, "runtime") });
     await writeFile(join(root, "binary"), binary, { flag: "wx", mode: 0o600 });
     return;
   }
-  if (mode !== "run" || !env.DEEPSEEK_API_KEY) throw new Error();
+  if (mode !== "run") throw new Error();
+  const { apiKey } = openCodeModelFromEnvironment(env);
   const repository = env.GITHUB_REPOSITORY ?? "";
   const number = env.OPENCODE_PR_NUMBER ?? "";
   const sha = env.OPENCODE_HEAD_SHA ?? "";
@@ -589,11 +596,11 @@ export async function reviewWorkflow(
   const current = await get(`pulls/${number}`);
   if (current?.head?.sha !== sha || current?.base?.sha !== pr.base.sha) throw new Error();
   const binary = await readFile(join(root, "binary"), "utf8");
-  const serialized = JSON.stringify(context)
-    .split(JSON.stringify(token).slice(1, -1))
-    .join("[REDACTED]")
-    .split(JSON.stringify(env.DEEPSEEK_API_KEY).slice(1, -1))
-    .join("[REDACTED]");
+  let serialized = JSON.stringify(context);
+  for (const secret of [token, ...openCodeProviderCredentials.map((name) => env[name])]) {
+    if (secret)
+      serialized = serialized.split(JSON.stringify(secret).slice(1, -1)).join("[REDACTED]");
+  }
   if (Buffer.byteLength(serialized) > 4 * 1024 * 1024)
     throw new Error(
       "Контекст ревью превышает лимит размера; обязательные свидетельства изменений нельзя безопасно усечь.",
@@ -601,7 +608,8 @@ export async function reviewWorkflow(
   deps.progress?.("model invocation started");
   const result = await (deps.review ?? reviewSnapshot)({
     binary,
-    apiKey: env.DEEPSEEK_API_KEY,
+    apiKey,
+    model,
     context: JSON.parse(serialized),
   });
   deps.progress?.("model invocation complete");
