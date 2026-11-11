@@ -143,7 +143,7 @@ export async function reviewWorkflow(
     if (sourceBytes + bytes.length > 2 * 1024 * 1024) throw new Error();
     sourceBytes += bytes.length;
     if (binary) {
-      binaryLimitations.add(`Binary content was not reviewed: ${String(name)}`);
+      binaryLimitations.add(`Двоичное содержимое не проверялось: ${String(name)}`);
       return null;
     }
     return decoded;
@@ -251,7 +251,7 @@ export async function reviewWorkflow(
       if (origin.toLowerCase() === "ignateff/ai-for-developers-project-387")
         documentLinks.add(match[1]);
       else {
-        const warning = `A relative document link in ${origin} could not be loaded without a pinned repository ref.`;
+        const warning = `Относительную ссылку на документ в ${origin} не удалось загрузить без закреплённого ref репозитория.`;
         if (!essentialLimitations.has(warning)) essential(warning);
       }
     for (const match of input.matchAll(
@@ -276,7 +276,7 @@ export async function reviewWorkflow(
         input,
       )
     )
-      essential("External or unsupported links were not loaded.");
+      essential("Внешние или неподдерживаемые ссылки не загружались.");
   };
   collectRefs(body);
   const directDocuments = new Set(documentLinks);
@@ -286,7 +286,7 @@ export async function reviewWorkflow(
     try {
       baseDocs.push({ path: name, sha: pr.base.sha, body: text(await source(name, pr.base.sha)) });
     } catch {
-      essential(`Trusted base document ${name} was unavailable.`);
+      essential(`Доверенный базовый документ ${name} недоступен.`);
     }
   }
   const materials = [];
@@ -297,7 +297,7 @@ export async function reviewWorkflow(
     visited.add(key);
     const issue = await optional(`issues/${ref.issue}`, ref.repo);
     if (!issue || typeof issue !== "object" || typeof issue.body !== "string") {
-      essential(`Linked issue ${ref.repo}#${ref.issue} was unavailable.`);
+      essential(`Связанная задача ${ref.repo}#${ref.issue} недоступна.`);
     } else {
       const issueBody = text(issue.body);
       materials.push({
@@ -310,7 +310,7 @@ export async function reviewWorkflow(
     if (ref.comment) {
       const comment = await optional(`issues/comments/${ref.comment}`, ref.repo);
       if (!comment || typeof comment.body !== "string") {
-        essential(`Linked comment ${ref.repo}#issuecomment-${ref.comment} was unavailable.`);
+        essential(`Связанный комментарий ${ref.repo}#issuecomment-${ref.comment} недоступен.`);
         continue;
       }
       const login = comment.user?.login;
@@ -350,7 +350,7 @@ export async function reviewWorkflow(
     }
   }
   if (refs.size > visited.size)
-    essential("Linked GitHub references exceeded the collection limit.");
+    essential("Количество связанных ссылок GitHub превысило лимит сбора.");
   // A branch may contain slashes, so only a full commit SHA identifies the
   // boundary between a blob URL's ref and path without guessing.
   for (const link of [...documentLinks].slice(0, 12)) {
@@ -368,7 +368,9 @@ export async function reviewWorkflow(
       if (parts.some((part) => /[/\\]/.test(part))) throw new Error();
       path = parts.join("/");
     } catch {
-      essential(`Linked repository document ${link} has an invalid or ambiguous encoded path.`);
+      essential(
+        `Связанный документ репозитория ${link} имеет недопустимый или неоднозначный закодированный путь.`,
+      );
     }
     const ref =
       project === "387" &&
@@ -383,11 +385,11 @@ export async function reviewWorkflow(
       try {
         content = text(await source(path, ref, `ignateff/ai-for-developers-project-${project}`));
       } catch {
-        essential(`Linked repository document ${link} was unavailable at its pinned ref.`);
+        essential(`Связанный документ репозитория ${link} недоступен по закреплённому ref.`);
       }
     } else
       essential(
-        `Linked repository document ${link} could not be loaded: the ref or path is ambiguous, unsafe, or not pinned to the required commit.`,
+        `Связанный документ репозитория ${link} не удалось загрузить: ref или путь неоднозначен, небезопасен или не закреплён на требуемом коммите.`,
       );
     if (content !== null)
       materials.push({ source: text(link), title: "Linked repository document", body: content });
@@ -406,10 +408,10 @@ export async function reviewWorkflow(
     });
   }
   if (documentLinks.size > 12)
-    essential("Linked repository documents exceeded the collection limit.");
+    essential("Количество связанных документов репозитория превысило лимит сбора.");
   essential(
-    "Agreement is unconfirmed unless the PR explicitly links the source and explicit approval of requirements by an eligible human is established from its text.",
-    "An eligible approver is a human owner or a human with current write, maintain, or admin permission in ignateff/ai-for-developers-project-387. A bot, ambiguous 'ok', issue closure, ready-for-agent label, link alone, or permissions alone do not prove approval.",
+    "Согласование требований не подтверждено, если PR явно не ссылается на источник и из его текста не установлено явное одобрение требований подходящим человеком.",
+    "Подходящий согласующий — владелец-человек или человек с текущими правами write, maintain или admin в ignateff/ai-for-developers-project-387. Бот, неоднозначное «ok», закрытие задачи, метка ready-for-agent, одна ссылка или одни только права не доказывают одобрение.",
   );
   const pages = async (path: string, field?: string) => {
     const items: any[] = [];
@@ -481,9 +483,9 @@ export async function reviewWorkflow(
         statusStates.includes(s.state),
     );
   if (!validChecks || !validStatuses)
-    essential("CI context is incomplete or unavailable; pending checks are not successful.");
+    essential("Контекст CI неполон или недоступен; незавершённые проверки не считаются успешными.");
   if (!Array.isArray(reviews) || !Array.isArray(reviewComments) || !Array.isArray(issueComments))
-    essential("Previous review or discussion context is incomplete or unavailable.");
+    essential("Контекст предыдущих ревью или обсуждений неполон или недоступен.");
   const validCommits =
     Array.isArray(commits) &&
     commits.every(
@@ -494,17 +496,17 @@ export async function reviewWorkflow(
         typeof commit.commit?.message === "string" &&
         commit.commit.message.trim().length > 0,
     );
-  if (!validCommits) essential("PR commit history is incomplete or unavailable.");
+  if (!validCommits) essential("История коммитов PR неполна или недоступна.");
   // GitHub may cap this endpoint at 250 commits; a short page cannot prove completeness.
   if (Array.isArray(commits) && commits.length >= 250)
-    essential("PR commit history may be truncated at the GitHub 250-commit API limit.");
+    essential("История коммитов PR может быть усечена из-за лимита GitHub API в 250 коммитов.");
   if (
     [checkPages, statusPages, reviewPages, reviewCommentPages, issueCommentPages, commitPages].some(
       (x) => !x.complete,
     )
   )
     essential(
-      "CI, previous review or commit context is incomplete or exceeded the 300 item per endpoint limit.",
+      "Контекст CI, предыдущих ревью или коммитов неполон или превысил лимит в 300 элементов на эндпоинт.",
     );
   const comments = (value: unknown) =>
     Array.isArray(value)
@@ -541,7 +543,7 @@ export async function reviewWorkflow(
         }
       : {
           availability: "unavailable" as const,
-          reason: "No linked requirements could be loaded.",
+          reason: "Связанные требования не удалось загрузить.",
           description: body,
           baseDocs,
         },
@@ -578,10 +580,10 @@ export async function reviewWorkflow(
     commits: commitHistory,
     isRelease,
   };
-  if (truncated) essential("Some context text was truncated at 30000 characters.");
+  if (truncated) essential("Часть текста контекста была усечена до 30000 символов.");
   if (aggregateTruncated)
     essential(
-      "Optional context text exceeded the aggregate size budget and was truncated; omitted evidence cannot establish approval or completeness.",
+      "Необязательный текст контекста превысил суммарный лимит размера и был усечён; пропущенные свидетельства не могут подтвердить согласование или полноту.",
     );
   deps.progress?.("final context validation started");
   const current = await get(`pulls/${number}`);
@@ -594,7 +596,7 @@ export async function reviewWorkflow(
     .join("[REDACTED]");
   if (Buffer.byteLength(serialized) > 4 * 1024 * 1024)
     throw new Error(
-      "Review context exceeds the size limit; mandatory change evidence cannot be safely truncated.",
+      "Контекст ревью превышает лимит размера; обязательные свидетельства изменений нельзя безопасно усечь.",
     );
   deps.progress?.("model invocation started");
   const result = await (deps.review ?? reviewSnapshot)({
@@ -605,13 +607,13 @@ export async function reviewWorkflow(
   deps.progress?.("model invocation complete");
   const missingRequirements =
     context.requirements.availability === "unavailable"
-      ? `Requirements unavailable: ${context.requirements.reason}`
+      ? `Требования недоступны: ${context.requirements.reason}`
       : undefined;
   let publicationLimit = false;
   let publicationLimitations: string[] | undefined;
   // Never hide malformed model output by trimming it.
   if (result.limitations.every((s) => typeof s === "string" && s.trim() && s.length <= 12000)) {
-    const notice = "Additional review limitations were omitted to fit publication limits.";
+    const notice = "Дополнительные ограничения ревью опущены, чтобы уложиться в лимит публикации.";
     const artifact =
       env.OPENCODE_REVIEW_ARTIFACT ?? `review-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
     const fits = (items: string[]) =>

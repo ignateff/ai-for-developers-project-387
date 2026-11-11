@@ -40,7 +40,13 @@ const readEvent = (filePath = "snapshot-0001.jsonl", snapshot: ReviewContext = c
 const validResult =
   JSON.stringify({
     type: "text",
-    part: { text: JSON.stringify({ summary: "No defects found", limitations: [], findings: [] }) },
+    part: {
+      text: JSON.stringify({
+        summary: "Подтверждённых дефектов не найдено.",
+        limitations: [],
+        findings: [],
+      }),
+    },
   }) + '\n{"type":"step_finish","part":{"reason":"stop"}}';
 const policyOr = (output: string) =>
   vi.fn(async (_binary, args, options) => {
@@ -192,14 +198,48 @@ it("reports explicitly when there are no confirmed defects", async () => {
     readEvent() +
     JSON.stringify({
       type: "text",
-      part: { text: '{"summary":"Review completed","limitations":[],"findings":[]}' },
+      part: { text: '{"summary":"Ревью завершено","limitations":[],"findings":[]}' },
     }) +
     '\n{"type":"step_finish","part":{"reason":"stop"}}';
   const result = await createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({
     binary: "/runtime",
     context,
   });
-  expect(result.summary).toMatch(/no confirmed defects/i);
+  expect(result.summary).toBe("Подтверждённых дефектов не найдено. Ревью завершено");
+});
+
+it("does not duplicate an explicit Russian no-defects statement", async () => {
+  const output =
+    readEvent() +
+    JSON.stringify({
+      type: "text",
+      part: {
+        text: '{"summary":"Подтверждённых дефектов не найдено. Замечаний нет.","limitations":[],"findings":[]}',
+      },
+    }) +
+    '\n{"type":"step_finish","part":{"reason":"stop"}}';
+  const result = await createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({
+    binary: "/runtime",
+    context,
+  });
+  expect(result.summary).toBe("Подтверждённых дефектов не найдено. Замечаний нет.");
+  expect(result.summary.match(/Подтверждённых дефектов не найдено/g)).toHaveLength(1);
+});
+
+it("adds the Russian no-defects statement to an English model response", async () => {
+  const output =
+    readEvent() +
+    JSON.stringify({
+      type: "text",
+      part: { text: '{"summary":"No confirmed defects","limitations":[],"findings":[]}' },
+    }) +
+    '\n{"type":"step_finish","part":{"reason":"stop"}}';
+  const result = await createReviewAdapter({ verify: async () => {}, run: policyOr(output) })({
+    binary: "/runtime",
+    context,
+  });
+  expect(result.summary).toMatch(/^Подтверждённых дефектов не найдено\./);
+  expect(result.summary.match(/Подтверждённых дефектов не найдено/g)).toHaveLength(1);
 });
 
 it.each([
@@ -261,7 +301,7 @@ it("reports explicitly unavailable requirements even for a release review", asyn
       requirements: { availability: "unavailable", reason: "not supplied" },
     },
   });
-  expect(result.limitations).toContain("Requirements unavailable: not supplied");
+  expect(result.limitations).toContain("Требования недоступны: not supplied");
 });
 
 it("rejects a review when the CLI never reads the snapshot", async () => {
@@ -277,7 +317,7 @@ it("rejects a review when the CLI never reads the snapshot", async () => {
         })),
       });
     }
-    return '{"type":"text","part":{"text":"{\\"summary\\":\\"No defects found\\",\\"limitations\\":[],\\"findings\\":[]}"}}\n{"type":"step_finish","part":{"reason":"stop"}}';
+    return '{"type":"text","part":{"text":"{\\"summary\\":\\"Подтверждённых дефектов не найдено.\\",\\"limitations\\":[],\\"findings\\":[]}"}}\n{"type":"step_finish","part":{"reason":"stop"}}';
   });
   await expect(
     createReviewAdapter({ verify: async () => {}, run })({ binary: "/runtime", context }),
@@ -316,7 +356,7 @@ it("requires every exact line across multiple bounded snapshot files", async () 
   });
   const review = createReviewAdapter({ verify: async () => {}, run });
   await expect(review({ binary: "/runtime", context: large })).resolves.toMatchObject({
-    summary: "No defects found",
+    summary: "Подтверждённых дефектов не найдено.",
   });
   omitLast = true;
   await expect(review({ binary: "/runtime", context: large })).rejects.toThrow(
@@ -342,7 +382,11 @@ it("returns a structured review from a fresh isolated CLI session", async () => 
       JSON.stringify({
         type: "text",
         part: {
-          text: JSON.stringify({ findings: [], summary: "No defects found", limitations: [] }),
+          text: JSON.stringify({
+            findings: [],
+            summary: "Подтверждённых дефектов не найдено.",
+            limitations: [],
+          }),
         },
       }) +
       '\n{"type":"step_finish","part":{"reason":"stop"}}'
@@ -350,7 +394,7 @@ it("returns a structured review from a fresh isolated CLI session", async () => 
   });
   const review = createReviewAdapter({ verify: async () => {}, run });
   const result = await review({ binary: "/trusted/opencode", context });
-  expect(result.summary).toBe("No defects found");
+  expect(result.summary).toBe("Подтверждённых дефектов не найдено.");
   expect(result.limitations).toEqual([]);
   expect(calls.map((call) => call.args[0])).toEqual(["debug", "run"]);
   expect(calls[0].cwd).toBe(calls[1].cwd);
@@ -446,7 +490,9 @@ it("uses a new empty workspace, excludes ambient credentials, and keeps snapshot
       readEvent("snapshot-0001.jsonl", { ...context, changes: "hostile-config" }) +
       JSON.stringify({
         type: "text",
-        part: { text: '{"summary":"No defects found","limitations":[],"findings":[]}' },
+        part: {
+          text: '{"summary":"Подтверждённых дефектов не найдено.","limitations":[],"findings":[]}',
+        },
       }) +
       '\n{"type":"step_finish","part":{"reason":"stop"}}'
     );
@@ -530,7 +576,9 @@ it("materializes pinned related repository files into a searchable workspace", a
       readEvent("snapshot-0001.jsonl", reviewContext) +
       JSON.stringify({
         type: "text",
-        part: { text: '{"summary":"No defects found","limitations":[],"findings":[]}' },
+        part: {
+          text: '{"summary":"Подтверждённых дефектов не найдено.","limitations":[],"findings":[]}',
+        },
       }) +
       '\n{"type":"step_finish","part":{"reason":"stop"}}'
     );
@@ -539,7 +587,7 @@ it("materializes pinned related repository files into a searchable workspace", a
     binary: "/runtime",
     context: reviewContext,
   });
-  expect(result.summary).toBe("No defects found");
+  expect(result.summary).toBe("Подтверждённых дефектов не найдено.");
 });
 
 it.each(["../escape.ts", "/absolute.ts", "repository//double.ts", "a/./b.ts"])(

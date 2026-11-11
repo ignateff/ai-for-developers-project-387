@@ -10,6 +10,12 @@ export type Report =
 
 export const reviewBodyLimit = 60000;
 
+const failureLabels = {
+  infra: "инфраструктурная ошибка",
+  timeout: "таймаут",
+  agent_failed: "сбой агента",
+} as const;
+
 export function formatReviewBody(
   repository: string,
   sha: string,
@@ -27,29 +33,35 @@ export function formatReviewBody(
   const contextUnavailable =
     !("failure" in report) &&
     (report.publicationLimitations ?? report.limitations).some((item) =>
-      /(?:unavailable|incomplete|could not be loaded)/i.test(item),
+      // Older artifacts contain English limitation text. Keep recognizing it so
+      // republishing a saved review still shows the non-full-review warning.
+      /(?:unavailable|incomplete|could not be loaded|недоступ|неполн|не удалось загрузить)/i.test(
+        item,
+      ),
     );
   return [
     marker,
-    `## OpenCode review`,
-    `Head: \`${sha}\``,
-    `Actions logs: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
+    `## Автоматическое ревью OpenCode`,
+    `Проверенный head: \`${sha}\``,
+    `Логи Actions: https://github.com/${repository}/actions/runs/${artifact.split("-")[1]}/attempts/${artifact.split("-")[2]}`,
     "",
     ...("failure" in report
-      ? [`**Review stopped: ${report.failure}. Human attention required.**`]
+      ? [
+          `**Ревью остановлено: ${failureLabels[report.failure]} (${report.failure}). Требуется вмешательство человека.**`,
+        ]
       : report.publicationLimit
         ? [
-            `**Human attention required: findings are not included in this comment because the review or essential context exceeds publication limits. Download artifact \`${artifact}\` from the Actions run linked above and inspect its review.json for the complete findings and limitations.**`,
+            `**Требуется вмешательство человека: находки не включены в этот комментарий, потому что ревью или существенный контекст превышает лимит публикации. Скачайте артефакт \`${artifact}\` из запуска Actions по ссылке выше и откройте его review.json, чтобы увидеть полный список находок и ограничений.**`,
           ]
         : [
             contextUnavailable
-              ? "**Limitation: pinned review context was incomplete or unavailable. This is not a full code review.**"
-              : "**Advisory review of the pinned head; context limitations are listed below.**",
+              ? "**Ограничение: закреплённый контекст ревью был неполным или недоступным. Это не полное ревью кода.**"
+              : "**Ревью носит рекомендательный характер и относится к закреплённому head-коммиту; ограничения контекста перечислены ниже.**",
             "",
             safe(report.summary),
             "",
             ...(report.publicationLimitations ?? report.limitations).map(
-              (s) => `- Limitation: ${safe(s)}`,
+              (s) => `- Ограничение: ${safe(s)}`,
             ),
             ...report.findings.map(
               (f) => `- ${safe(f.file)}:${f.line} — ${safe(f.conditions)}; ${safe(f.consequence)}`,
@@ -147,7 +159,7 @@ export async function publishReview(options: {
   }
   const body = formatReviewBody(repository, sha, artifact, report);
   if (body.length > reviewBodyLimit)
-    throw new Error("Review body exceeds the publication size limit; findings were not discarded.");
+    throw new Error("Тело ревью превышает лимит публикации; находки не были отброшены.");
   await assertHead();
   await request(`issues/${number}/comments`, "POST", body);
 }

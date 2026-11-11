@@ -127,7 +127,7 @@ test.each([
         );
         if (scenario !== "malicious missing requirements")
           expect(
-            JSON.stringify(snapshot.limitations).match(/relative document link/g),
+            JSON.stringify(snapshot.limitations).match(/Относительную ссылку на документ/g),
           ).toHaveLength(1);
         const reads = files.map((name, i) =>
           JSON.stringify({
@@ -152,8 +152,8 @@ test.each([
               ? Array.from({ length: 101 }, (_, i) => ({
                   file: "booking.ts",
                   line: i + 1,
-                  conditions: "When booking",
-                  consequence: "Confirmed defect",
+                  conditions: "При записи",
+                  consequence: "Подтверждённый дефект",
                 }))
               : scenario === "oversized finding field"
                 ? [
@@ -161,7 +161,7 @@ test.each([
                       file: "booking.ts",
                       line: 1,
                       conditions: "x".repeat(12001),
-                      consequence: "Confirmed defect",
+                      consequence: "Подтверждённый дефект",
                     },
                   ]
                 : scenario === "oversized findings" ||
@@ -177,14 +177,14 @@ test.each([
                             ? 11900
                             : 11000,
                       ),
-                      consequence: "Confirmed defect",
+                      consequence: "Подтверждённый дефект",
                     }))
                   : [
                       {
                         file: "booking.ts",
                         line: 1,
-                        conditions: "When booking",
-                        consequence: "Confirmed defect",
+                        conditions: "При записи",
+                        consequence: "Подтверждённый дефект",
                       },
                     ],
           limitations: [
@@ -194,7 +194,7 @@ test.each([
                   scenario === "exact limitation capacity" ? 100 - snapshot.limitations.length : 99,
               },
               (_, i) =>
-                `${scenario.startsWith("malicious") ? "Requirements unavailable:" : "Model limitation"} ${i}: ${"x".repeat(scenario.startsWith("malicious") || scenario === "exact limitation capacity" ? 5 : 650)}`,
+                `${scenario.startsWith("malicious") ? "Требования недоступны:" : "Ограничение модели"} ${i}: ${"x".repeat(scenario.startsWith("malicious") || scenario === "exact limitation capacity" ? 5 : 650)}`,
             ),
           ],
         };
@@ -212,12 +212,12 @@ test.each([
     if (scenario === "oversized collector warning") {
       expect(savedReport.limitations).toContainEqual(expect.stringContaining("x".repeat(13000)));
       expect(savedReport.limitations).toContainEqual(
-        expect.stringContaining("Model limitation 98:"),
+        expect.stringContaining("Ограничение модели 98:"),
       );
     }
     if (scenario === "baseline")
       expect(savedReport.limitations).toContainEqual(
-        expect.stringContaining("Model limitation 98:"),
+        expect.stringContaining("Ограничение модели 98:"),
       );
     if (scenario === "too many findings") expect(savedReport.findings).toHaveLength(101);
     if (scenario === "oversized finding field")
@@ -230,7 +230,7 @@ test.each([
       expect(saved.findings[0].conditions).toHaveLength(
         scenario === "oversized findings" ? 11000 : 11900,
       );
-      expect(saved.limitations).toContainEqual(expect.stringContaining("Model limitation 98:"));
+      expect(saved.limitations).toContainEqual(expect.stringContaining("Ограничение модели 98:"));
     }
     await publishWorkflow({
       env,
@@ -241,8 +241,8 @@ test.each([
     });
     expect(comments).toHaveLength(1);
     if (scenario === "exact limitation capacity") {
-      expect(comments[0]).not.toMatch(/limitations.*(?:omitted|truncated)/i);
-      expect(comments[0].match(/- Limitation:/g)).toHaveLength(100);
+      expect(comments[0]).not.toMatch(/ограничени.*(?:опущен|усеч)/i);
+      expect(comments[0].match(/- Ограничение:/g)).toHaveLength(100);
       return;
     }
     if (
@@ -256,33 +256,34 @@ test.each([
       if (scenario === "crowded essential context")
         expect(
           savedReport.limitations.filter((s: string) =>
-            s.includes("was unavailable at its pinned ref"),
+            s.includes("недоступен по закреплённому ref"),
           ),
         ).toHaveLength(12);
-      expect(comments[0]).toMatch(/findings.*(?:not included|not displayed)/i);
+      expect(comments[0]).toMatch(/находки.*не включены/i);
       expect(comments[0]).toContain("review-1-1");
-      expect(comments[0]).toMatch(/artifact/i);
-      expect(comments[0]).toMatch(/human/i);
+      expect(comments[0]).toMatch(/артефакт/i);
+      expect(comments[0]).toMatch(/человек/i);
       return;
     }
     if (scenario === "malicious missing requirements")
       expect(comments[0]).toContain(
-        "Requirements unavailable: No linked requirements could be loaded.",
+        "Требования недоступны: Связанные требования не удалось загрузить.",
       );
-    else expect(comments[0]).toContain("relative document link");
+    else expect(comments[0]).toContain("Относительную ссылку на документ");
     if (scenario === "unavailable linked source")
       expect(comments[0]).toContain(
-        "Linked issue ignateff/ai-for-developers-project-386#13 was unavailable.",
+        "Связанная задача ignateff/ai-for-developers-project-386#13 недоступна.",
       );
-    expect(comments[0]).toContain("Related repository context");
+    expect(comments[0]).toContain("Контекст связанных файлов репозитория");
     if (scenario === "malicious model priority" || scenario === "crowded essential context") {
-      expect(comments[0]).toContain("Agreement is unconfirmed");
-      expect(comments[0]).toContain("External or unsupported links were not loaded");
-      expect(comments[0]).toContain("CI context is incomplete");
+      expect(comments[0]).toContain("Согласование требований не подтверждено");
+      expect(comments[0]).toContain("Внешние или неподдерживаемые ссылки не загружались");
+      expect(comments[0]).toContain("Контекст CI неполон");
     }
-    if (scenario === "crowded essential context") expect(comments[0]).toContain("Confirmed defect");
-    else expect(comments[0]).toContain("booking.ts:1 — When booking; Confirmed defect");
-    expect(comments[0]).toMatch(/limitations.*(?:omitted|truncated)/i);
+    if (scenario === "crowded essential context")
+      expect(comments[0]).toContain("Подтверждённый дефект");
+    else expect(comments[0]).toContain("booking.ts:1 — При записи; Подтверждённый дефект");
+    expect(comments[0]).toMatch(/ограничени.*(?:опущен|усеч)/i);
     expect(comments[0].length).toBeLessThanOrEqual(60000);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -378,7 +379,7 @@ test.each([false, true])(
           expect(snapshot.isRelease).toBe(isRelease);
           expect(snapshot.requirements).toMatchObject({
             availability: "unavailable",
-            reason: "No linked requirements could be loaded.",
+            reason: "Связанные требования не удалось загрузить.",
           });
           expect(snapshot.requirements.description).toBe("No linked issue");
           expect(snapshot.requirements.baseDocs).toContainEqual({
@@ -409,7 +410,7 @@ test.each([false, true])(
               type: "text",
               part: {
                 text: JSON.stringify({
-                  summary: "No confirmed defects",
+                  summary: "Подтверждённых дефектов не найдено.",
                   limitations: [],
                   findings: [],
                 }),
@@ -454,7 +455,7 @@ test.each([false, true])(
       });
       const report = comments.find((comment) => comment.body.includes("opencode-review-report"));
       expect(report?.body).toContain(
-        "Requirements unavailable: No linked requirements could be loaded.",
+        "Требования недоступны: Связанные требования не удалось загрузить.",
       );
       expect(report?.body).not.toContain(document);
     } finally {
@@ -738,7 +739,7 @@ test("production CLI emits a failure artifact and workflow outputs for independe
       readReport: async (path) => JSON.parse(await readFile(path, "utf8")),
     });
     expect(comments.find((item) => item.body.includes("opencode-review-report"))?.body).toContain(
-      "Review stopped: timeout",
+      "Ревью остановлено: таймаут (timeout)",
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -820,10 +821,17 @@ test.each(["infra", "timeout", "agent_failed"] as const)(
     await publish();
     const reports = comments.filter((item) => item.body.includes("opencode-review-report"));
     expect(reports).toHaveLength(1);
-    expect(reports[0].body).toContain(`Review stopped: ${reason}. Human attention required.`);
+    const failureLabels = {
+      infra: "инфраструктурная ошибка",
+      timeout: "таймаут",
+      agent_failed: "сбой агента",
+    } as const;
+    expect(reports[0].body).toContain(
+      `Ревью остановлено: ${failureLabels[reason]} (${reason}). Требуется вмешательство человека.`,
+    );
     expect(reports[0].body).toContain(sha);
     expect(reports[0].body).toContain("/actions/runs/1/attempts/1");
-    expect(reports[0].body).not.toMatch(/secret|no confirmed defects/i);
+    expect(reports[0].body).not.toMatch(/secret|подтверждённых дефектов/i);
   },
 );
 
@@ -900,7 +908,11 @@ test("trusted PR event produces a separately published review, while a stale hea
           review: async ({ context }) => {
             calls++;
             expect(JSON.stringify(context)).toContain("Book a slot");
-            return { summary: "No confirmed defects", findings: [], limitations: [] };
+            return {
+              summary: "Подтверждённых дефектов не найдено.",
+              findings: [],
+              limitations: [],
+            };
           },
         });
       },
@@ -940,7 +952,7 @@ test("trusted PR event produces a separately published review, while a stale hea
     const reports = comments.filter((comment) => comment.body.includes("opencode-review-report"));
     expect(reports).toHaveLength(1);
     expect(reports[0].body).toContain(sha);
-    expect(reports[0].body).toContain("No confirmed defects");
+    expect(reports[0].body).toContain("Подтверждённых дефектов не найдено.");
     expect(reports[0].body).toContain(`/actions/runs/1/attempts/1`);
     expect(
       comments.find((comment) => comment.body.includes("opencode-pr-attempt-budget"))?.body,

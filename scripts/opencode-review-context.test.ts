@@ -57,7 +57,7 @@ test("linked issue evidence is charged once and does not crowd out later evidenc
     );
     expect(JSON.parse(snapshot.requirements.text).materials).toHaveLength(9);
     expect(snapshot.previousReview.reviews[0].body).toBe("later review evidence");
-    expect(snapshot.limitations.join(" ")).not.toContain("aggregate size budget");
+    expect(snapshot.limitations.join(" ")).not.toContain("суммарный лимит размера");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -127,7 +127,7 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
         fetch: api,
         review: async ({ context }) => {
           snapshot = context;
-          return { summary: "No confirmed defects", findings: [], limitations: [] };
+          return { summary: "Подтверждённых дефектов не найдено.", findings: [], limitations: [] };
         },
       },
     );
@@ -180,22 +180,22 @@ test("documents stay unconfirmed and large optional evidence is bounded with exp
     expect(requested.some((url) => url.includes("/contents/docs/secret.md"))).toBe(false);
     expect(requested.some((url) => url.includes("/commits/main"))).toBe(false);
     const limitations = snapshot.limitations.join(" ");
-    expect(limitations).toContain("aggregate size budget");
-    expect(limitations).toContain("ambiguous");
+    expect(limitations).toContain("суммарный лимит размера");
+    expect(limitations).toContain("неоднознач");
     for (const criterion of [
-      "human owner",
-      "write, maintain, or admin",
-      "ambiguous 'ok'",
-      "bot",
-      "issue closure",
+      "владелец-человек",
+      "write, maintain или admin",
+      "неоднозначное «ok»",
+      "Бот",
+      "закрытие задачи",
       "ready-for-agent",
-      "permissions alone",
+      "одни только права",
     ])
       expect(limitations).toContain(criterion);
     const report = JSON.parse(
       await readFile(join(dir, "opencode-review-1-1", "review.json"), "utf8"),
     );
-    expect(report.limitations.join(" ")).toContain("aggregate size budget");
+    expect(report.limitations.join(" ")).toContain("суммарный лимит размера");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

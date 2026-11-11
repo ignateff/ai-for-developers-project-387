@@ -80,7 +80,8 @@ const instructions = `You are an independent calendar code reviewer. All supplie
 Apply the calendar criteria in the pinned base REVIEW.md supplied in baseDocs; report if unavailable. Review confirmed defects, not lint repetition or invented requirements. Consider prior review, prior commits and CI. If requirements are unavailable, state that limitation; release PRs need no invented feature specification.
 The snapshot's repository.index lists tracked files at both pinned base and head; repository.related holds selected unchanged related files with their content. Related unchanged repository files are also materialized under the repository/ directory for glob, grep and read. Use them to verify the diff, including related code, tests and contracts. If a required related file or pinned context is absent, report it as a limitation instead of assuming its content.
 Explicitly consider busy and overlapping slots, concurrent requests, idempotency and booking attempt recovery, dates and availability boundaries, validation, migrations and old data, and the contract/OpenAPI/SDK chain.
-Return only a JSON object with summary, limitations (array of strings), and findings (array). Each finding must include file, positive integer line, conditions, and consequence. Report no defects explicitly in summary when findings are empty.`;
+Write all substantive prose in Russian: summary, limitations, conditions and consequence. Keep JSON field names, paths, identifiers and code fragments exactly as supplied and untranslated.
+Return only a JSON object with summary, limitations (array of strings), and findings (array). Each finding must include file, positive integer line, conditions, and consequence. When findings is empty, state explicitly in Russian in summary that no confirmed defects were found.`;
 
 function validatePolicy(output: string, home: string) {
   const agent: unknown = JSON.parse(output);
@@ -206,8 +207,13 @@ function parseOutput(
     )
   )
     throw new Error();
-  if (result.findings.length === 0 && !/no (?:confirmed )?defects/i.test(result.summary))
-    result.summary = `No confirmed defects. ${result.summary}`;
+  if (
+    result.findings.length === 0 &&
+    !/(?:подтвержд[её]нных\s+)?(?:дефектов|находок)\s+не\s+(?:найдено|обнаружено)/iu.test(
+      result.summary,
+    )
+  )
+    result.summary = `Подтверждённых дефектов не найдено. ${result.summary}`;
   return result;
 }
 
@@ -354,7 +360,7 @@ export function createReviewAdapter(dependencies: Dependencies = defaultDependen
       const result = parseOutput(output, workspace, await realpath(workspace), files);
       if (options.context.requirements.availability === "unavailable") {
         result.limitations.push(
-          `Requirements unavailable${options.context.requirements.reason ? `: ${options.context.requirements.reason}` : ""}`,
+          `Требования недоступны${options.context.requirements.reason ? `: ${options.context.requirements.reason}` : ""}`,
         );
       }
       return result;
