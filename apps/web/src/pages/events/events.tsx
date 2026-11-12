@@ -17,9 +17,9 @@ export function EventsPage() {
     refetchOnReconnect: false,
     refetchOnMount: "always",
   });
-  const showError =
-    events.isError ||
-    (events.isFetching && events.data === undefined && events.errorUpdateCount > 0);
+  const isRetryingAfterInitialLoadError =
+    events.isFetching && events.data === undefined && events.errorUpdateCount > 0;
+  const showError = events.isError || isRetryingAfterInitialLoadError;
   return (
     <section className="container events" aria-label="Предстоящие события">
       <header className="page-header events-header">
