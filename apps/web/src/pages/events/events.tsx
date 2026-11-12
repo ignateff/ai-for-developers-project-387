@@ -17,6 +17,8 @@ export function EventsPage() {
     refetchOnReconnect: false,
     refetchOnMount: "always",
   });
+  const showError =
+    events.isError || (events.isFetching && events.data === undefined && events.errorUpdatedAt > 0);
   return (
     <section className="container events" aria-label="Предстоящие события">
       <header className="page-header events-header">
@@ -38,10 +40,15 @@ export function EventsPage() {
           Загрузка событий…
         </p>
       )}
-      {events.isError && (
+      {showError && (
         <div role="alert" className="alert">
           Не удалось загрузить события.{" "}
-          <button type="button" className="btn btn-subtle" onClick={() => void events.refetch()}>
+          <button
+            type="button"
+            className="btn btn-subtle"
+            onClick={() => void events.refetch()}
+            disabled={events.isFetching}
+          >
             Повторить
           </button>
         </div>
