@@ -18,7 +18,8 @@ export function EventsPage() {
     refetchOnMount: "always",
   });
   const showError =
-    events.isError || (events.isFetching && events.data === undefined && events.errorUpdatedAt > 0);
+    events.isError ||
+    (events.isFetching && events.data === undefined && events.errorUpdateCount > 0);
   return (
     <section className="container events" aria-label="Предстоящие события">
       <header className="page-header events-header">
@@ -35,7 +36,7 @@ export function EventsPage() {
           Обновить
         </button>
       </header>
-      {events.isPending && (
+      {events.isPending && !showError && (
         <p role="status" className="events-state">
           Загрузка событий…
         </p>

@@ -109,9 +109,10 @@ it("disables retry while the upcoming events request is in flight", async () => 
   fireEvent.click(retry);
   await waitFor(() => expect(retry).toBeDisabled());
   expect(screen.getByRole("alert")).toHaveTextContent("Не удалось загрузить события");
+  expect(screen.queryByText("Загрузка событий…")).not.toBeInTheDocument();
   expect(retry).toHaveTextContent("Повторить");
 
-  finishRetry(new Response("offline", { status: 500 }));
+  finishRetry(new Response(JSON.stringify({ error: "offline" }), { status: 500 }));
   await waitFor(() => expect(retry).toBeEnabled());
   expect(screen.getByRole("alert")).toHaveTextContent("Не удалось загрузить события");
 
