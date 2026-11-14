@@ -33,7 +33,12 @@ const { spawn } = require('node:child_process');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify(args) + '\\n');
 const state = JSON.parse(fs.readFileSync(process.env.FAKE_STATE, 'utf8'));
-const save = () => fs.writeFileSync(process.env.FAKE_STATE, JSON.stringify(state));
+const save = (value = state) => {
+  const file = process.env.FAKE_STATE;
+  const temporary = file + '.tmp-' + process.pid;
+  fs.writeFileSync(temporary, JSON.stringify(value));
+  fs.renameSync(temporary, file);
+};
 const scenario = process.env.FAKE_SCENARIO;
 if (args[0] === 'info') process.exit(0);
 if (args[0] === 'build') {
@@ -52,7 +57,7 @@ if (args[0] === 'create') {
     const [file, name, owner] = [process.env.FAKE_STATE, args[args.indexOf('--name') + 1], state.owner];
     const delayMs = Number(process.env.FAKE_DELAY_MS);
     const child = spawn(process.execPath, ['-e',
-      'setTimeout(() => { const fs = require("node:fs"); const s = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); s.container = process.argv[2]; s.owner = process.argv[3]; fs.writeFileSync(process.argv[1], JSON.stringify(s)); }, ' + delayMs + ');',
+      'setTimeout(() => { const fs = require("node:fs"); const s = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); s.container = process.argv[2]; s.owner = process.argv[3]; const temporary = process.argv[1] + ".tmp-" + process.pid; fs.writeFileSync(temporary, JSON.stringify(s)); fs.renameSync(temporary, process.argv[1]); }, ' + delayMs + ');',
       file, name, owner], { detached: true, stdio: 'ignore' });
     child.unref();
   } else {
@@ -70,8 +75,8 @@ if ((args[0] === 'image' && args[1] === 'inspect') || (args[0] === 'container' &
   console.log(JSON.stringify({ Id: (args[0] === 'image' ? 'sha256:' : '') + 'b'.repeat(64), Config: { Labels: { 'calendar.smoke.owner': owner } } }));
   process.exit(0);
 }
-if (args[0] === 'rm') { const current = JSON.parse(fs.readFileSync(process.env.FAKE_STATE, 'utf8')); delete current.container; fs.writeFileSync(process.env.FAKE_STATE, JSON.stringify(current)); process.exit(0); }
-if (args[0] === 'image' && args[1] === 'rm') { const current = JSON.parse(fs.readFileSync(process.env.FAKE_STATE, 'utf8')); delete current.image; fs.writeFileSync(process.env.FAKE_STATE, JSON.stringify(current)); process.exit(0); }
+if (args[0] === 'rm') { const current = JSON.parse(fs.readFileSync(process.env.FAKE_STATE, 'utf8')); delete current.container; save(current); process.exit(0); }
+if (args[0] === 'image' && args[1] === 'rm') { const current = JSON.parse(fs.readFileSync(process.env.FAKE_STATE, 'utf8')); delete current.image; save(current); process.exit(0); }
 process.exit(1);
 `;
 

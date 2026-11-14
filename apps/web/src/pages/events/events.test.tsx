@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -73,4 +73,50 @@ it("shows a retryable error", async () => {
   wrap();
   expect(await screen.findByRole("alert")).toHaveTextContent("Не удалось загрузить события");
   expect(screen.getByRole("button", { name: "Повторить" })).toBeInTheDocument();
+});
+it("disables retry while the upcoming events request is in flight", async () => {
+  let finishRetry!: (response: Response) => void;
+  const fetchMock = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        finishRetry = resolve;
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          {
+            id: "two",
+            meetingTypeName: "Call",
+            startsAt: "2026-11-03T09:00:00.000Z",
+            endsAt: "2026-11-03T10:00:00.000Z",
+            guestName: "Bob",
+            guestEmail: "bob@example.com",
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetchMock);
+  wrap();
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Не удалось загрузить события");
+  const retry = screen.getByRole("button", { name: "Повторить" });
+  expect(retry).toBeEnabled();
+
+  fireEvent.click(retry);
+  await waitFor(() => expect(retry).toBeDisabled());
+  expect(screen.getByRole("alert")).toHaveTextContent("Не удалось загрузить события");
+  expect(screen.queryByText("Загрузка событий…")).not.toBeInTheDocument();
+  expect(retry).toHaveTextContent("Повторить");
+
+  finishRetry(new Response(JSON.stringify({ error: "offline" }), { status: 500 }));
+  await waitFor(() => expect(retry).toBeEnabled());
+  expect(screen.getByRole("alert")).toHaveTextContent("Не удалось загрузить события");
+
+  fireEvent.click(retry);
+  expect(await screen.findByText("Bob")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

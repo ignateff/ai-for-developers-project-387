@@ -63,20 +63,20 @@ jobs:
           version: 2026.10.23
       - run: mise run install
       - run: mise run test:e2e:install
-      - name: Запустить браузерные сценарии записи
+      - name: Запустить браузерные сценарии записи и предстоящих событий
         id: browser
         env:
           EVIDENCE_DIR: ${{ runner.temp }}/head-browser-evidence
         run: |
           set -o pipefail
-          mise run test:e2e -- e2e/meeting-types.spec.ts e2e/copy-booking.spec.ts --trace on --output="$EVIDENCE_DIR/traces" 2>&1 | tee "$EVIDENCE_DIR/results.log"
+          mise run test:e2e -- e2e/meeting-types.spec.ts e2e/copy-booking.spec.ts e2e/upcoming-events.spec.ts --trace on --output="$EVIDENCE_DIR/traces" 2>&1 | tee "$EVIDENCE_DIR/results.log"
       - name: Зафиксировать результат браузерной проверки
         if: ${{ !cancelled() && steps.revision.outputs.sha != '' }}
         env:
           HEAD_SHA: ${{ steps.revision.outputs.sha }}
           BROWSER_OUTCOME: ${{ steps.browser.outcome }}
         run: |
-          printf 'head_sha=%s\nresult=%s\nscenarios=e2e/meeting-types.spec.ts,e2e/copy-booking.spec.ts\n' "$HEAD_SHA" "$BROWSER_OUTCOME" > "$RUNNER_TEMP/head-browser-evidence/result.txt"
+          printf 'head_sha=%s\nresult=%s\nscenarios=e2e/meeting-types.spec.ts,e2e/copy-booking.spec.ts,e2e/upcoming-events.spec.ts\n' "$HEAD_SHA" "$BROWSER_OUTCOME" > "$RUNNER_TEMP/head-browser-evidence/result.txt"
       - name: Загрузить браузерные свидетельства
         if: ${{ !cancelled() && steps.revision.outputs.sha != '' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

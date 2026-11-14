@@ -17,6 +17,9 @@ export function EventsPage() {
     refetchOnReconnect: false,
     refetchOnMount: "always",
   });
+  const isRetryingAfterInitialLoadError =
+    events.isFetching && events.data === undefined && events.errorUpdateCount > 0;
+  const showError = events.isError || isRetryingAfterInitialLoadError;
   return (
     <section className="container events" aria-label="Предстоящие события">
       <header className="page-header events-header">
@@ -33,15 +36,20 @@ export function EventsPage() {
           Обновить
         </button>
       </header>
-      {events.isPending && (
+      {events.isPending && !showError && (
         <p role="status" className="events-state">
           Загрузка событий…
         </p>
       )}
-      {events.isError && (
+      {showError && (
         <div role="alert" className="alert">
           Не удалось загрузить события.{" "}
-          <button type="button" className="btn btn-subtle" onClick={() => void events.refetch()}>
+          <button
+            type="button"
+            className="btn btn-subtle"
+            onClick={() => void events.refetch()}
+            disabled={events.isFetching}
+          >
             Повторить
           </button>
         </div>
