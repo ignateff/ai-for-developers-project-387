@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.1](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.11.0...v0.11.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** disable retry while upcoming events load ([d29dce0](https://github.com/ignateff/ai-for-developers-project-387/commit/d29dce09321f6ac587029b1e0b2ebad1572f6626)), closes [#108](https://github.com/ignateff/ai-for-developers-project-387/issues/108) [#109](https://github.com/ignateff/ai-for-developers-project-387/issues/109) [#110](https://github.com/ignateff/ai-for-developers-project-387/issues/110)
+* **web:** disable retry while upcoming events load ([fe96907](https://github.com/ignateff/ai-for-developers-project-387/commit/fe969071bf7fef599d7ac8a788c7e737763b90b5)), closes [#110](https://github.com/ignateff/ai-for-developers-project-387/issues/110) [#108](https://github.com/ignateff/ai-for-developers-project-387/issues/108) [#109](https://github.com/ignateff/ai-for-developers-project-387/issues/109)
+* **web:** hide loading status during upcoming events retry ([6d2edc7](https://github.com/ignateff/ai-for-developers-project-387/commit/6d2edc7c7f6cc85e633d600fb9f85306fa681f4e)), closes [#110](https://github.com/ignateff/ai-for-developers-project-387/issues/110) [#108](https://github.com/ignateff/ai-for-developers-project-387/issues/108) [#109](https://github.com/ignateff/ai-for-developers-project-387/issues/109)
+
 ## [0.11.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.10.0...v0.11.0) (2026-11-11)
 
 
