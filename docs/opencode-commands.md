@@ -321,7 +321,14 @@ Local tests alone cannot prove App/OIDC authorization or GitHub publication.
 A real command listed project skills in [issue #26](https://github.com/ignateff/ai-for-developers-project-387/issues/26#issuecomment-6665575831),
 and the agreed specification and ticket were published as [#33](https://github.com/ignateff/ai-for-developers-project-387/issues/33)
 and [#34](https://github.com/ignateff/ai-for-developers-project-387/issues/34).
-These observations do not establish every issue-to-PR or correction scenario.
+[PR #111](https://github.com/ignateff/ai-for-developers-project-387/pull/111) was created by an `implement-spec` run
+and received a [code commit from a general PR comment](https://github.com/ignateff/ai-for-developers-project-387/commit/8469b80463de647c6c1ce274a4290f6897ca9dbe).
+In [PR #98](https://github.com/ignateff/ai-for-developers-project-387/pull/98#discussion_r4527629168), an inline comment
+led to a [commit with a fix and regression tests](https://github.com/ignateff/ai-for-developers-project-387/commit/f194201811492271b0ae443e8cc2bdddbce9c81d).
+A later [inline run on #111](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/43217274263/job/131179638823)
+produced a local fix but failed GitHub authentication at publication; the fix
+was restored manually. These results establish both command paths, with a
+recorded publication failure on the later attempt.
 Check each created issue or PR, its links and actual CI results rather than
 relying on an Actions job's success status.
 
