@@ -4,11 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { meetingTypesCreate, meetingTypesList } from "../../../../../generated/sdk/client";
 
 import { validateType } from "./validate-type";
-import { ManageType } from "./manage-type";
+import { ManageType, STALE_TYPE_NOTICE, type DeleteOutcome } from "./manage-type";
 
 export function AdminTypesPage() {
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState("");
+  const addButton = useRef<HTMLButtonElement>(null);
   const dialogSession = useRef(0);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -47,6 +49,10 @@ export function AdminTypesPage() {
       await queryClient.invalidateQueries({ queryKey: ["meeting-types"] });
     },
   });
+  function handleDeleteOutcome(outcome: DeleteOutcome) {
+    if (outcome === "missing") setDeleteNotice(STALE_TYPE_NOTICE);
+    void list.refetch().finally(() => addButton.current?.focus());
+  }
   function submit(event: FormEvent) {
     event.preventDefault();
     const {
@@ -72,6 +78,7 @@ export function AdminTypesPage() {
       </header>
       <button
         type="button"
+        ref={addButton}
         className="btn btn-accent admin-add"
         onClick={() => {
           dialogSession.current++;
@@ -97,6 +104,14 @@ export function AdminTypesPage() {
           <p>Добавьте первый тип встречи, чтобы гости могли записаться.</p>
         </div>
       )}
+      {deleteNotice && (
+        <div role="alert" className="alert">
+          {deleteNotice}{" "}
+          <button type="button" className="btn btn-subtle" onClick={() => setDeleteNotice("")}>
+            Понятно
+          </button>
+        </div>
+      )}
       <div className="type-list">
         {!list.isError &&
           list.data?.map((item) => (
@@ -112,6 +127,7 @@ export function AdminTypesPage() {
                   refresh={() => {
                     void list.refetch();
                   }}
+                  onDeleteOutcome={handleDeleteOutcome}
                 />
               </div>
             </article>

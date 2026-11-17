@@ -1,3 +1,4 @@
+import { Modal } from "@mantine/core";
 import { useState } from "react";
 import { type Booking } from "../../../../../generated/sdk/client";
 import { clearAttempt, sendAttempt, type Attempt } from "./attempt";
@@ -80,12 +81,16 @@ export function Recovery({ attempt, onDone }: { attempt: Attempt; onDone: () => 
             >
               Забыть попытку
             </button>
-            {confirmForget && (
-              <>
-                <p className="recovery-warning">
-                  Запись может существовать и не отменяется. Новая попытка может создать вторую
-                  запись.
-                </p>
+            <Modal
+              opened={confirmForget}
+              onClose={() => setConfirmForget(false)}
+              title="Забыть попытку"
+            >
+              <p className="recovery-warning">
+                Запись может существовать и не отменяется. Новая попытка может создать вторую
+                запись.
+              </p>
+              <div className="recovery-actions">
                 <button
                   type="button"
                   className="btn btn-danger"
@@ -104,8 +109,8 @@ export function Recovery({ attempt, onDone }: { attempt: Attempt; onDone: () => 
                 >
                   Назад
                 </button>
-              </>
-            )}
+              </div>
+            </Modal>
           </div>
         ) : (
           <div className="recovery-actions">
