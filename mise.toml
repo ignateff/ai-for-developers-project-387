@@ -29,11 +29,28 @@ description = "Add a dependency to a workspace project (default @calendar/web)"
 usage = '''
 arg "<packages>" var=#true
 flag "--filter <project>" default="@calendar/web"
+flag "--dev" help="Add to devDependencies instead of dependencies"
 '''
 run = '''
 #!/usr/bin/env bash
 eval "packages=(${usage_packages?})"
-pnpm --filter "${usage_filter?}" add "${packages[@]}"
+args=()
+if [[ -n "${usage_dev:-}" ]]; then
+  args+=(-D)
+fi
+pnpm --filter "${usage_filter?}" add "${args[@]}" "${packages[@]}"
+'''
+
+[tasks.remove]
+description = "Remove a dependency from a workspace project (default @calendar/web)"
+usage = '''
+arg "<packages>" var=#true
+flag "--filter <project>" default="@calendar/web"
+'''
+run = '''
+#!/usr/bin/env bash
+eval "packages=(${usage_packages?})"
+pnpm --filter "${usage_filter?}" remove "${packages[@]}"
 '''
 
 [tasks."add:dev"]

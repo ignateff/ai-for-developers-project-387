@@ -64,4 +64,4 @@ These checks do not establish model reliability or GitHub Actions behavior. A
 specific controlled Actions run remains necessary for the issue's acceptance;
 local simulation must not be reported as an Actions run.
 
-[`opencode.json`](../../opencode.json) and [`opencode.example.json`](../../opencode.example.json) do not configure an MCP server. No `.env`, local mise settings or credentials were migrated. For optional Render MCP setup, follow [the deployment guide](../deploy/render.md).
+[`opencode.json`](../../opencode.json) must stay limited to `$schema` and remote MCP servers: the GitHub command gate in `scripts/opencode-discovery.ts` rejects plugins, local servers and a `.opencode/` directory. [`opencode.example.json`](../../opencode.example.json) shows the calendar MCP server described in [docs/mcp.md](../mcp.md); keep personal settings out of the repository. No `.env`, local mise settings or credentials were migrated. For optional Render MCP setup, follow [the deployment guide](../deploy/render.md).

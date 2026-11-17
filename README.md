@@ -102,6 +102,10 @@ Workflow `.github/workflows/opencode.yml` запускается по новом
 
 Для диагностики включён вывод stdout и stderr обработчика в публичный лог Actions. Он может содержать чувствительные данные, в том числе учётные данные; ограничения и способ отключения описаны в [docs/opencode-commands.md](docs/opencode-commands.md#publication-risk).
 
+### MCP для агентов
+
+`POST /mcp` отдаёт агенту доступность и создание записи: два инструмента, без авторизации, только UTC. Адрес, примеры конфигурации клиентов и ограничения — в [docs/mcp.md](docs/mcp.md). Эндпоинт не входит в OpenAPI-контракт.
+
 ### Учебный цикл
 
 В [обращении № 108](https://github.com/ignateff/ai-for-developers-project-387/issues/108) агент разобрал поведение кнопки «Повторить», а владелец [согласовал требования](https://github.com/ignateff/ai-for-developers-project-387/issues/108#issuecomment-6821926290). Агент оформил [спецификацию № 109](https://github.com/ignateff/ai-for-developers-project-387/issues/109) через `to-spec` и после [согласования разбиения](https://github.com/ignateff/ai-for-developers-project-387/issues/109#issuecomment-6822013501) создал [тикет № 110](https://github.com/ignateff/ai-for-developers-project-387/issues/110) через `to-tickets`. Запуск `implement-spec` создал [PR № 111](https://github.com/ignateff/ai-for-developers-project-387/pull/111).
