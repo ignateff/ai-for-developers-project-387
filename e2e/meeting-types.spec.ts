@@ -127,11 +127,32 @@ test("owner edits and confirms deletion of a meeting type", async ({ page }) => 
     .locator("article")
     .filter({ has: page.getByRole("heading", { name: "Обновлённый тип", exact: true }) });
   await expect(updated.getByRole("button", { name: "Изменить", exact: true })).toBeFocused();
-  await updated.getByRole("button", { name: "Удалить", exact: true }).click();
-  await expect(page.getByText(/Новые записи станут недоступны/)).toBeVisible();
-  await page.getByRole("button", { name: "Отмена", exact: true }).click();
+  let deletes = 0;
+  page.on("request", (request) => {
+    if (request.method() === "DELETE") deletes++;
+  });
+  const deleteDialog = page.getByRole("dialog", { name: "Удалить тип встречи" });
+  const openDelete = async () => {
+    await updated.getByRole("button", { name: "Удалить", exact: true }).click();
+    await expect(deleteDialog).toBeVisible();
+  };
+  await openDelete();
+  await expect(deleteDialog.getByText(/Новые записи станут недоступны/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Обновлённый тип", exact: true })).toBeVisible();
-  await updated.getByRole("button", { name: "Удалить", exact: true }).click();
-  await page.getByRole("button", { name: "Подтвердить удаление" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(updated.getByRole("button", { name: "Удалить", exact: true })).toBeFocused();
+  await openDelete();
+  await page.mouse.click(5, 5);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(updated.getByRole("button", { name: "Удалить", exact: true })).toBeFocused();
+  await openDelete();
+  await deleteDialog.getByRole("button", { name: "Отмена", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(updated.getByRole("button", { name: "Удалить", exact: true })).toBeFocused();
+  expect(deletes).toBe(0);
+  await openDelete();
+  await deleteDialog.getByRole("button", { name: "Подтвердить удаление" }).click();
   await expect(page.getByRole("heading", { name: "Обновлённый тип", exact: true })).toHaveCount(0);
+  expect(deletes).toBe(1);
 });
