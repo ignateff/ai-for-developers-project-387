@@ -84,7 +84,6 @@ jobs:
             }
 if: needs.eligibility.outputs.allowed == 'true'
 safe-outputs:
-  staged: true
   activation-comments: false
   create-issue: false
   report-failure-as-issue: false
