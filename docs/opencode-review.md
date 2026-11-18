@@ -66,6 +66,43 @@ disable the gh-aw workflow. Do not delete the old workflow or its entry points:
 usable. The legacy workflow uses the old comment counter and its own prompt,
 context collection and publisher.
 
+## Controlled gh-aw verification (18 November 2026)
+
+The workflow was exercised on controlled internal PRs after the first version
+landed:
+
+- **Automatic review and publication** — [PR #137](https://github.com/ignateff/ai-for-developers-project-387/pull/137)
+  produced three reports while the snapshot was being corrected:
+  [run 44307270757](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44307270757),
+  [run 44310317201](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44310317201),
+  [run 44313111271](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44313111271).
+  The published comments are
+  [#issuecomment-6979281537](https://github.com/ignateff/ai-for-developers-project-387/pull/137#issuecomment-6979281537),
+  [#issuecomment-6979774753](https://github.com/ignateff/ai-for-developers-project-387/pull/137#issuecomment-6979774753)
+  and [#issuecomment-6980112658](https://github.com/ignateff/ai-for-developers-project-387/pull/137#issuecomment-6980112658).
+  The first run found real snapshot gaps (hidden artifact files, silent history
+  truncation, oldest-first commit history); those were fixed before merge.
+- **Manual staged pilot** — [run 44316591386](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44316591386)
+  ran against PR #136, wrote the Russian draft to the run summary and posted no
+  comment.
+- **Draft skip** — [run 44318185977](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44318185977)
+  recorded `Авторевью пропущено: draft`; the budget stayed at 2/3 and the model
+  was not called.
+- **Budget refusal** — [run 44315354861](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44315354861)
+  and [run 44319053230](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44319053230)
+  logged `limit_exhausted` and skipped the agent.
+- **Head update cancellation** — [run 44318554654](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44318554654)
+  was cancelled when a new head arrived; the follow-up run was refused by the
+  exhausted budget.
+- **Publication-only rerun** — re-running only the `publish_review` job of
+  [run 44322193457](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44322193457)
+  logged `Авторевью: already-published` and left exactly one
+  [report comment](https://github.com/ignateff/ai-for-developers-project-387/pull/144#issuecomment-6981267185)
+  without a model call or a new attempt.
+
+The new gh-aw workflow is active and the legacy `opencode-review.yml` remains
+`disabled_manually`.
+
 ## Legacy status and authorization
 
 The rest of this document describes the legacy OpenCode adapter, kept for
