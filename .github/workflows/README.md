@@ -18,13 +18,15 @@ mise run lint:workflows
 
 ## Предварительный триаж задач (gh-aw)
 
-[Пилот](agentic-triage.md) запускается при открытии задачи и показывает один проект комментария в сводке Actions. Опубликованный комментарий по-прежнему приходит от действующего триажа OpenCode. Для ручной проверки передайте номер issue, созданного владельцем или участником с правом записи. Задачи ботов и задачи с метками `ready-for-agent`, `ready-for-human` или `wontfix` пропускаются.
+[Триаж](agentic-triage.md) запускается при открытии задачи и публикует один комментарий с предварительным анализом. Он использует Claude Code с моделью `deepseek-v4.1-flash` через OpenCode Go и секретом Actions `OPENCODE_API_KEY`. Для ручной проверки передайте номер issue, созданного владельцем или участником с правом записи. Задачи ботов и задачи с метками `ready-for-agent`, `ready-for-human` или `wontfix` пропускаются.
+
+Для [OpenCode Go в Claude Code](https://opencode.ai/docs/console/harnesses/claude-code/#go) используется адрес `https://opencode.ai/inference/go/anthropic`. В этом workflow ключ поступает в прокси AWF через `ANTHROPIC_API_KEY` с префиксом `Bearer `, а `AWF_ANTHROPIC_AUTH_HEADER: Authorization` задаёт заголовок для отправки провайдеру. AWF принимает статические credentials через `ANTHROPIC_API_KEY` и передаёт значение пользовательского заголовка целиком. [Аутентификация AWF](https://github.com/github/gh-aw-firewall/blob/main/docs/auth-matrix.md)
 
 ```sh
 gh workflow run agentic-triage.lock.yml --ref main -f issue_number=123
 ```
 
-Результат смотрите в Summary выбранного запуска, в предварительном просмотре `add_comment`. Для обновления конфигурации используйте gh-aw v1.2.2 и компилируйте оба workflow при изменении [общего шага установки Claude Code](shared/claude-code-install.md).
+Результат смотрите в комментариях задачи и Summary выбранного запуска. Для обновления конфигурации используйте gh-aw v1.2.2 и компилируйте оба workflow при изменении [общего шага установки Claude Code](shared/claude-code-install.md).
 
 ```sh
 gh aw compile agentic-smoke agentic-triage --strict
