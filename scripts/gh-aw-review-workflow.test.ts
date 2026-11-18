@@ -24,7 +24,8 @@ describe("gh-aw review workflow contract", () => {
     expect(workflow.on.bots).toEqual(["opencode-agent[bot]", "calendar-release-ignateff-bot[bot]"]);
     expect(workflow.concurrency).toMatchObject({
       "cancel-in-progress": true,
-      group: "agentic-pr-review-${{ github.event.pull_request.number || inputs.pr_number }}",
+      group:
+        "${{ github.event_name == 'workflow_dispatch' && format('agentic-pr-review-pilot-{0}', inputs.pr_number) || format('agentic-pr-review-{0}', github.event.pull_request.number) }}",
     });
   });
 
@@ -33,13 +34,14 @@ describe("gh-aw review workflow contract", () => {
       id: "check",
       run: "mise run review:eligibility",
     });
-    expect(workflow.jobs.budget.needs).toBe("eligibility");
+    expect(workflow.jobs.context.needs).toBe("eligibility");
+    expect(workflow.jobs.context.if).toBe("needs.eligibility.outputs.allowed == 'true'");
+    expect(workflow.jobs.budget.needs).toEqual(["eligibility", "context"]);
     expect(workflow.jobs.budget.if).toBe("needs.eligibility.outputs.allowed == 'true'");
     expect(workflow.jobs.budget.steps.at(-1)).toMatchObject({
       id: "admit",
       run: "mise run review:budget",
     });
-    expect(workflow.jobs.context.needs).toEqual(["eligibility", "budget"]);
     expect(workflow.if).toBe(
       "needs.eligibility.outputs.allowed == 'true' && needs.budget.outputs.admitted == 'true'",
     );
@@ -52,6 +54,18 @@ describe("gh-aw review workflow contract", () => {
         "include-hidden-files": true,
       },
     });
+  });
+
+  test("checks out the trusted default branch, never the PR merge revision", () => {
+    const steps = [
+      ...Object.values(workflow.jobs).flatMap((job: any) => job.steps ?? []),
+      ...Object.values(workflow["safe-outputs"].jobs).flatMap((job: any) => job.steps ?? []),
+    ] as { uses?: string; with?: Record<string, unknown> }[];
+    const checkouts = steps.filter((step) => step.uses?.startsWith("actions/checkout@"));
+    expect(checkouts.length).toBeGreaterThan(0);
+    for (const checkout of checkouts)
+      expect(checkout.with?.ref).toBe("${{ github.event.repository.default_branch }}");
+    expect(JSON.stringify(workflow)).not.toContain("github.workflow_sha");
   });
 
   test("gives the agent only a pinned snapshot and no PR checkout", () => {

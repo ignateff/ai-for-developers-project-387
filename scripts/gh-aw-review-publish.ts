@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 
 export type ReviewReport = {
@@ -7,7 +8,8 @@ export type ReviewReport = {
 };
 
 export const reviewBodyLimit = 60000;
-export const ghAwReportMarker = (artifact: string) => `<!-- gh-aw-review-report:${artifact} -->`;
+export const ghAwReportMarker = (sha: string, digest: string) =>
+  `<!-- gh-aw-review-report:${sha}:${digest} -->`;
 
 const escape = (value: string) =>
   value
@@ -55,20 +57,18 @@ export function parseAgentReport(value: unknown): ReviewReport {
 export function formatGhAwReviewBody(options: {
   repository: string;
   sha: string;
-  artifact: string;
   runId: string;
   report: ReviewReport;
   metaLimitations?: string[];
 }) {
-  const { repository, sha, artifact, runId, report } = options;
+  const { repository, sha, runId, report } = options;
   const limitations = [...new Set([...report.limitations, ...(options.metaLimitations ?? [])])];
   const contextUnavailable = limitations.some((item) =>
     /(?:unavailable|incomplete|could not be loaded|недоступ|неполн|не удалось загрузить)/i.test(
       item,
     ),
   );
-  return [
-    ghAwReportMarker(artifact),
+  const content = [
     `## Автоматическое ревью (gh-aw)`,
     `Проверенный head: \`${sha}\``,
     `Логи Actions: https://github.com/${repository}/actions/runs/${runId}`,
@@ -85,6 +85,8 @@ export function formatGhAwReviewBody(options: {
         `- ${escape(finding.file)}:${finding.line} — ${escape(finding.conditions)}; ${escape(finding.consequence)}`,
     ),
   ].join("\n");
+  const digest = createHash("sha256").update(content).digest("hex").slice(0, 16);
+  return `${ghAwReportMarker(sha, digest)}\n${content}`;
 }
 
 export type PublishOptions = {
@@ -94,7 +96,6 @@ export type PublishOptions = {
   authorId: number;
   number: number;
   sha: string;
-  artifact: string;
   runId: string;
   runAttempt: string;
   report: ReviewReport;
@@ -102,9 +103,9 @@ export type PublishOptions = {
   staged: boolean;
 };
 
-/** Verify head and publish exactly once; a retry with the same artifact is a no-op. */
+/** Verify head and publish exactly once; an identical report is a no-op. */
 export async function publishGhAwReview(options: PublishOptions): Promise<string> {
-  const { repository, token, authorId, number, sha, artifact, runId } = options;
+  const { repository, token, authorId, number, sha, runId } = options;
   if (
     !/^[\w-]+\/[\w.-]+$/.test(repository) ||
     !token ||
@@ -114,7 +115,6 @@ export async function publishGhAwReview(options: PublishOptions): Promise<string
     !Number.isSafeInteger(number) ||
     number < 1 ||
     !/^[a-f\d]{40}$/i.test(sha) ||
-    !/^review-[1-9]\d*-[1-9]\d*$/.test(artifact) ||
     !/^[1-9]\d*$/.test(runId) ||
     !/^[1-9]\d*$/.test(options.runAttempt) ||
     !Array.isArray(options.metaLimitations) ||
@@ -129,7 +129,6 @@ export async function publishGhAwReview(options: PublishOptions): Promise<string
   const body = formatGhAwReviewBody({
     repository,
     sha,
-    artifact,
     runId,
     report: options.report,
     metaLimitations: options.metaLimitations,
@@ -170,7 +169,7 @@ export async function publishGhAwReview(options: PublishOptions): Promise<string
       throw new Error("PR head is stale; the pinned review was not published");
   };
 
-  const marker = ghAwReportMarker(artifact);
+  const marker = body.split("\n")[0];
   await assertHead();
   for (let page = 1; page <= 1000; page++) {
     const comments = await request(`issues/${number}/comments?per_page=100&page=${page}`);
@@ -222,7 +221,6 @@ if (import.meta.main) {
       authorId: meta.authorId ?? 41898282,
       number: meta.number,
       sha: meta.headSha,
-      artifact: meta.artifact,
       runId: meta.runId,
       runAttempt: meta.runAttempt,
       report,

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
   formatGhAwReviewBody,
-  ghAwReportMarker,
   parseAgentReport,
   publishGhAwReview,
   type ReviewReport,
@@ -54,7 +53,6 @@ const options = (apiFetch: typeof fetch, overrides: Record<string, unknown> = {}
   authorId: 42,
   number: 7,
   sha,
-  artifact: "review-1-1",
   runId: "1",
   runAttempt: "1",
   report,
@@ -68,11 +66,12 @@ describe("gh-aw review publication", () => {
     const body = formatGhAwReviewBody({
       repository,
       sha,
-      artifact: "review-1-1",
       runId: "1",
       report,
     });
-    expect(body).toContain(ghAwReportMarker("review-1-1"));
+    expect(body.split("\n")[0]).toMatch(
+      new RegExp(`^<!-- gh-aw-review-report:${sha}:[a-f0-9]{16} -->$`),
+    );
     expect(body).toContain("## Автоматическое ревью (gh-aw)");
     expect(body).toContain(`Проверенный head: \`${sha}\``);
     expect(body).toContain(`https://github.com/${repository}/actions/runs/1`);
@@ -82,13 +81,28 @@ describe("gh-aw review publication", () => {
     expect(body).toContain("не полное ревью кода");
   });
 
-  test("publishes one general comment and deduplicates the same saved report", async () => {
+  test("publishes one general comment and deduplicates an identical report", async () => {
     const state = commentHarness();
     expect(await publishGhAwReview(options(state.fetch))).toBe("published");
     expect(state.comments).toHaveLength(1);
-    expect(state.comments[0].body.startsWith(ghAwReportMarker("review-1-1"))).toBe(true);
+    expect(state.comments[0].body.split("\n")[0]).toMatch(
+      new RegExp(`^<!-- gh-aw-review-report:${sha}:[a-f0-9]{16} -->$`),
+    );
     expect(await publishGhAwReview(options(state.fetch))).toBe("already-published");
     expect(state.posts()).toBe(1);
+  });
+
+  test("publishes a different report for the same head", async () => {
+    const state = commentHarness();
+    expect(await publishGhAwReview(options(state.fetch))).toBe("published");
+    expect(
+      await publishGhAwReview(
+        options(state.fetch, {
+          report: { ...report, summary: "Другой вывод после полного повторного запуска." },
+        }),
+      ),
+    ).toBe("published");
+    expect(state.posts()).toBe(2);
   });
 
   test("does not publish a report whose pinned head moved", async () => {
@@ -100,7 +114,9 @@ describe("gh-aw review publication", () => {
   test("shows a staged draft without writing a comment", async () => {
     const state = commentHarness();
     const body = await publishGhAwReview(options(state.fetch, { staged: true }));
-    expect(body).toContain(ghAwReportMarker("review-1-1"));
+    expect(body.split("\n")[0]).toMatch(
+      new RegExp(`^<!-- gh-aw-review-report:${sha}:[a-f0-9]{16} -->$`),
+    );
     expect(state.posts()).toBe(0);
     expect(state.comments).toHaveLength(0);
   });
@@ -109,7 +125,6 @@ describe("gh-aw review publication", () => {
     const body = formatGhAwReviewBody({
       repository,
       sha,
-      artifact: "review-1-1",
       runId: "1",
       report: {
         summary: "<script>alert(1)</script> @maintainer",
