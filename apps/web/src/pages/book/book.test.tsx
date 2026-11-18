@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MantineProvider } from "@mantine/core";
@@ -360,11 +360,18 @@ it("keeps an unknown attempt after 503 and requires confirmation before forgetti
   expect(await screen.findByRole("alert")).toHaveTextContent("Результат неизвестен");
   expect(sessionStorage.getItem("calendar-booking-attempt")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Забыть попытку" }));
-  expect(screen.getByText(/Запись может существовать и не отменяется/)).toHaveTextContent(
-    "Новая попытка может создать вторую запись",
+  const forgetDialog = await screen.findByRole("dialog", { name: "Забыть попытку" });
+  expect(
+    within(forgetDialog).getByText(/Запись может существовать и не отменяется/),
+  ).toHaveTextContent("Новая попытка может создать вторую запись");
+  expect(sessionStorage.getItem("calendar-booking-attempt")).toBeTruthy();
+  fireEvent.click(within(forgetDialog).getByRole("button", { name: "Назад" }));
+  await vi.waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Забыть попытку" })).not.toBeInTheDocument(),
   );
   expect(sessionStorage.getItem("calendar-booking-attempt")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Подтвердить забывание" }));
+  fireEvent.click(screen.getByRole("button", { name: "Забыть попытку" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Подтвердить забывание" }));
   expect(sessionStorage.getItem("calendar-booking-attempt")).toBeNull();
   expect(await screen.findByText("Пока нет типов встреч")).toBeInTheDocument();
 });
@@ -408,12 +415,135 @@ it("allows editing and confirming deletion of a meeting type", async () => {
       ([, init]) => init?.method === "PUT" && new Headers(init.headers).get("if-match") === '"1"',
     ),
   ).toBe(true);
-  fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+  const remove = screen.getByRole("button", { name: "Удалить" });
+  remove.focus();
+  fireEvent.click(remove);
+  const dialog = await screen.findByRole("dialog", { name: "Удалить тип встречи" });
+  expect(screen.getByRole("heading", { name: "Call" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Изменить" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Удалить" })).toBeVisible();
   expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
-  fireEvent.click(screen.getByRole("button", { name: "Подтвердить удаление" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Отмена" }));
+  await vi.waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Удалить тип встречи" })).not.toBeInTheDocument(),
+  );
+  expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+  await vi.waitFor(() => expect(remove).toHaveFocus());
+  fireEvent.click(remove);
+  fireEvent.click(await screen.findByRole("button", { name: "Подтвердить удаление" }));
   await vi.waitFor(() =>
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(true),
   );
+  await vi.waitFor(() =>
+    expect(screen.getByRole("button", { name: "Добавить тип встречи" })).toHaveFocus(),
+  );
+});
+
+it("keeps the delete confirmation open with an error when deletion fails", async () => {
+  const type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+  let resolveDelete!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE")
+        return new Promise<Response>((resolve) => {
+          resolveDelete = resolve;
+        });
+      return new Response(JSON.stringify([type]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MantineProvider>
+        <AdminTypesPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  const dialog = await screen.findByRole("dialog", { name: "Удалить тип встречи" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Подтвердить удаление" }));
+  await vi.waitFor(() =>
+    expect(within(dialog).getByRole("button", { name: "Отмена" })).toBeDisabled(),
+  );
+  resolveDelete(new Response(null, { status: 500 }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("Не удалось удалить тип");
+  expect(screen.getByRole("dialog", { name: "Удалить тип встречи" })).toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "Отмена" })).toBeEnabled();
+});
+
+it("shows a dismissible notice when the type is already gone", async () => {
+  const type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+  let lists = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE") return new Response(null, { status: 404 });
+      return new Response(JSON.stringify(++lists === 1 ? [type] : []), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MantineProvider>
+        <AdminTypesPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Подтвердить удаление" }));
+  const banner = await screen.findByRole("alert");
+  expect(banner).toHaveTextContent("Тип встречи изменился или удалён. Список обновлён.");
+  expect(screen.queryByRole("heading", { name: "Call" })).not.toBeInTheDocument();
+  const add = screen.getByRole("button", { name: "Добавить тип встречи" });
+  await vi.waitFor(() => expect(add).toHaveFocus());
+  fireEvent.click(within(banner).getByRole("button", { name: "Понятно" }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("keeps a version conflict notice in the card after a delete", async () => {
+  const type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+  let lists = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE") return new Response(null, { status: 412 });
+      return new Response(JSON.stringify([{ ...type, version: ++lists === 1 ? 1 : 2 }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MantineProvider>
+        <AdminTypesPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  const remove = await screen.findByRole("button", { name: "Удалить" });
+  remove.focus();
+  fireEvent.click(remove);
+  fireEvent.click(await screen.findByRole("button", { name: "Подтвердить удаление" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Тип встречи изменился или удалён. Список обновлён.",
+  );
+  await vi.waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Удалить тип встречи" })).not.toBeInTheDocument(),
+  );
+  await vi.waitFor(() => expect(screen.getByRole("button", { name: "Удалить" })).toHaveFocus());
+  fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+  expect(screen.queryByText(/Тип встречи изменился или удалён/)).not.toBeInTheDocument();
 });
 
 it("refreshes a conflicting version without losing the edit draft", async () => {

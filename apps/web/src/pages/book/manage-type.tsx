@@ -1,6 +1,6 @@
 import { Modal } from "@mantine/core";
 import { validateType } from "./validate-type";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   meetingTypeResourceRemove,
   meetingTypeResourceUpdate,
@@ -8,13 +8,28 @@ import {
   type MeetingType,
 } from "../../../../../generated/sdk/client";
 
-export function ManageType({ type, refresh }: { type: MeetingType; refresh: () => void }) {
+export type DeleteOutcome = "deleted" | "missing";
+
+export const STALE_TYPE_NOTICE = "Тип встречи изменился или удалён. Список обновлён.";
+
+export function ManageType({
+  type,
+  refresh,
+  onDeleteOutcome,
+}: {
+  type: MeetingType;
+  refresh: () => void;
+  onDeleteOutcome: (outcome: DeleteOutcome) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description);
   const [duration, setDuration] = useState(String(type.durationMinutes));
   const [error, setError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteNotice, setDeleteNotice] = useState("");
+  const removeButton = useRef<HTMLButtonElement>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const [version, setVersion] = useState(type.version);
@@ -69,58 +84,70 @@ export function ManageType({ type, refresh }: { type: MeetingType; refresh: () =
       setPending(false);
     }
   }
+  function closeConfirm() {
+    setConfirm(false);
+    removeButton.current?.focus();
+  }
   async function remove() {
     setPending(true);
-    setError("");
+    setDeleteError("");
     try {
       const response = await meetingTypeResourceRemove(type.id, {
         headers: { "If-Match": `"${type.version}"` },
       });
       if (response.status === 204) {
         setConfirm(false);
-        refresh();
+        onDeleteOutcome("deleted");
       } else if (response.status === 412 || response.status === 404) {
-        setConfirm(false);
-        setError("Тип встречи изменился или удалён. Список обновлён.");
-        refresh();
-      } else setError("Не удалось удалить тип. Попробуйте ещё раз.");
+        if (response.status === 412) {
+          closeConfirm();
+          setDeleteNotice(STALE_TYPE_NOTICE);
+          refresh();
+        } else {
+          setConfirm(false);
+          onDeleteOutcome("missing");
+        }
+      } else setDeleteError("Не удалось удалить тип. Попробуйте ещё раз.");
     } catch {
-      setError("Не удалось удалить тип. Попробуйте ещё раз.");
+      setDeleteError("Не удалось удалить тип. Попробуйте ещё раз.");
     } finally {
       setPending(false);
     }
   }
   return (
     <div className="type-manage">
-      {!confirm && (
-        <>
-          <button
-            type="button"
-            className="btn btn-subtle"
-            aria-describedby={`meeting-type-${type.id}`}
-            onClick={() => {
-              setError("");
-              setVersion(type.version);
-              setConflict(false);
-              setFields({});
-              setName(type.name);
-              setDescription(type.description);
-              setDuration(String(type.durationMinutes));
-              setEditing(true);
-            }}
-          >
-            Изменить
-          </button>
-          <button
-            type="button"
-            className="btn btn-danger"
-            aria-describedby={`meeting-type-${type.id}`}
-            onClick={() => setConfirm(true)}
-          >
-            Удалить
-          </button>
-        </>
-      )}
+      <button
+        type="button"
+        className="btn btn-subtle"
+        aria-describedby={`meeting-type-${type.id}`}
+        onClick={() => {
+          setError("");
+          setVersion(type.version);
+          setConflict(false);
+          setFields({});
+          setName(type.name);
+          setDescription(type.description);
+          setDuration(String(type.durationMinutes));
+          setEditing(true);
+        }}
+      >
+        Изменить
+      </button>
+      <button
+        type="button"
+        ref={removeButton}
+        className="btn btn-danger"
+        aria-describedby={`meeting-type-${type.id}`}
+        onClick={() => {
+          setError("");
+          setDeleteError("");
+          setDeleteNotice("");
+          setConflict(false);
+          setConfirm(true);
+        }}
+      >
+        Удалить
+      </button>
       <Modal opened={editing} onClose={() => setEditing(false)} title={`Изменить ${type.name}`}>
         <form className="type-manage-form" onSubmit={(event) => void save(event)} noValidate>
           <div className="field">
@@ -191,29 +218,44 @@ export function ManageType({ type, refresh }: { type: MeetingType; refresh: () =
           </button>
         )}
       </Modal>
-      {confirm && (
-        <div>
-          <p className="recovery-text">
-            Удалить тип «{type.name}»? Новые записи станут недоступны, существующие сохранятся.
+      <Modal
+        opened={confirm}
+        onClose={() => {
+          if (!pending) closeConfirm();
+        }}
+        returnFocus={false}
+        title="Удалить тип встречи"
+      >
+        <p className="recovery-text">
+          Удалить тип «{type.name}»? Новые записи станут недоступны, существующие сохранятся.
+        </p>
+        {deleteError && (
+          <p role="alert" className="field-error">
+            {deleteError}
           </p>
-          <div className="type-manage type-manage-confirm">
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={pending}
-              onClick={() => void remove()}
-            >
-              Подтвердить удаление
-            </button>
-            <button type="button" className="btn btn-subtle" onClick={() => setConfirm(false)}>
-              Отмена
-            </button>
-          </div>
+        )}
+        <div className="type-manage">
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={pending}
+            onClick={() => void remove()}
+          >
+            Подтвердить удаление
+          </button>
+          <button
+            type="button"
+            className="btn btn-subtle"
+            disabled={pending}
+            onClick={closeConfirm}
+          >
+            Отмена
+          </button>
         </div>
-      )}
-      {error && !editing && (
+      </Modal>
+      {deleteNotice && (
         <p role="alert" className="field-error">
-          {error}
+          {deleteNotice}
         </p>
       )}
     </div>

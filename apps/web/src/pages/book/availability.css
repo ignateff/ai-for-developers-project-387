@@ -516,7 +516,6 @@ button.calendar-day {
   margin: 16px 0 0;
   font-size: 13px;
   color: var(--text-secondary);
-  flex-basis: 100%;
 }
 
 .recovery-alert {
@@ -569,10 +568,6 @@ button.calendar-day {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.type-manage-confirm {
-  margin-top: 12px;
 }
 
 .type-create-title {

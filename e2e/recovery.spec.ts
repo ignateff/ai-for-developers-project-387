@@ -76,8 +76,15 @@ test("forgetting a saved unknown attempt can lead to a second booking", async ({
   );
   await page.getByRole("button", { name: "Подтвердить запись" }).click();
   await page.getByRole("button", { name: "Забыть попытку" }).click();
-  await expect(page.getByText(/Новая попытка может создать вторую запись/)).toBeVisible();
-  await page.getByRole("button", { name: "Подтвердить забывание" }).click();
+  const forgetDialog = page.getByRole("dialog", { name: "Забыть попытку" });
+  await expect(forgetDialog.getByText(/Новая попытка может создать вторую запись/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("calendar-booking-attempt")),
+  ).toBeTruthy();
+  await page.getByRole("button", { name: "Забыть попытку" }).click();
+  await forgetDialog.getByRole("button", { name: "Подтвердить забывание" }).click();
   await page.getByRole("button", { name: "Выбрать Риск второй записи" }).click();
   const refreshedSlots = page.waitForResponse(
     (response) => response.url().includes("/slots?") && response.status() === 200,
