@@ -16,6 +16,44 @@ mise run format
 mise run lint:workflows
 ```
 
+## Автоматическое ревью PR (gh-aw)
+
+[agentic-review.md](agentic-review.md) — активный обработчик автоматического
+ревью. Он запускается на `opened`, `synchronize`, `reopened` и
+`ready_for_review`, проверяет происхождение PR, текущие права автора и
+разрешённых ботов до вызова модели, списывает одну из трёх попыток из нового
+счётчика и публикует один русский консультативный комментарий через отдельный
+custom safe-output. Изменение только описания PR агент не запускает.
+
+Ручной пилот всегда staged: он показывает черновик в Summary и не пишет
+комментарий. Номер PR должен принадлежать доверенному внутреннему PR.
+
+```sh
+gh workflow run agentic-review.lock.yml --ref main -f pr_number=123
+```
+
+Повтор только публикации: откройте неудачный запуск, выберите
+**Re-run failed jobs** и оставьте только job `publish_review`. Он использует
+сохранённый отчёт, не вызывает модель, не списывает попытку и не дублирует
+комментарий; при изменившемся head публикация отклоняется. Полный повтор
+запускает модель и требует новой попытки.
+
+Бюджет: три допущенные попытки на PR, отдельный комментарий
+`<!-- gh-aw-review-attempt-budget:v1 -->` от `github-actions[bot]`. Старый
+счётчик не переносится. Подробности — в
+[docs/agents/pr-attempt-budget.md](../../docs/agents/pr-attempt-budget.md).
+
+Откат: включите старый `opencode-review.yml` в Actions и выключите
+`agentic-review.lock.yml`. Старый workflow и его entry points
+(`mise run opencode:budget review`, `mise run opencode:review-publish`)
+сохраняются рабочими.
+
+```sh
+gh aw compile agentic-smoke agentic-review agentic-triage --strict
+mise run format
+mise run lint:workflows
+```
+
 ## Предварительный триаж задач (gh-aw)
 
 [Триаж](agentic-triage.md) запускается при открытии задачи и публикует один комментарий с предварительным анализом. Он использует Claude Code с моделью `deepseek-v4.1-flash` через OpenCode Go и секретом Actions `OPENCODE_API_KEY`. Для ручной проверки передайте номер issue, созданного владельцем или участником с правом записи. Задачи ботов и задачи с метками `ready-for-agent`, `ready-for-human` или `wontfix` пропускаются.
@@ -26,10 +64,10 @@ mise run lint:workflows
 gh workflow run agentic-triage.lock.yml --ref main -f issue_number=123
 ```
 
-Результат смотрите в комментариях задачи и Summary выбранного запуска. Для обновления конфигурации используйте gh-aw v1.2.2 и компилируйте оба workflow при изменении [общего шага установки Claude Code](shared/claude-code-install.md).
+Результат смотрите в комментариях задачи и Summary выбранного запуска. Для обновления конфигурации используйте gh-aw v1.2.2 и компилируйте все workflow при изменении [общего шага установки Claude Code](shared/claude-code-install.md).
 
 ```sh
-gh aw compile agentic-smoke agentic-triage --strict
+gh aw compile agentic-smoke agentic-review agentic-triage --strict
 mise run format
 mise run lint:workflows
 ```

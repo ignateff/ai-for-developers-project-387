@@ -8,6 +8,39 @@ The cutover excludes run IDs at or below `42404073264`; old history is not migra
 
 The model step has its own timeout so reporting can run; forced cancellation or runner loss can prevent a report. `timeout` is reported for a confirmed command timeout, `infra` for preparation or missing credentials, and `agent_failed` for other command failures. An uncertain failure needs log inspection. Subagents started through `task` run inside the same admitted command attempt: delegation does not admit additional runs and does not change the budget accounting. The budget is best effort, not a monetary ceiling; one admitted run may issue many provider requests. The separate review workflow continues using the old comment-based review counter described below.
 
+## gh-aw review budget
+
+The active automatic review uses a separate, new counter. It is independent of
+the command budget and of the legacy review counter. Each PR gets three admitted
+review attempts; the `review:budget` job increments the counter after
+eligibility and before the pinned context is collected, so a run that reaches
+the model spends an attempt even if it later fails, is cancelled or times out.
+Draft PRs, fork PRs, unknown bots, untrusted authors and eligibility-check
+errors stop before this job and spend nothing.
+
+The counter is one PR comment authored by `github-actions[bot]` (numeric user
+ID `41898282`). The body is exactly the marker on one line and the JSON object
+on the next:
+
+```text
+<!-- gh-aw-review-attempt-budget:v1 -->
+{"review":1}
+```
+
+Old `<!-- opencode-pr-attempt-budget:v1 -->` state is not migrated. A PR without
+the new comment starts at zero, including an old PR or one whose state comment
+was deleted. Missing state is not treated as an error; malformed state, duplicate
+matching comments and API failures fail closed before the model. A maintainer
+may edit the non-negative integer to correct or reset the counter, but must keep
+the exact marker, author and body shape.
+
+Publication is a separate safe-output job and does not touch the counter.
+Rerunning only the failed publication job reuses the saved report artifact and
+invokes neither the model nor admission. A full rerun or a rerun that includes
+the model-capable job admits again and spends a new attempt. The limit is best
+effort, not an atomic or monetary guarantee: comment updates, cancellation and
+human edits are not transactional.
+
 ## Legacy review budget
 
 The adapter in `scripts/opencode-budget-workflow.ts` remains wired into the review model job. The reviewer loads changed-file contents at pinned base/head SHAs, pinned base/head trees, selected unchanged related code/tests/contract files and linked context when available, while reporting incomplete or bounded evidence. The full repository is not copied; unavailable, capped or malformed context is listed as a limitation. The adapter materializes related files under `repository/` in its isolated workspace for read-only search. An earlier controlled full GitHub review timed out; a later review completed and published a report on [PR #62](https://github.com/ignateff/ai-for-developers-project-387/pull/62) ([run 42463395746](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42463395746)). This does not establish every review scenario or cross-runner behavior.

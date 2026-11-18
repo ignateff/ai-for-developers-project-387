@@ -1,7 +1,70 @@
 # PR review: operation and local adapter
 
-## Status and authorization
+## Active handler: gh-aw
 
+Automatic advisory review is handled by
+[`agentic-review.md`](../.github/workflows/agentic-review.md) and its generated
+lock file. The legacy [`opencode-review.yml`](../.github/workflows/opencode-review.yml)
+and `scripts/opencode-review-*` remain in the repository as a disabled rollback
+path; they are not the active handler.
+
+The gh-aw workflow runs on `opened`, `synchronize`, `reopened` and
+`ready_for_review`. Editing only the description does not start the agent. A
+manual `workflow_dispatch` takes a trusted internal PR number and is always
+staged: it runs the full agent and writes the Russian draft to the Actions
+Summary without creating a comment. A run that reaches the model consumes one
+review attempt, including a manual pilot.
+
+Before the model, gh-aw checks the actor role and the `on.bots` allowlist
+(`opencode-agent[bot]`, `calendar-release-ignateff-bot[bot]`). The
+`review:eligibility` job then checks that the PR is open and internal, is not a
+draft, and that its current author is the repository owner, a human with
+`admin`/`maintain`/`write`, or one of the allowed bots. Fork PRs, drafts,
+unknown bots and trust-check errors skip the budget and the model without
+spending an attempt.
+
+The review budget is independent from the command budget: three admitted
+attempts per PR, stored in a new PR comment (marker
+`<!-- gh-aw-review-attempt-budget:v1 -->`, author `github-actions[bot]`). Old
+state is not migrated; a PR without the new comment starts at zero. The
+`review:budget` job increments the counter after admission and before context
+collection, so a later cancellation, timeout or context failure can consume the
+attempt. A fourth run is refused without calling the model. See
+[PR attempt budget](agents/pr-attempt-budget.md).
+
+A new review cancels the previous run for the same PR at workflow scope, so an
+outdated head cannot publish. The `review:context` job checks out the trusted
+workflow revision (`github.workflow_sha`) and builds a bounded snapshot at the
+pinned base and head through the GitHub API. The agent runs with `checkout:
+false`, Bash, editing and GitHub tools disabled, and reads the snapshot as
+data. There is no runtime guarantee that every snapshot fragment was read in
+full; the prompt requires a full read, and missing, truncated or incomplete
+evidence must be listed in the report. The snapshot contains `REVIEW.md` from
+the base, changed sources and patches, selected unchanged related code, tests
+and contract files, linked requirements and agreement evidence, CI for the
+reviewed head, prior reviews and the commit list.
+
+Publication is a separate custom safe-output job (`publish_review`). It
+re-verifies the live PR head and repository identity before posting, and checks
+the head again before the write. One general comment is posted with the
+verified SHA, the Actions run link, a Russian advisory summary, findings and
+all collector limitations. The report is deduplicated by
+`<!-- gh-aw-review-report:<run>-<attempt> -->` and the expected
+`github-actions[bot]` author. A partial rerun of the failed `publish_review` job
+reuses the saved agent output artifact and does not call the model or spend an
+attempt; if the head moved, publication is refused. Run links and the published
+result from controlled PRs are recorded on the tracking issue for the migration.
+
+To roll back, enable the legacy `opencode-review.yml` workflow in Actions and
+disable the gh-aw workflow. Do not delete the old workflow or its entry points:
+`mise run opencode:budget review` and `mise run opencode:review-publish` remain
+usable. The legacy workflow uses the old comment counter and its own prompt,
+context collection and publisher.
+
+## Legacy status and authorization
+
+The rest of this document describes the legacy OpenCode adapter, kept for
+rollback and local testing.
 GitHub Actions is enabled for the review workflow. A controlled review of
 [PR #62](https://github.com/ignateff/ai-for-developers-project-387/pull/62)
 completed and published a report ([run 42463395746](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/42463395746)).
