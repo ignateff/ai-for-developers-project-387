@@ -562,6 +562,19 @@ export async function collectGhAwReviewContext(
       "Контекст CI, предыдущих ревью или коммитов неполон или превысил лимит в 300 элементов на эндпоинт.",
     );
 
+  const reviewHistoryTruncated = [reviews, reviewComments, issueComments].some(
+    (list) =>
+      Array.isArray(list) &&
+      list.some(
+        (comment) =>
+          (typeof comment?.body === "string" && comment.body.length > 4000) ||
+          (typeof comment?.diff_hunk === "string" && comment.diff_hunk.length > 2000),
+      ),
+  );
+  if (reviewHistoryTruncated)
+    essential(
+      "Тела предыдущих ревью или комментариев усечены до 4000 символов, diff_hunk — до 2000.",
+    );
   const comments = (value: unknown) =>
     Array.isArray(value)
       ? value.slice(0, 100).map((comment) => ({
@@ -587,8 +600,10 @@ export async function collectGhAwReviewContext(
     object(pr.user).login === "calendar-release-ignateff-bot[bot]" &&
     object(pr.user).id === 351107404 &&
     object(pr.user).type === "Bot";
+  if (validCommits && commits.length > 100)
+    essential("История коммитов PR усечена до 100 последних записей.");
   const commitHistory = validCommits
-    ? commits.slice(0, 100).map((commit: any) => ({
+    ? commits.slice(-100).map((commit: any) => ({
         sha: text(commit?.sha),
         message: text(commit?.commit?.message).slice(0, 1000),
         author: text(commit?.author?.login),

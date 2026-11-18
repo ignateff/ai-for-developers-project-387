@@ -136,6 +136,7 @@ jobs:
           name: review-context
           path: review-context
           if-no-files-found: error
+          include-hidden-files: true
 if: needs.eligibility.outputs.allowed == 'true' && needs.budget.outputs.admitted == 'true'
 checkout: false
 steps:

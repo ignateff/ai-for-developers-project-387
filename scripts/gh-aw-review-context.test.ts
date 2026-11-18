@@ -60,7 +60,13 @@ const tree = (ref: string) => ({
 });
 
 const api = (
-  options: { finalHead?: string; missingTree?: boolean; missingCi?: boolean } = {},
+  options: {
+    finalHead?: string;
+    missingTree?: boolean;
+    missingCi?: boolean;
+    longHistory?: boolean;
+    manyCommits?: number;
+  } = {},
 ): typeof fetch => {
   return async (input) => {
     const url = new URL(String(input));
@@ -106,30 +112,54 @@ const api = (
     }
     if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
     if (path.endsWith("/pulls/7/reviews"))
-      return Response.json([
-        { body: "Earlier finding", user: { login: "reviewer" }, state: "COMMENTED" },
-      ]);
+      return Response.json(
+        options.longHistory
+          ? [
+              {
+                body: "review ".repeat(1000),
+                user: { login: "reviewer" },
+                state: "COMMENTED",
+              },
+            ]
+          : [{ body: "Earlier finding", user: { login: "reviewer" }, state: "COMMENTED" }],
+      );
     if (path.endsWith("/pulls/7/comments"))
-      return Response.json([
-        {
-          body: "old finding",
-          path: changed,
-          line: 12,
-          original_line: 9,
-          side: "RIGHT",
-          commit_id: blob("8"),
-          diff_hunk: "@@ -1 +1 @@",
-        },
-      ]);
+      return Response.json(
+        options.longHistory
+          ? [
+              {
+                body: "old finding",
+                path: changed,
+                line: 12,
+                original_line: 9,
+                side: "RIGHT",
+                commit_id: blob("8"),
+                diff_hunk: "x".repeat(2500),
+              },
+            ]
+          : [
+              {
+                body: "old finding",
+                path: changed,
+                line: 12,
+                original_line: 9,
+                side: "RIGHT",
+                commit_id: blob("8"),
+                diff_hunk: "@@ -1 +1 @@",
+              },
+            ],
+      );
     if (path.endsWith("/issues/7/comments")) return Response.json([]);
-    if (path.endsWith("/pulls/7/commits"))
-      return Response.json([
-        {
-          sha: blob("9"),
-          commit: { message: "feat: add availability" },
-          author: { login: "owner" },
-        },
-      ]);
+    if (path.endsWith("/pulls/7/commits")) {
+      const count = options.manyCommits ?? 1;
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const all = Array.from({ length: count }, (_, index) => ({
+        sha: index.toString(16).padStart(40, "0"),
+        commit: { message: `commit ${index}` },
+        author: { login: "owner" },
+      }));
+      return Response.json(all.slice((page - 1) * 100, page * 100));
+    }
     return new Response(null, { status: 404 });
   };
 };
@@ -182,8 +212,8 @@ describe("gh-aw pinned review context", () => {
         originalLine: 9,
       });
       expect(snapshot.commits[0]).toMatchObject({
-        sha: blob("9"),
-        message: "feat: add availability",
+        sha: "0".repeat(40),
+        message: "commit 0",
       });
       expect(meta).toMatchObject({
         schema: "gh-aw-review-meta/v1",
@@ -223,6 +253,23 @@ describe("gh-aw pinned review context", () => {
       expect(
         JSON.parse(await readFile(join(directory, "snapshot.json"), "utf8")).limitations,
       ).toEqual(snapshot.limitations);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records truncation of long review history and keeps the latest commits", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-history-"));
+    try {
+      const { snapshot } = await collect(api({ longHistory: true, manyCommits: 120 }), directory);
+      const limitations = snapshot.limitations.join(" ");
+      expect(limitations).toContain("Тела предыдущих ревью или комментариев усечены до 4000");
+      expect(limitations).toContain("История коммитов PR усечена до 100 последних записей");
+      expect(snapshot.commits).toHaveLength(100);
+      expect(snapshot.commits[0].message).toBe("commit 20");
+      expect(snapshot.commits.at(-1).message).toBe("commit 119");
+      expect(snapshot.previousReview.reviews[0].body.length).toBe(4000);
+      expect(snapshot.previousReview.reviewComments[0].diffHunk.length).toBe(2000);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
