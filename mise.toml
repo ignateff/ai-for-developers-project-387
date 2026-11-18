@@ -165,6 +165,22 @@ run = "pnpm run opencode:review-run"
 [tasks."opencode:review-publish"]
 run = "pnpm run opencode:review-publish"
 
+[tasks."review:eligibility"]
+description = "Check gh-aw review admission before any model call"
+run = "pnpm run review:eligibility"
+
+[tasks."review:budget"]
+description = "Spend one gh-aw review attempt per PR from the new counter"
+run = "pnpm run review:budget"
+
+[tasks."review:context"]
+description = "Build the pinned gh-aw review snapshot from the trusted base"
+run = "pnpm run review:context"
+
+[tasks."review:publish"]
+description = "Verify head and publish one gh-aw review comment or staged draft"
+run = "pnpm run review:publish"
+
 [tasks."opencode:prepare"]
 description = "Prepare and validate the isolated noninteractive GitHub command runtime"
 run = "pnpm run opencode:prepare"
