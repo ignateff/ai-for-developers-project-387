@@ -107,6 +107,34 @@ context, result-based deduplication); the final workflow is re-verified below.
   [report comment](https://github.com/ignateff/ai-for-developers-project-387/pull/144#issuecomment-6981267185)
   without a model call or a new attempt.
 
+### Final compliance verification (PR #147)
+
+After merging the trusted-source, post-context admission and result-dedup
+changes, the same scenarios were re-run:
+
+- **Automatic review and publication** — [run 44330519703](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44330519703)
+  published [one report](https://github.com/ignateff/ai-for-developers-project-387/pull/147#issuecomment-6982470104)
+  with the marker `<!-- gh-aw-review-report:<head-sha>:<content-digest> -->` and
+  budget 1/3.
+- **Publication-only rerun** — re-running only the `publish_review` job
+  ([job 134899129295](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44330519703/job/134899129295))
+  logged `Авторевью: already-published`; the PR still has exactly one report
+  comment.
+- **Manual staged pilot** — [run 44332416051](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44332416051)
+  wrote the staged draft to the summary, posted no comment and moved the counter
+  to 2/3. The pilot used its separate concurrency group.
+- **Budget refusal** — after the third admitted staged run
+  ([run 44333641464](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44333641464)),
+  [run 44349263150](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44349263150)
+  built the context but logged `limit_exhausted`; the agent was skipped and the
+  counter stayed at 3/3.
+- **Draft skip** — [run 44349730110](https://github.com/ignateff/ai-for-developers-project-387/actions/runs/44349730110)
+  recorded `Авторевью пропущено: draft`; context, budget and agent were skipped
+  and the counter stayed at 3/3.
+
+Head-update cancellation was verified in the initial rollout; the automatic
+review concurrency group is unchanged by the final compliance changes.
+
 The new gh-aw workflow is active and the legacy `opencode-review.yml` remains
 `disabled_manually`.
 
