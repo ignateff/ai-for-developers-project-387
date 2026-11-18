@@ -26,16 +26,19 @@ spending an attempt.
 The review budget is independent from the command budget: three admitted
 attempts per PR, stored in a new PR comment (marker
 `<!-- gh-aw-review-attempt-budget:v1 -->`, author `github-actions[bot]`). Old
-state is not migrated; a PR without the new comment starts at zero. The
-`review:budget` job increments the counter after admission and before context
-collection, so a later cancellation, timeout or context failure can consume the
-attempt. A fourth run is refused without calling the model. See
+state is not migrated; a PR without the new comment starts at zero. The pinned
+context is collected first, then the `review:budget` job increments the counter
+immediately before the agent, so a stale head or context failure does not spend
+an attempt. Once admitted, a later cancellation, timeout or agent failure can
+consume it. A fourth run is refused without calling the model. See
 [PR attempt budget](agents/pr-attempt-budget.md).
 
-A new review cancels the previous run for the same PR at workflow scope, so an
-outdated head cannot publish. The `review:context` job checks out the trusted
-workflow revision (`github.workflow_sha`) and builds a bounded snapshot at the
-pinned base and head through the GitHub API. The agent runs with `checkout:
+A new review cancels the previous automatic review for the same PR at workflow
+scope, so an outdated head cannot publish. A manual staged pilot uses a separate
+concurrency group and does not cancel an automatic review. The `review:context`
+job checks out the trusted default branch (never the PR merge revision) and
+builds a bounded snapshot at the pinned base and head through the GitHub API.
+The agent runs with `checkout:
 false`, Bash, editing and GitHub tools disabled, and reads the snapshot as
 data. The snapshot JSON is a compact index: full changed and related sources are
 materialized under `review-context/data/`, and the JSON records their paths. The
@@ -53,12 +56,15 @@ Publication is a separate custom safe-output job (`publish_review`). It
 re-verifies the live PR head and repository identity before posting, and checks
 the head again before the write. One general comment is posted with the
 verified SHA, the Actions run link, a Russian advisory summary, findings and
-all collector limitations. The report is deduplicated by
-`<!-- gh-aw-review-report:<run>-<attempt> -->` and the expected
-`github-actions[bot]` author. A partial rerun of the failed `publish_review` job
+all collector limitations. The report is deduplicated by the exact result
+marker `<!-- gh-aw-review-report:<head-sha>:<content-digest> -->` and the
+expected `github-actions[bot]` author, so a publication retry or an identical
+full rerun does not create a second comment; a different report for the same
+head may be published. A partial rerun of the failed `publish_review` job
 reuses the saved agent output artifact and does not call the model or spend an
-attempt; if the head moved, publication is refused. Run links and the published
-result from controlled PRs are recorded on the tracking issue for the migration.
+attempt; if the head moved or the PR closed, publication is refused. Run links
+and the published result from controlled PRs are recorded on the tracking issue
+for the migration.
 
 To roll back, enable the legacy `opencode-review.yml` workflow in Actions and
 disable the gh-aw workflow. Do not delete the old workflow or its entry points:
@@ -68,8 +74,9 @@ context collection and publisher.
 
 ## Controlled gh-aw verification (18 November 2026)
 
-The workflow was exercised on controlled internal PRs after the first version
-landed:
+The initial rollout was exercised on controlled internal PRs. These runs predate
+the final compliance changes (trusted default-branch checkout, admission after
+context, result-based deduplication); the final workflow is re-verified below.
 
 - **Automatic review and publication** — [PR #137](https://github.com/ignateff/ai-for-developers-project-387/pull/137)
   produced three reports while the snapshot was being corrected:

@@ -14,7 +14,7 @@ on:
   reaction: none
   status-comment: false
 concurrency:
-  group: agentic-pr-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: ${{ github.event_name == 'workflow_dispatch' && format('agentic-pr-review-pilot-{0}', inputs.pr_number) || format('agentic-pr-review-{0}', github.event.pull_request.number) }}
   cancel-in-progress: true
   job-discriminator: ${{ github.run_id }}
 permissions:
@@ -55,10 +55,10 @@ jobs:
       head_sha: ${{ steps.check.outputs.head_sha }}
       base_sha: ${{ steps.check.outputs.base_sha }}
     steps:
-      - name: Получить доверенную версию workflow из base
+      - name: Получить основную ветку как доверенный источник
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - name: Установить инструменты проекта
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
@@ -71,38 +71,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-  budget:
+  context:
     needs: eligibility
     if: needs.eligibility.outputs.allowed == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    permissions:
-      contents: read
-      pull-requests: write
-    outputs:
-      admitted: ${{ steps.admit.outputs.admitted }}
-      reason: ${{ steps.admit.outputs.reason }}
-    steps:
-      - name: Получить доверенную версию workflow из base
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.workflow_sha }}
-          persist-credentials: false
-      - name: Установить инструменты проекта
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
-        with:
-          version: 2026.10.23
-      - name: Списать одну из трёх допущенных попыток ревью
-        id: admit
-        run: mise run review:budget
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GH_AW_PR_NUMBER: ${{ needs.eligibility.outputs.number }}
-          GH_AW_HEAD_SHA: ${{ needs.eligibility.outputs.head_sha }}
-  context:
-    needs: [eligibility, budget]
-    if: needs.eligibility.outputs.allowed == 'true' && needs.budget.outputs.admitted == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
@@ -113,10 +84,10 @@ jobs:
       checks: read
       statuses: read
     steps:
-      - name: Получить доверенную версию workflow из base
+      - name: Получить основную ветку как доверенный источник
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - name: Установить инструменты проекта
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
@@ -137,6 +108,35 @@ jobs:
           path: review-context
           if-no-files-found: error
           include-hidden-files: true
+  budget:
+    needs: [eligibility, context]
+    if: needs.eligibility.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      admitted: ${{ steps.admit.outputs.admitted }}
+      reason: ${{ steps.admit.outputs.reason }}
+    steps:
+      - name: Получить основную ветку как доверенный источник
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Установить инструменты проекта
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5
+        with:
+          version: 2026.10.23
+      - name: Списать одну из трёх допущенных попыток перед вызовом модели
+        id: admit
+        run: mise run review:budget
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_AW_PR_NUMBER: ${{ needs.eligibility.outputs.number }}
+          GH_AW_HEAD_SHA: ${{ needs.eligibility.outputs.head_sha }}
 if: needs.eligibility.outputs.allowed == 'true' && needs.budget.outputs.admitted == 'true'
 checkout: false
 steps:
@@ -176,10 +176,10 @@ safe-outputs:
           type: string
           max-length: 60000
       steps:
-        - name: Получить доверенную версию workflow из base
+        - name: Получить основную ветку как доверенный источник
           uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
           with:
-            ref: ${{ github.workflow_sha }}
+            ref: ${{ github.event.repository.default_branch }}
             persist-credentials: false
         - name: Установить инструменты проекта
           uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5

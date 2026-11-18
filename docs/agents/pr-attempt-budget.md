@@ -12,11 +12,12 @@ The model step has its own timeout so reporting can run; forced cancellation or 
 
 The active automatic review uses a separate, new counter. It is independent of
 the command budget and of the legacy review counter. Each PR gets three admitted
-review attempts; the `review:budget` job increments the counter after
-eligibility and before the pinned context is collected, so a run that reaches
-the model spends an attempt even if it later fails, is cancelled or times out.
-Draft PRs, fork PRs, unknown bots, untrusted authors and eligibility-check
-errors stop before this job and spend nothing.
+review attempts. The pinned context is built first; the `review:budget` job then
+increments the counter immediately before the agent, so a stale head, context
+failure or a run cancelled before admission does not spend an attempt. Once
+admitted, a later cancellation, timeout or agent failure can consume it. Draft
+PRs, fork PRs, unknown bots, untrusted authors and eligibility-check errors stop
+before admission and spend nothing.
 
 The counter is one PR comment authored by `github-actions[bot]` (numeric user
 ID `41898282`). The body is exactly the marker on one line and the JSON object
