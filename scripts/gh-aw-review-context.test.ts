@@ -60,7 +60,15 @@ const tree = (ref: string) => ({
 });
 
 const api = (
-  options: { finalHead?: string; missingTree?: boolean; missingCi?: boolean } = {},
+  options: {
+    finalHead?: string;
+    missingTree?: boolean;
+    missingCi?: boolean;
+    longHistory?: boolean;
+    manyCommits?: number;
+    manyReviews?: number;
+    longCommitMessage?: boolean;
+  } = {},
 ): typeof fetch => {
   return async (input) => {
     const url = new URL(String(input));
@@ -105,31 +113,64 @@ const api = (
       });
     }
     if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
-    if (path.endsWith("/pulls/7/reviews"))
-      return Response.json([
-        { body: "Earlier finding", user: { login: "reviewer" }, state: "COMMENTED" },
-      ]);
+    if (path.endsWith("/pulls/7/reviews")) {
+      if (options.longHistory)
+        return Response.json([
+          {
+            body: "review ".repeat(1000),
+            user: { login: "reviewer" },
+            state: "COMMENTED",
+          },
+        ]);
+      const count = options.manyReviews ?? 1;
+      const page = Number(url.searchParams.get("page") ?? "1");
+      return Response.json(
+        Array.from({ length: count }, (_, index) => ({
+          body: `review ${index}`,
+          user: { login: "reviewer" },
+          state: "COMMENTED",
+        })).slice((page - 1) * 100, page * 100),
+      );
+    }
     if (path.endsWith("/pulls/7/comments"))
-      return Response.json([
-        {
-          body: "old finding",
-          path: changed,
-          line: 12,
-          original_line: 9,
-          side: "RIGHT",
-          commit_id: blob("8"),
-          diff_hunk: "@@ -1 +1 @@",
-        },
-      ]);
+      return Response.json(
+        options.longHistory
+          ? [
+              {
+                body: "old finding",
+                path: changed,
+                line: 12,
+                original_line: 9,
+                side: "RIGHT",
+                commit_id: blob("8"),
+                diff_hunk: "x".repeat(2500),
+              },
+            ]
+          : [
+              {
+                body: "old finding",
+                path: changed,
+                line: 12,
+                original_line: 9,
+                side: "RIGHT",
+                commit_id: blob("8"),
+                diff_hunk: "@@ -1 +1 @@",
+              },
+            ],
+      );
     if (path.endsWith("/issues/7/comments")) return Response.json([]);
-    if (path.endsWith("/pulls/7/commits"))
-      return Response.json([
-        {
-          sha: blob("9"),
-          commit: { message: "feat: add availability" },
-          author: { login: "owner" },
+    if (path.endsWith("/pulls/7/commits")) {
+      const count = options.manyCommits ?? 1;
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const all = Array.from({ length: count }, (_, index) => ({
+        sha: index.toString(16).padStart(40, "0"),
+        commit: {
+          message: options.longCommitMessage && index === 0 ? "m".repeat(1500) : `commit ${index}`,
         },
-      ]);
+        author: { login: "owner" },
+      }));
+      return Response.json(all.slice((page - 1) * 100, page * 100));
+    }
     return new Response(null, { status: 404 });
   };
 };
@@ -163,24 +204,30 @@ describe("gh-aw pinned review context", () => {
         filename: changed,
         status: "modified",
         patch: "-old\n+new",
-        headSource: "export const availability = true;",
+        data: {
+          base: `data/changed/base/${changed}`,
+          head: `data/changed/head/${changed}`,
+        },
       });
-      expect(snapshot.changes[0].baseSource).toContain("availability = false");
+      expect(JSON.stringify(snapshot.changes[0])).not.toContain("availability = true");
       expect(
         snapshot.repository.related.some((file: { path: string }) => file.path === testFile),
       ).toBe(true);
-      expect(snapshot.requirements.text).toContain("Booking requirements");
+      expect(snapshot.requirements.materials[0].body).toContain("Booking requirements");
+      expect(snapshot.limitations.join(" ")).toContain(
+        "Полный индекс закреплённого дерева репозитория не включён в снимок",
+      );
       expect(snapshot.ci).toMatchObject({ headSha: sha, status: "success" });
       expect(snapshot.ci.checks[0]).toMatchObject({ name: "CI", conclusion: "success" });
-      expect(snapshot.previousReview.reviews[0].body).toBe("Earlier finding");
+      expect(snapshot.previousReview.reviews[0].body).toBe("review 0");
       expect(snapshot.previousReview.reviewComments[0]).toMatchObject({
         path: changed,
         line: 12,
         originalLine: 9,
       });
       expect(snapshot.commits[0]).toMatchObject({
-        sha: blob("9"),
-        message: "feat: add availability",
+        sha: "0".repeat(40),
+        message: "commit 0",
       });
       expect(meta).toMatchObject({
         schema: "gh-aw-review-meta/v1",
@@ -212,7 +259,7 @@ describe("gh-aw pinned review context", () => {
     const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-limited-"));
     try {
       const { snapshot } = await collect(api({ missingTree: true, missingCi: true }), directory);
-      expect(snapshot.repository).toMatchObject({ available: false, index: null, related: [] });
+      expect(snapshot.repository).toMatchObject({ available: false, related: [] });
       expect(snapshot.limitations.join(" ")).toContain(
         "Контекст связанных файлов репозитория недоступен",
       );
@@ -220,6 +267,42 @@ describe("gh-aw pinned review context", () => {
       expect(
         JSON.parse(await readFile(join(directory, "snapshot.json"), "utf8")).limitations,
       ).toEqual(snapshot.limitations);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("records truncation of long review history and keeps the latest commits", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-history-"));
+    try {
+      const { snapshot } = await collect(
+        api({ longHistory: true, manyCommits: 120, longCommitMessage: true }),
+        directory,
+      );
+      const limitations = snapshot.limitations.join(" ");
+      expect(limitations).toContain("Тела предыдущих ревью или комментариев усечены до 4000");
+      expect(limitations).toContain("История коммитов PR усечена до 100 последних записей");
+      expect(limitations).toContain("Сообщения коммитов усечены до 1000 символов");
+      expect(snapshot.commits).toHaveLength(100);
+      expect(snapshot.commits[0].message).toBe("commit 20");
+      expect(snapshot.commits.at(-1).message).toBe("commit 119");
+      expect(snapshot.previousReview.reviews[0].body.length).toBe(4000);
+      expect(snapshot.previousReview.reviewComments[0].diffHunk.length).toBe(2000);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the newest review entries and states the limit", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-reviews-"));
+    try {
+      const { snapshot } = await collect(api({ manyReviews: 120 }), directory);
+      expect(snapshot.previousReview.reviews).toHaveLength(100);
+      expect(snapshot.previousReview.reviews[0].body).toBe("review 20");
+      expect(snapshot.previousReview.reviews.at(-1).body).toBe("review 119");
+      expect(snapshot.limitations.join(" ")).toContain(
+        "усечена до 100 последних записей на раздел",
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

@@ -45,7 +45,12 @@ describe("gh-aw review workflow contract", () => {
     );
     expect(workflow.jobs.context.steps.at(-1)).toMatchObject({
       uses: "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-      with: { "if-no-files-found": "error", name: "review-context", path: "review-context" },
+      with: {
+        "if-no-files-found": "error",
+        name: "review-context",
+        path: "review-context",
+        "include-hidden-files": true,
+      },
     });
   });
 

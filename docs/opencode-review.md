@@ -37,9 +37,14 @@ outdated head cannot publish. The `review:context` job checks out the trusted
 workflow revision (`github.workflow_sha`) and builds a bounded snapshot at the
 pinned base and head through the GitHub API. The agent runs with `checkout:
 false`, Bash, editing and GitHub tools disabled, and reads the snapshot as
-data. There is no runtime guarantee that every snapshot fragment was read in
-full; the prompt requires a full read, and missing, truncated or incomplete
-evidence must be listed in the report. The snapshot contains `REVIEW.md` from
+data. The snapshot JSON is a compact index: full changed and related sources are
+materialized under `review-context/data/`, and the JSON records their paths. The
+pinned tree index is not exposed to the agent; it can read only the changed
+files and the selected unchanged related files, so a needed but absent file
+must be reported as a limitation.
+There is no runtime guarantee that every snapshot fragment was read in full;
+the prompt requires a full read, and missing, truncated or incomplete evidence
+must be listed in the report. The snapshot contains `REVIEW.md` from
 the base, changed sources and patches, selected unchanged related code, tests
 and contract files, linked requirements and agreement evidence, CI for the
 reviewed head, prior reviews and the commit list.
@@ -120,7 +125,7 @@ The model job collects a bounded snapshot at the pinned PR base and head:
 - the PR description, explicitly linked issues, comments and approval documents from projects 387/386, CI check-runs and commit statuses for the reviewed head SHA, prior reviews, review comments, discussion comments, and the PR commit list so prior findings and later fixes can be related;
 - explicit limitations when trees, CI, prior review or commit data are unavailable, truncated, capped or malformed. The commit list is treated as incomplete when its entries are malformed, and a 250-commit response is flagged as possibly truncated at the GitHub API limit.
 
-Related context is capped at 24 unchanged files and about 320 KB in total; the reference scan is capped at 300 source files and the tree index at 5000 entries. Omitted, unavailable or unexpectedly changed related files are reported as limitations. When the index is truncated, related-file selection still uses the full returned tree, but the reviewer cannot list every pinned file. The reviewer can search the pinned index and read the selected files; it cannot fetch arbitrary index entries, so a needed but absent file must be reported as a limitation. The full repository is not copied into the workspace. Unavailable requirements remain an explicit limitation rather than an assumed pass; incomplete CI, pending checks and missing commit or review history are never treated as successful. Collector limitations are recorded top-level in the snapshot, separate from the agreement sources, so they are not presented as evidence about human approval.
+Related context is capped at 24 unchanged files and about 320 KB in total; the reference scan is capped at 300 source files and the tree index at 5000 entries. Omitted, unavailable or unexpectedly changed related files are reported as limitations. When the index is truncated, related-file selection still uses the full returned tree, but the reviewer cannot list every pinned file. The legacy reviewer can search the pinned index and read the selected files; it cannot fetch arbitrary index entries, so a needed but absent file must be reported as a limitation. The full repository is not copied into the workspace. Unavailable requirements remain an explicit limitation rather than an assumed pass; incomplete CI, pending checks and missing commit or review history are never treated as successful. Collector limitations are recorded top-level in the snapshot, separate from the agreement sources, so they are not presented as evidence about human approval.
 
 Context selection is implemented in `scripts/opencode-review-repository.ts`, which receives pinned tree readers, a bounded file reader and the shared limitation sink from the workflow; it is not wired into the model job directly. The adapter materializes each related file under `repository/<path>` in the isolated reviewer workspace and includes it in the snapshot, so the reviewer can glob, grep and read it with the existing read-only tools. A review is still rejected unless every snapshot fragment was read in full. Related contents are sent to the model provider exactly like changed-file contents; the workflow does not scan them for secrets, so the repository's accepted secret findings and snapshot-secret guidance still apply. All snapshot and repository content is untrusted data; nothing is executed. These bounded selections are evidence for the reviewer, not proof that the change matches the requirements.
 
