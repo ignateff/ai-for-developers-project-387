@@ -8,7 +8,8 @@ import { meetingTypeRoutes } from "./meeting-types/routes.js";
 import { availabilityRoutes } from "./availability/routes.js";
 import { bookingRoutes } from "./bookings/routes.js";
 import { eventRoutes } from "./events/routes.js";
-import { errorCategory } from "./safe-error.js";
+import { mcpRoutes } from "./mcp/routes.js";
+import { errorCategory, isDatabaseBusy } from "./safe-error.js";
 
 function safeMethod(method: string) {
   return ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].includes(method)
@@ -50,18 +51,10 @@ export function buildApp(
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof Error && "statusCode" in error && error.statusCode === 400)
       return reply.status(400).send({ code: "VALIDATION_ERROR", message: "Некорректный запрос" });
-    let cause: unknown = error;
-    while (cause instanceof Error) {
-      if (
-        "code" in cause &&
-        typeof cause.code === "string" &&
-        (cause.code.startsWith("SQLITE_BUSY") || cause.code.startsWith("SQLITE_LOCKED"))
-      )
-        return reply
-          .status(503)
-          .send({ code: "DATABASE_BUSY", message: "Сервис временно занят, попробуйте ещё раз" });
-      cause = cause.cause;
-    }
+    if (isDatabaseBusy(error))
+      return reply
+        .status(503)
+        .send({ code: "DATABASE_BUSY", message: "Сервис временно занят, попробуйте ещё раз" });
     request.log.error(
       {
         method: safeMethod(request.method),
@@ -82,6 +75,7 @@ export function buildApp(
     now: options.now,
     onBookingLocked: options.onBookingLocked,
   });
+  app.register(mcpRoutes, { storage, now: options.now });
   // Serve the built frontend when it exists (production image); dev uses the Vite server instead.
   const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
   if (existsSync(webDist)) {

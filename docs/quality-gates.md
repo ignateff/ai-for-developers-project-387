@@ -40,7 +40,9 @@ Initial full-scope scans found:
 
 The unused handwritten `plural` export became private; runtime behavior is unchanged. The remaining [Knip configuration](quality-gates-knip.md) models external tools/TypeSpec and ignores only unused exports/types in the exact generated SDK file. Never delete generated exports by hand.
 
-Dependency remediation resolved 31 OSV advisories. The owner accepted only `GHSA-67mh-4wv8-2f99` for npm `esbuild@0.18.20` in `pnpm-lock.yaml`, retained by Drizzle Kit's deprecated loader. This repository does not invoke esbuild's affected development-server API; the package is still vulnerable. This is risk acceptance, not a fix.
+Dependency remediation resolved 31 OSV advisories. The owner accepted `GHSA-67mh-4wv8-2f99` for npm `esbuild@0.18.20` in `pnpm-lock.yaml`, retained by Drizzle Kit's deprecated loader. This repository does not invoke esbuild's affected development-server API; the package is still vulnerable. This is risk acceptance, not a fix.
+
+On 2026-11-18, the owner approved temporary acceptance of `GHSA-fc5q-39xc-vjpf` for npm `picomatch@4.0.7` in `pnpm-lock.yaml` while preparing [PR #131](https://github.com/ignateff/ai-for-developers-project-387/pull/131) for merge. Development, build and test tools retain this transitive dependency. Crafted glob patterns can hang those tools or CI. The latest npm release on that date is 4.0.7, and the [advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) lists no patched version. Review is required by **2026-12-06**.
 
 The owner also accepted exact existing secrets findings (including **unverified design-file matches**) and the Hexlet checkout `artipacked` finding. The protected workflow is unchanged. These risk exceptions require review by **2026-12-06**; checks fail after that date. Reasons and scopes live under `config/quality-gates/`. New advisories, different package versions, changed accepted source content and unmatched findings remain blocking.
 

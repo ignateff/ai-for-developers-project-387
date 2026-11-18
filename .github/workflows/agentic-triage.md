@@ -26,15 +26,17 @@ imports:
 engine:
   id: claude
   command: /tmp/gh-aw/claude
-  model: deepseek-flash
+  model: deepseek-v4.1-flash
   max-turns: 30
   env:
-    ANTHROPIC_BASE_URL: https://api.deepseek.com/anthropic
-    ANTHROPIC_API_BASE_PATH: /anthropic
-    ANTHROPIC_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+    ANTHROPIC_BASE_URL: https://opencode.ai/inference/go/anthropic
+    ANTHROPIC_API_BASE_PATH: /inference/go/anthropic
+    # AWF holds the credential in its sidecar and forwards the raw header value.
+    ANTHROPIC_API_KEY: ${{ format('Bearer {0}', secrets.OPENCODE_API_KEY) }}
+    AWF_ANTHROPIC_AUTH_HEADER: Authorization
     DISABLE_AUTOUPDATER: "1"
 network:
-  allowed: [defaults, api.deepseek.com]
+  allowed: [defaults, opencode.ai]
 tools:
   bash: false
   edit: false
