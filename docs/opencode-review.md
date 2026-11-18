@@ -37,9 +37,11 @@ outdated head cannot publish. The `review:context` job checks out the trusted
 workflow revision (`github.workflow_sha`) and builds a bounded snapshot at the
 pinned base and head through the GitHub API. The agent runs with `checkout:
 false`, Bash, editing and GitHub tools disabled, and reads the snapshot as
-data. There is no runtime guarantee that every snapshot fragment was read in
-full; the prompt requires a full read, and missing, truncated or incomplete
-evidence must be listed in the report. The snapshot contains `REVIEW.md` from
+data. The snapshot JSON is a compact index: full changed and related sources are
+materialized under `review-context/data/`, and the JSON records their paths.
+There is no runtime guarantee that every snapshot fragment was read in full;
+the prompt requires a full read, and missing, truncated or incomplete evidence
+must be listed in the report. The snapshot contains `REVIEW.md` from
 the base, changed sources and patches, selected unchanged related code, tests
 and contract files, linked requirements and agreement evidence, CI for the
 reviewed head, prior reviews and the commit list.

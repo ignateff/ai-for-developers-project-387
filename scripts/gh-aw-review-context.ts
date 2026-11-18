@@ -183,6 +183,13 @@ export async function collectGhAwReviewContext(
   };
 
   const changes: any[] = [];
+  const changedSources: {
+    basePath: string | null;
+    baseContent: string | null;
+    headPath: string | null;
+    headContent: string | null;
+  }[] = [];
+  let patchTruncated = false;
   for (const file of files) {
     if (
       !file ||
@@ -193,15 +200,26 @@ export async function collectGhAwReviewContext(
     const baseName = file.status === "renamed" ? file.previous_filename : file.filename;
     const baseSource = file.status === "added" ? null : await source(baseName, base.sha);
     const headSource = file.status === "removed" ? null : await source(file.filename, head.sha);
+    changedSources.push({
+      basePath: baseSource === null ? null : baseName,
+      baseContent: baseSource,
+      headPath: headSource === null ? null : file.filename,
+      headContent: headSource,
+    });
+    if (typeof file.patch === "string" && file.patch.length > 20000) patchTruncated = true;
     changes.push({
       filename: file.filename,
       previousFilename: file.previous_filename ?? null,
       status: file.status,
-      patch: typeof file.patch === "string" ? file.patch : null,
-      baseSource,
-      headSource,
+      patch: typeof file.patch === "string" ? file.patch.slice(0, 20000) : null,
+      data: {
+        base: baseSource === null ? null : `data/changed/base/${baseName}`,
+        head: headSource === null ? null : `data/changed/head/${file.filename}`,
+      },
     });
   }
+  if (patchTruncated)
+    essential("Патч изменений усечён до 20000 символов; полные версии доступны в data/changed.");
   for (const item of binaryLimitations) essential(item);
 
   const readTree = async (ref: string) => {
@@ -546,30 +564,61 @@ export async function collectGhAwReviewContext(
 
   const comments = (value: unknown) =>
     Array.isArray(value)
-      ? value.map((comment) => ({
+      ? value.slice(0, 100).map((comment) => ({
           author: text(comment?.user?.login),
-          body: text(comment?.body),
+          body: text(comment?.body).slice(0, 4000),
           path: text(comment?.path),
           line: positive(comment?.line) ? comment.line : null,
           originalLine: positive(comment?.original_line) ? comment.original_line : null,
           side: text(comment?.side),
           commit: text(comment?.commit_id),
-          diffHunk: text(comment?.diff_hunk),
+          diffHunk: text(comment?.diff_hunk).slice(0, 2000),
           state: text(comment?.state),
           url: text(comment?.html_url),
         }))
       : null;
+  if (
+    [reviews, reviewComments, issueComments].some(
+      (list) => Array.isArray(list) && list.length > 100,
+    )
+  )
+    essential("История предыдущих ревью или обсуждений усечена до 100 записей на раздел в снимке.");
   const isRelease =
     object(pr.user).login === "calendar-release-ignateff-bot[bot]" &&
     object(pr.user).id === 351107404 &&
     object(pr.user).type === "Bot";
   const commitHistory = validCommits
-    ? commits.map((commit: any) => ({
+    ? commits.slice(0, 100).map((commit: any) => ({
         sha: text(commit?.sha),
-        message: text(commit?.commit?.message),
+        message: text(commit?.commit?.message).slice(0, 1000),
         author: text(commit?.author?.login),
       }))
     : null;
+  const materialsLimited = materials.some((material) => material.body.length > 8000);
+  if (materialsLimited) essential("Текст связанных материалов усечён до 8000 символов.");
+  const agreementsLimited = agreements.some(
+    (agreement) => typeof agreement.text === "string" && agreement.text.length > 4000,
+  );
+  if (agreementsLimited) essential("Текст свидетельств согласования усечён до 4000 символов.");
+  const baseDocsMeta = baseDocs.map((doc) => ({
+    path: doc.path,
+    sha: doc.sha,
+    data: `data/base/base/${doc.path}`,
+    bytes: Buffer.byteLength(doc.body),
+  }));
+  const compactRepository = {
+    baseSha: repositoryContext.baseSha,
+    headSha: repositoryContext.headSha,
+    available: repositoryContext.available,
+    related: repositoryContext.related.map(({ path, sha, size, reason }) => ({
+      path,
+      sha,
+      size,
+      reason,
+      data: `data/repository/${path}`,
+    })),
+    limitations: repositoryContext.limitations,
+  };
 
   const context = {
     schema: "gh-aw-review/v1",
@@ -586,21 +635,29 @@ export async function collectGhAwReviewContext(
       isRelease,
     },
     criteria,
-    baseDocs,
+    baseDocs: baseDocsMeta,
     changes,
-    repository: repositoryContext,
+    repository: compactRepository,
     requirements: materials.length
       ? {
           availability: "available",
-          text: JSON.stringify({ description: body, materials, baseDocs }),
+          description: body,
+          materials: materials.map((material) => ({
+            ...material,
+            body: material.body.slice(0, 8000),
+          })),
         }
       : {
           availability: "unavailable",
           reason: "Связанные требования не удалось загрузить.",
           description: body,
-          baseDocs,
         },
-    agreement: { sources: agreements },
+    agreement: {
+      sources: agreements.map((agreement) => ({
+        ...agreement,
+        text: typeof agreement.text === "string" ? agreement.text.slice(0, 4000) : agreement.text,
+      })),
+    },
     limitations,
     ci: {
       headSha: head.sha,
@@ -655,18 +712,9 @@ export async function collectGhAwReviewContext(
       materializationLimitations.push(`Файл ${path} не удалось сохранить для чтения агентом.`);
     }
   };
-  for (const change of changes) {
-    if (typeof change.filename === "string") {
-      if (change.baseSource !== null)
-        await writeData(
-          "changed",
-          "base",
-          change.previousFilename ?? change.filename,
-          change.baseSource,
-        );
-      if (change.headSource !== null)
-        await writeData("changed", "head", change.filename, change.headSource);
-    }
+  for (const item of changedSources) {
+    if (item.basePath !== null) await writeData("changed", "base", item.basePath, item.baseContent);
+    if (item.headPath !== null) await writeData("changed", "head", item.headPath, item.headContent);
   }
   for (const file of repositoryContext.related)
     await writeData("repository", "", file.path, file.content);
@@ -675,7 +723,7 @@ export async function collectGhAwReviewContext(
   for (const item of materializationLimitations)
     if (!context.limitations.includes(item)) context.limitations.push(item);
 
-  const serialized = JSON.stringify(context);
+  const serialized = JSON.stringify(context, null, 2);
   const redacted = [token]
     .filter(Boolean)
     .reduce(

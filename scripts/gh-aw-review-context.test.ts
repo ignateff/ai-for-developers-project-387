@@ -163,13 +163,16 @@ describe("gh-aw pinned review context", () => {
         filename: changed,
         status: "modified",
         patch: "-old\n+new",
-        headSource: "export const availability = true;",
+        data: {
+          base: `data/changed/base/${changed}`,
+          head: `data/changed/head/${changed}`,
+        },
       });
-      expect(snapshot.changes[0].baseSource).toContain("availability = false");
+      expect(JSON.stringify(snapshot.changes[0])).not.toContain("availability = true");
       expect(
         snapshot.repository.related.some((file: { path: string }) => file.path === testFile),
       ).toBe(true);
-      expect(snapshot.requirements.text).toContain("Booking requirements");
+      expect(snapshot.requirements.materials[0].body).toContain("Booking requirements");
       expect(snapshot.ci).toMatchObject({ headSha: sha, status: "success" });
       expect(snapshot.ci.checks[0]).toMatchObject({ name: "CI", conclusion: "success" });
       expect(snapshot.previousReview.reviews[0].body).toBe("Earlier finding");
@@ -212,7 +215,7 @@ describe("gh-aw pinned review context", () => {
     const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-limited-"));
     try {
       const { snapshot } = await collect(api({ missingTree: true, missingCi: true }), directory);
-      expect(snapshot.repository).toMatchObject({ available: false, index: null, related: [] });
+      expect(snapshot.repository).toMatchObject({ available: false, related: [] });
       expect(snapshot.limitations.join(" ")).toContain(
         "Контекст связанных файлов репозитория недоступен",
       );
