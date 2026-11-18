@@ -577,7 +577,7 @@ export async function collectGhAwReviewContext(
     );
   const comments = (value: unknown) =>
     Array.isArray(value)
-      ? value.slice(0, 100).map((comment) => ({
+      ? value.slice(-100).map((comment) => ({
           author: text(comment?.user?.login),
           body: text(comment?.body).slice(0, 4000),
           path: text(comment?.path),
@@ -595,13 +595,23 @@ export async function collectGhAwReviewContext(
       (list) => Array.isArray(list) && list.length > 100,
     )
   )
-    essential("История предыдущих ревью или обсуждений усечена до 100 записей на раздел в снимке.");
+    essential(
+      "История предыдущих ревью или обсуждений усечена до 100 последних записей на раздел в снимке.",
+    );
   const isRelease =
     object(pr.user).login === "calendar-release-ignateff-bot[bot]" &&
     object(pr.user).id === 351107404 &&
     object(pr.user).type === "Bot";
   if (validCommits && commits.length > 100)
     essential("История коммитов PR усечена до 100 последних записей.");
+  if (
+    validCommits &&
+    commits.some(
+      (commit: any) =>
+        typeof commit.commit?.message === "string" && commit.commit.message.length > 1000,
+    )
+  )
+    essential("Сообщения коммитов усечены до 1000 символов.");
   const commitHistory = validCommits
     ? commits.slice(-100).map((commit: any) => ({
         sha: text(commit?.sha),
@@ -621,6 +631,10 @@ export async function collectGhAwReviewContext(
     data: `data/base/base/${doc.path}`,
     bytes: Buffer.byteLength(doc.body),
   }));
+  if (repositoryContext.available)
+    essential(
+      "Полный индекс закреплённого дерева репозитория не включён в снимок; агент может читать только изменённые и выбранные связанные файлы.",
+    );
   const compactRepository = {
     baseSha: repositoryContext.baseSha,
     headSha: repositoryContext.headSha,

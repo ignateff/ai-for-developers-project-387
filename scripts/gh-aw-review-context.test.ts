@@ -66,6 +66,8 @@ const api = (
     missingCi?: boolean;
     longHistory?: boolean;
     manyCommits?: number;
+    manyReviews?: number;
+    longCommitMessage?: boolean;
   } = {},
 ): typeof fetch => {
   return async (input) => {
@@ -111,18 +113,25 @@ const api = (
       });
     }
     if (path.endsWith("/status")) return Response.json({ state: "success", statuses: [] });
-    if (path.endsWith("/pulls/7/reviews"))
+    if (path.endsWith("/pulls/7/reviews")) {
+      if (options.longHistory)
+        return Response.json([
+          {
+            body: "review ".repeat(1000),
+            user: { login: "reviewer" },
+            state: "COMMENTED",
+          },
+        ]);
+      const count = options.manyReviews ?? 1;
+      const page = Number(url.searchParams.get("page") ?? "1");
       return Response.json(
-        options.longHistory
-          ? [
-              {
-                body: "review ".repeat(1000),
-                user: { login: "reviewer" },
-                state: "COMMENTED",
-              },
-            ]
-          : [{ body: "Earlier finding", user: { login: "reviewer" }, state: "COMMENTED" }],
+        Array.from({ length: count }, (_, index) => ({
+          body: `review ${index}`,
+          user: { login: "reviewer" },
+          state: "COMMENTED",
+        })).slice((page - 1) * 100, page * 100),
       );
+    }
     if (path.endsWith("/pulls/7/comments"))
       return Response.json(
         options.longHistory
@@ -155,7 +164,9 @@ const api = (
       const page = Number(url.searchParams.get("page") ?? "1");
       const all = Array.from({ length: count }, (_, index) => ({
         sha: index.toString(16).padStart(40, "0"),
-        commit: { message: `commit ${index}` },
+        commit: {
+          message: options.longCommitMessage && index === 0 ? "m".repeat(1500) : `commit ${index}`,
+        },
         author: { login: "owner" },
       }));
       return Response.json(all.slice((page - 1) * 100, page * 100));
@@ -203,9 +214,12 @@ describe("gh-aw pinned review context", () => {
         snapshot.repository.related.some((file: { path: string }) => file.path === testFile),
       ).toBe(true);
       expect(snapshot.requirements.materials[0].body).toContain("Booking requirements");
+      expect(snapshot.limitations.join(" ")).toContain(
+        "Полный индекс закреплённого дерева репозитория не включён в снимок",
+      );
       expect(snapshot.ci).toMatchObject({ headSha: sha, status: "success" });
       expect(snapshot.ci.checks[0]).toMatchObject({ name: "CI", conclusion: "success" });
-      expect(snapshot.previousReview.reviews[0].body).toBe("Earlier finding");
+      expect(snapshot.previousReview.reviews[0].body).toBe("review 0");
       expect(snapshot.previousReview.reviewComments[0]).toMatchObject({
         path: changed,
         line: 12,
@@ -261,15 +275,34 @@ describe("gh-aw pinned review context", () => {
   test("records truncation of long review history and keeps the latest commits", async () => {
     const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-history-"));
     try {
-      const { snapshot } = await collect(api({ longHistory: true, manyCommits: 120 }), directory);
+      const { snapshot } = await collect(
+        api({ longHistory: true, manyCommits: 120, longCommitMessage: true }),
+        directory,
+      );
       const limitations = snapshot.limitations.join(" ");
       expect(limitations).toContain("Тела предыдущих ревью или комментариев усечены до 4000");
       expect(limitations).toContain("История коммитов PR усечена до 100 последних записей");
+      expect(limitations).toContain("Сообщения коммитов усечены до 1000 символов");
       expect(snapshot.commits).toHaveLength(100);
       expect(snapshot.commits[0].message).toBe("commit 20");
       expect(snapshot.commits.at(-1).message).toBe("commit 119");
       expect(snapshot.previousReview.reviews[0].body.length).toBe(4000);
       expect(snapshot.previousReview.reviewComments[0].diffHunk.length).toBe(2000);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the newest review entries and states the limit", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "gh-aw-context-reviews-"));
+    try {
+      const { snapshot } = await collect(api({ manyReviews: 120 }), directory);
+      expect(snapshot.previousReview.reviews).toHaveLength(100);
+      expect(snapshot.previousReview.reviews[0].body).toBe("review 20");
+      expect(snapshot.previousReview.reviews.at(-1).body).toBe("review 119");
+      expect(snapshot.limitations.join(" ")).toContain(
+        "усечена до 100 последних записей на раздел",
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
