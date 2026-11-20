@@ -30,9 +30,6 @@ it("keeps the required CI check and admission identifiers machine-readable", () 
 
 it("uses Russian display names for workflows that are safe to rename", () => {
   expect(workflow(".github/workflows/opencode.yml").name).toBe("OpenCode: команды /oc и /opencode");
-  expect(workflow(".github/workflows/opencode-review.yml").name).toBe(
-    "Автоматическое ревью OpenCode",
-  );
   expect(workflow(".github/workflows/opencode-triage.yml").name).toBe("Автоматический триаж задач");
   expect(workflow(".github/workflows/performance-check.yml").name).toBe(
     "Проверка производительности",

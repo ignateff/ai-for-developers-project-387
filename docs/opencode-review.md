@@ -4,9 +4,7 @@
 
 Automatic advisory review is handled by
 [`agentic-review.md`](../.github/workflows/agentic-review.md) and its generated
-lock file. The legacy [`opencode-review.yml`](../.github/workflows/opencode-review.yml)
-and `scripts/opencode-review-*` remain in the repository as a disabled rollback
-path; they are not the active handler.
+lock file. The legacy OpenCode workflow is available in Git history.
 
 The gh-aw workflow runs on `opened`, `synchronize`, `reopened` and
 `ready_for_review`. Editing only the description does not start the agent. A
@@ -66,11 +64,7 @@ attempt; if the head moved or the PR closed, publication is refused. Run links
 and the published result from controlled PRs are recorded on the tracking issue
 for the migration.
 
-To roll back, enable the legacy `opencode-review.yml` workflow in Actions and
-disable the gh-aw workflow. Do not delete the old workflow or its entry points:
-`mise run opencode:budget review` and `mise run opencode:review-publish` remain
-usable. The legacy workflow uses the old comment counter and its own prompt,
-context collection and publisher.
+To roll back, restore the legacy workflow from Git history in a separate PR. Its entry points and shared scripts remain available.
 
 ## Controlled gh-aw verification (18 November 2026)
 
@@ -135,8 +129,7 @@ changes, the same scenarios were re-run:
 Head-update cancellation was verified in the initial rollout; the automatic
 review concurrency group is unchanged by the final compliance changes.
 
-The new gh-aw workflow is active and the legacy `opencode-review.yml` remains
-`disabled_manually`.
+The gh-aw workflow is active. The legacy workflow was removed after the controlled verification.
 
 ## Legacy status and authorization
 

@@ -129,16 +129,4 @@ describe("gh-aw review workflow contract", () => {
       "pull-requests": "write",
     });
   });
-
-  test("keeps the legacy review workflow in the repository as the rollback path", () => {
-    const legacy = parse(readFileSync(".github/workflows/opencode-review.yml", "utf8"));
-    expect(legacy.on.pull_request.types).toEqual([
-      "opened",
-      "synchronize",
-      "reopened",
-      "ready_for_review",
-    ]);
-    expect(legacy.jobs.review).toBeDefined();
-    expect(legacy.jobs.publish).toBeDefined();
-  });
 });

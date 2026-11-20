@@ -713,17 +713,6 @@ test("production CLI emits a failure artifact and workflow outputs for independe
         .map((line) => line.split("=")),
     );
     expect(outputs).toMatchObject({ report: "true", number: "7", sha });
-    const workflow = parse(await readFile(".github/workflows/opencode-review.yml", "utf8"));
-    const steps = workflow.jobs.review.steps;
-    expect(steps.find((step: { id?: string }) => step.id === "report").if).toContain(
-      "steps.workflow.outputs.report == 'true'",
-    );
-    expect(
-      steps.find(
-        (step: { name?: string }) => step.name === "Сохранить результат ревью для публикации",
-      ).if,
-    ).toContain("steps.workflow.outputs.report == 'true'");
-    expect(workflow.jobs.publish.if).toContain("needs.review.outputs.artifact != ''");
     const artifact = join(dir, "opencode-review-1-1", "review.json");
     expect(JSON.parse(await readFile(artifact, "utf8"))).toEqual({ failure: "timeout" });
     await mkdir(join(dir, "opencode-review-publication"));
