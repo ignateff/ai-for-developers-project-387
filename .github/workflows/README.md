@@ -43,10 +43,7 @@ gh workflow run agentic-review.lock.yml --ref main -f pr_number=123
 счётчик не переносится. Подробности — в
 [docs/agents/pr-attempt-budget.md](../../docs/agents/pr-attempt-budget.md).
 
-Откат: включите старый `opencode-review.yml` в Actions и выключите
-`agentic-review.lock.yml`. Старый workflow и его entry points
-(`mise run opencode:budget review`, `mise run opencode:review-publish`)
-сохраняются рабочими.
+Откат выполняется отдельным PR, восстанавливающим прежний workflow из истории Git.
 
 ```sh
 gh aw compile agentic-smoke agentic-review agentic-triage --strict

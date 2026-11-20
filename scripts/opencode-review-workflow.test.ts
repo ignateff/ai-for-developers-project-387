@@ -458,32 +458,6 @@ test("production review admits then calls runtime with changed file contents pin
   }
 });
 
-test("review model job spends inside the rerun job without holding the budget queue", () => {
-  const workflow = parse(readFileSync(".github/workflows/opencode-review.yml", "utf8"));
-  const job = workflow.jobs.review;
-  expect(job.permissions).toMatchObject({ issues: "read", "pull-requests": "write" });
-  expect(workflow.jobs.publish.permissions).toMatchObject({
-    issues: "read",
-    "pull-requests": "write",
-  });
-  expect(job.if).toBeUndefined();
-  expect(job.concurrency.group).toBe("opencode-review-${{ github.event.pull_request.number }}");
-  expect(job.concurrency["cancel-in-progress"]).toBe(true);
-  const model = job.steps.findIndex((s: { id?: string }) => s.id === "workflow");
-  expect(model).toBeGreaterThan(-1);
-  expect(job.steps[model].run).toBe("mise run opencode:budget review");
-  expect(job.steps[model].env.OPENCODE_MODEL).toBe("${{ vars.OPENCODE_MODEL }}");
-  expect(job.steps[model].env.OPENCODE_API_KEY).toBe("${{ secrets.OPENCODE_API_KEY }}");
-  expect(job.steps[model].env.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
-  expect(JSON.stringify(job.steps.slice(0, model))).not.toContain("secrets.");
-  const publish = workflow.jobs.publish;
-  expect(publish.needs).toBe("review");
-  expect(publish.if).toBe("${{ !cancelled() && needs.review.outputs.artifact != '' }}");
-  expect(JSON.stringify(publish)).not.toContain("DEEPSEEK_API_KEY");
-  expect(JSON.stringify(publish)).not.toContain("opencode:budget");
-  expect(JSON.stringify(publish)).not.toContain("opencode:review-run");
-});
-
 const blob = (character: string) => character.repeat(40);
 const treeBlob = (path: string, sha: string, size: number) => ({
   path,

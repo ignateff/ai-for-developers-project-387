@@ -15,10 +15,6 @@ const modelSteps = {
     workflow(".github/workflows/opencode.yml").jobs.opencode.steps.find(
       (step: { id?: string }) => step.id === "command",
     ),
-  review: () =>
-    workflow(".github/workflows/opencode-review.yml").jobs.review.steps.find(
-      (step: { id?: string }) => step.id === "workflow",
-    ),
   triage: () =>
     workflow(".github/workflows/opencode-triage.yml").jobs.triage.steps.find(
       (step: { name?: string }) => step.name === "Предварительный триаж",
@@ -44,7 +40,6 @@ it("routes every applicable workflow through the repository variable", () => {
 it("keeps the shared default out of workflow files", () => {
   for (const path of [
     ".github/workflows/opencode.yml",
-    ".github/workflows/opencode-review.yml",
     ".github/workflows/opencode-triage.yml",
     ".github/workflows/scheduled-performance-audit.yml",
     ".github/workflows/performance-check.yml",
@@ -67,9 +62,6 @@ it("passes both provider credentials only to model-capable steps", () => {
   expect(JSON.stringify(prepare)).not.toContain("secrets.");
   const report = workflow(".github/workflows/opencode.yml").jobs.report;
   expect(JSON.stringify(report)).not.toContain("secrets.");
-  const publish = workflow(".github/workflows/opencode-review.yml").jobs.publish;
-  expect(JSON.stringify(publish)).not.toContain("OPENCODE_API_KEY");
-  expect(JSON.stringify(publish)).not.toContain("DEEPSEEK_API_KEY");
 });
 
 it("uses the shared launcher for direct CLI invocations", () => {
@@ -77,7 +69,6 @@ it("uses the shared launcher for direct CLI invocations", () => {
     expect(get().run).toContain('node scripts/opencode-launch.ts "$OPENCODE_');
   }
   expect(modelSteps.commandRun().run).toContain("node scripts/opencode-model.ts check");
-  expect(modelSteps.review().run).toBe("mise run opencode:budget review");
 });
 
 it("keeps the diagnostic on its separate fixed model without production credentials", () => {
