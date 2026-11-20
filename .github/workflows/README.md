@@ -61,7 +61,7 @@ mise run lint:workflows
 gh workflow run agentic-triage.lock.yml --ref main -f issue_number=123
 ```
 
-Результат смотрите в комментариях задачи и Summary выбранного запуска. Для обновления конфигурации используйте gh-aw v1.2.2 и компилируйте все workflow при изменении [общего шага установки Claude Code](shared/claude-code-install.md).
+Результат смотрите в комментариях задачи и Summary выбранного запуска. Для отката старый workflow можно восстановить отдельным PR из истории Git. Для обновления конфигурации используйте gh-aw v1.2.2 и компилируйте все workflow при изменении [общего шага установки Claude Code](shared/claude-code-install.md).
 
 ```sh
 gh aw compile agentic-smoke agentic-review agentic-triage --strict

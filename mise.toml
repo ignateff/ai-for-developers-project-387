@@ -196,9 +196,6 @@ run = "pnpm run opencode:log-summary"
 [tasks."lint:opencode-workflow"]
 run = "pnpm run lint:opencode-workflow"
 
-[tasks."lint:triage-workflow"]
-run = "pnpm run lint:triage-workflow"
-
 [tasks."test:e2e"]
 run = "pnpm run test:e2e"
 

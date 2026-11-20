@@ -15,10 +15,6 @@ const modelSteps = {
     workflow(".github/workflows/opencode.yml").jobs.opencode.steps.find(
       (step: { id?: string }) => step.id === "command",
     ),
-  triage: () =>
-    workflow(".github/workflows/opencode-triage.yml").jobs.triage.steps.find(
-      (step: { name?: string }) => step.name === "Предварительный триаж",
-    ),
   scheduledAudit: () =>
     workflow(".github/workflows/scheduled-performance-audit.yml").jobs.lighthouse.steps.find(
       (step: { name?: string }) => step.name === "Проанализировать с помощью OpenCode",
@@ -40,7 +36,6 @@ it("routes every applicable workflow through the repository variable", () => {
 it("keeps the shared default out of workflow files", () => {
   for (const path of [
     ".github/workflows/opencode.yml",
-    ".github/workflows/opencode-triage.yml",
     ".github/workflows/scheduled-performance-audit.yml",
     ".github/workflows/performance-check.yml",
   ]) {
@@ -65,7 +60,7 @@ it("passes both provider credentials only to model-capable steps", () => {
 });
 
 it("uses the shared launcher for direct CLI invocations", () => {
-  for (const get of [modelSteps.triage, modelSteps.scheduledAudit, modelSteps.performanceCheck]) {
+  for (const get of [modelSteps.scheduledAudit, modelSteps.performanceCheck]) {
     expect(get().run).toContain('node scripts/opencode-launch.ts "$OPENCODE_');
   }
   expect(modelSteps.commandRun().run).toContain("node scripts/opencode-model.ts check");

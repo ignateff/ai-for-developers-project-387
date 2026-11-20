@@ -2,59 +2,32 @@ import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { parse } from "yaml";
 
-const workflow = parse(readFileSync(".github/workflows/opencode-triage.yml", "utf8"));
-const job = workflow.jobs.triage;
+const source = readFileSync(".github/workflows/agentic-triage.md", "utf8");
+const workflow = parse(source.split("---")[1]);
+const job = workflow.jobs.eligibility;
 
-it("runs only for new issues with bounded, serialized execution", () => {
+it("runs bounded triage and restricts publication to the target issue", () => {
   expect(workflow.on.issues.types).toEqual(["opened"]);
-  expect(workflow.concurrency).toEqual({
-    group: "issue-triage",
-    "cancel-in-progress": false,
-    queue: "max",
-  });
-  expect(job["timeout-minutes"]).toBe(15);
-  expect(job.permissions).toEqual({ contents: "read", issues: "write" });
-});
-
-it("skips bots and prepared issues before checking current state and trust", () => {
-  for (const value of ["Bot", "[bot]", "ready-for-agent", "ready-for-human", "wontfix"])
-    expect(job.if).toContain(value);
-  const trust = job.steps.find((step: { id?: string }) => step.id === "trust");
-  expect(trust.with.script).toContain("github.rest.issues.get");
-  expect(trust.with.script).toContain("getCollaboratorPermissionLevel");
-  expect(trust.with.script).toContain("return false");
-  expect(trust.with.script).toContain("триаж пропущен");
-  for (const step of job.steps.slice(1))
-    expect(step.if).toBe("steps.trust.outputs.result == 'true'");
-});
-
-it("pins actions and asks for a preliminary read-only triage", () => {
-  for (const step of job.steps.filter((item: { uses?: string }) => item.uses))
-    expect(step.uses).toMatch(/@[a-f0-9]{40}$/);
-  const run = job.steps.find((step: { name?: string }) => step.name === "Предварительный триаж");
-  expect(run.run).toBe('node scripts/opencode-launch.ts "$OPENCODE_BINARY" github run');
-  expect(run.env.OPENCODE_MODEL).toBe("${{ vars.OPENCODE_MODEL }}");
-  expect(run.env.OPENCODE_API_KEY).toBe("${{ secrets.OPENCODE_API_KEY }}");
-  expect(run.env.DEEPSEEK_API_KEY).toBe("${{ secrets.DEEPSEEK_API_KEY }}");
-  expect(run.env.MODEL).toBeUndefined();
-  expect(run.env.PROMPT).toContain("> *Сгенерировано ИИ в ходе триажа.*");
-  expect(run.env.PROMPT).toContain("Write the entire response in Russian.");
-  expect(run.env.PROMPT).not.toContain("language of the issue");
-  expect(run.env.PROMPT).toContain("untrusted data");
-  expect(run.env.PROMPT).toContain("Do not implement");
-  const permission = JSON.parse(run.env.OPENCODE_CONFIG_CONTENT).permission;
-  for (const tool of ["bash", "edit", "task", "question"]) expect(permission[tool]).toBe("deny");
+  expect(workflow.on.workflow_dispatch.inputs.issue_number.required).toBe(true);
+  expect(workflow.concurrency.queue).toBe("max");
+  expect(workflow.tools.bash).toBe(false);
+  expect(workflow.tools.edit).toBe(false);
+  expect(workflow["safe-outputs"]["add-comment"]).toMatchObject({ max: 1, "pull-requests": false });
+  expect(source).toContain("> *Сгенерировано ИИ в ходе триажа.*");
+  expect(source).toContain("Напиши по-русски");
 });
 
 it("checks live labels and author permission, failing closed on API errors", async () => {
-  const script = job.steps.find((step: { id?: string }) => step.id === "trust").with.script;
+  const script = job.steps.find((step: { id?: string }) => step.id === "check").with.script;
   const run = new (Object.getPrototypeOf(async function () {}).constructor)(
     "github",
     "context",
     "core",
     script,
   );
-  const context = { repo: { owner: "owner", repo: "repo" }, issue: { number: 1 } };
+  const context = { repo: { owner: "owner", repo: "repo" } };
+  const previous = process.env.ISSUE_NUMBER;
+  process.env.ISSUE_NUMBER = "1";
   const issue = { user: { login: "author", type: "User" }, labels: [] as string[] };
   const github = {
     rest: {
@@ -76,4 +49,6 @@ it("checks live labels and author permission, failing closed on API errors", asy
     throw new Error("API unavailable");
   };
   expect(await run(github, context, core)).toBe(false);
+  if (previous === undefined) delete process.env.ISSUE_NUMBER;
+  else process.env.ISSUE_NUMBER = previous;
 });
