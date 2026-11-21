@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.12.0](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.11.1...v0.12.0) (2026-11-21)
+
+
+### Features
+
+* **api:** add MCP endpoint for calendar agents ([4ea3665](https://github.com/ignateff/ai-for-developers-project-387/commit/4ea36659b7ee62857062120112c2852014a9b68a))
+* **api:** add MCP endpoint for calendar agents ([411e921](https://github.com/ignateff/ai-for-developers-project-387/commit/411e9211e1479fbd2b0de2f806f7dd885c8f6383)), closes [#130](https://github.com/ignateff/ai-for-developers-project-387/issues/130)
+* **ci:** add gh-aw automatic PR review ([#135](https://github.com/ignateff/ai-for-developers-project-387/issues/135)) ([481c9da](https://github.com/ignateff/ai-for-developers-project-387/commit/481c9da6156bfc6386f72630463e8777d5dac293)), closes [#133](https://github.com/ignateff/ai-for-developers-project-387/issues/133)
+* **web:** show delete and forget confirmations in modals ([ac67d16](https://github.com/ignateff/ai-for-developers-project-387/commit/ac67d16c2d800a9fe568609dc20500e2b544f185))
+* **web:** show delete and forget confirmations in modals ([49ac593](https://github.com/ignateff/ai-for-developers-project-387/commit/49ac5932993888e5e96e985165b201b7d1f5247c)), closes [#125](https://github.com/ignateff/ai-for-developers-project-387/issues/125) [#127](https://github.com/ignateff/ai-for-developers-project-387/issues/127)
+
+
+### Bug Fixes
+
+* **ci:** align gh-aw review with trusted-source and budget rules ([#146](https://github.com/ignateff/ai-for-developers-project-387/issues/146)) ([cfc000f](https://github.com/ignateff/ai-for-developers-project-387/commit/cfc000fc835fafba050420499565af8f12bae5a6)), closes [#133](https://github.com/ignateff/ai-for-developers-project-387/issues/133)
+* **ci:** allow gh-aw triage to finish ([11d5983](https://github.com/ignateff/ai-for-developers-project-387/commit/11d5983dc0c3cdf0e7232e15ecf71f9feaa93bbb))
+* **ci:** allow triage to complete its analysis ([3fa9bf4](https://github.com/ignateff/ai-for-developers-project-387/commit/3fa9bf48d19b30e6f5306b9822761bd2d40bb42e)), closes [#122](https://github.com/ignateff/ai-for-developers-project-387/issues/122)
+* **ci:** compact the gh-aw review snapshot ([#137](https://github.com/ignateff/ai-for-developers-project-387/issues/137)) ([a4ab18b](https://github.com/ignateff/ai-for-developers-project-387/commit/a4ab18b5b2a8b100c4b91a47888adbb2615ba665)), closes [#133](https://github.com/ignateff/ai-for-developers-project-387/issues/133)
+* **ci:** publish triage comments instead of staging them ([e9466ed](https://github.com/ignateff/ai-for-developers-project-387/commit/e9466edf7838efdbf8ffaba41f520e833f27336d))
+* **ci:** publish triage comments instead of staging them ([76b2924](https://github.com/ignateff/ai-for-developers-project-387/commit/76b2924e70ddd2bd6a41db3fa81d7117f92249c0)), closes [#122](https://github.com/ignateff/ai-for-developers-project-387/issues/122)
+* **web:** isolate meeting type dialog sessions ([113d0ad](https://github.com/ignateff/ai-for-developers-project-387/commit/113d0ad85133d236cea6155a06c08133639506a3)), closes [#152](https://github.com/ignateff/ai-for-developers-project-387/issues/152)
+* **web:** preserve reopened meeting type drafts ([8cf64e6](https://github.com/ignateff/ai-for-developers-project-387/commit/8cf64e6796f843f3bd7a54626ab8e1923782ce6b))
+* **web:** retain edit drafts when list refresh fails ([31ec527](https://github.com/ignateff/ai-for-developers-project-387/commit/31ec5278779be578c46c10cbaa62183c36103a61)), closes [#152](https://github.com/ignateff/ai-for-developers-project-387/issues/152)
+
 ## [0.11.1](https://github.com/ignateff/ai-for-developers-project-387/compare/v0.11.0...v0.11.1) (2026-11-14)
 
 
