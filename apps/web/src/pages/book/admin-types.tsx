@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { meetingTypesCreate, meetingTypesList } from "../../../../../generated/sdk/client";
 
 import { validateType } from "./validate-type";
+import { TypeFields } from "./type-fields";
 import { ManageType, STALE_TYPE_NOTICE, type DeleteOutcome } from "./manage-type";
 
 export function AdminTypesPage() {
@@ -12,9 +13,7 @@ export function AdminTypesPage() {
   const [deleteNotice, setDeleteNotice] = useState("");
   const addButton = useRef<HTMLButtonElement>(null);
   const dialogSession = useRef(0);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState("");
+  const [draft, setDraft] = useState({ name: "", description: "", duration: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const list = useQuery({
     queryKey: ["meeting-types"],
@@ -41,14 +40,16 @@ export function AdminTypesPage() {
     },
     onSuccess: async (_data, input) => {
       if (input.session === dialogSession.current) {
-        setCreating(false);
-        setName("");
-        setDescription("");
-        setDuration("");
+        closeCreator();
+        setDraft({ name: "", description: "", duration: "" });
       }
       await queryClient.invalidateQueries({ queryKey: ["meeting-types"] });
     },
   });
+  function closeCreator() {
+    dialogSession.current++;
+    setCreating(false);
+  }
   function handleDeleteOutcome(outcome: DeleteOutcome) {
     if (outcome === "missing") setDeleteNotice(STALE_TYPE_NOTICE);
     void list.refetch().finally(() => addButton.current?.focus());
@@ -60,7 +61,7 @@ export function AdminTypesPage() {
       cleanDescription,
       minutes: durationMinutes,
       fields: next,
-    } = validateType(name, description, duration);
+    } = validateType(draft.name, draft.description, draft.duration);
     setErrors(next);
     if (!Object.keys(next).length)
       create.mutate({
@@ -132,52 +133,20 @@ export function AdminTypesPage() {
               </div>
             </article>
           ))}
-        <Modal opened={creating} onClose={() => setCreating(false)} title="Создать тип встречи">
+        <Modal opened={creating} onClose={closeCreator} title="Создать тип встречи">
           <form onSubmit={submit} noValidate>
             <div className="form-fields">
-              <div className="field">
-                <label className="field-label" htmlFor="type-name">
-                  Название
-                </label>
-                <input
-                  id="type-name"
-                  className="field-input"
-                  value={name}
-                  onChange={(event) => setName(event.currentTarget.value)}
-                  aria-invalid={errors.name ? "true" : undefined}
-                  required
-                />
-                {errors.name && <p className="field-error">{errors.name}</p>}
-              </div>
-              <div className="field">
-                <label className="field-label" htmlFor="type-description">
-                  Описание
-                </label>
-                <textarea
-                  id="type-description"
-                  className="field-input"
-                  value={description}
-                  onChange={(event) => setDescription(event.currentTarget.value)}
-                  aria-invalid={errors.description ? "true" : undefined}
-                  required
-                />
-                {errors.description && <p className="field-error">{errors.description}</p>}
-              </div>
-              <div className="field">
-                <label className="field-label" htmlFor="type-duration">
-                  Длительность в минутах
-                </label>
-                <input
-                  id="type-duration"
-                  className="field-input"
-                  type="number"
-                  value={duration}
-                  onChange={(event) => setDuration(event.currentTarget.value)}
-                  aria-invalid={errors.duration ? "true" : undefined}
-                  required
-                />
-                {errors.duration && <p className="field-error">{errors.duration}</p>}
-              </div>
+              <TypeFields
+                idPrefix="type"
+                labels={{
+                  name: "Название",
+                  description: "Описание",
+                  duration: "Длительность в минутах",
+                }}
+                draft={draft}
+                onChange={setDraft}
+                errors={errors}
+              />
               {create.isError && (
                 <p role="alert" className="alert form-alert">
                   Не удалось создать тип встречи. Попробуйте ещё раз.
@@ -187,7 +156,7 @@ export function AdminTypesPage() {
                 <button type="submit" className="btn btn-accent" disabled={create.isPending}>
                   Создать тип
                 </button>
-                <button type="button" className="btn btn-subtle" onClick={() => setCreating(false)}>
+                <button type="button" className="btn btn-subtle" onClick={closeCreator}>
                   Отмена
                 </button>
               </div>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
+import { act, cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MantineProvider } from "@mantine/core";
@@ -581,6 +581,166 @@ it("refreshes a conflicting version without losing the edit draft", async () => 
   await vi.waitFor(() => expect(versions).toEqual(['"1"', '"2"']));
 });
 
+it("refreshes the list without closing a reopened editor or losing its draft", async () => {
+  let type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+  let resolveSave!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PUT")
+        return new Promise<Response>((resolve) => {
+          resolveSave = resolve;
+        });
+      return new Response(JSON.stringify([type]), { status: 200 });
+    }),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MantineProvider env="test">
+        <AdminTypesPage />
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
+  const first = within(await screen.findByRole("dialog"));
+  fireEvent.change(first.getByLabelText("Название типа"), { target: { value: "Saved" } });
+  fireEvent.click(first.getByRole("button", { name: "Сохранить" }));
+  await vi.waitFor(() => expect(resolveSave).toBeDefined());
+  fireEvent.click(first.getByRole("button", { name: "Отмена" }));
+  await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
+  const second = within(await screen.findByRole("dialog"));
+  fireEvent.change(second.getByLabelText("Название типа"), { target: { value: "New draft" } });
+  fireEvent.change(second.getByLabelText("Описание типа"), { target: { value: "New intro" } });
+  fireEvent.change(second.getByLabelText("Длительность типа в минутах"), {
+    target: { value: "45" },
+  });
+  type = { ...type, name: "Saved", version: 2 };
+  resolveSave(new Response(JSON.stringify(type), { status: 200 }));
+  expect(await screen.findByRole("heading", { name: "Saved" })).toBeVisible();
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(second.getByLabelText("Название типа")).toHaveValue("New draft");
+  expect(second.getByLabelText("Описание типа")).toHaveValue("New intro");
+  expect(second.getByLabelText("Длительность типа в минутах")).toHaveValue(45);
+  expect(second.getByRole("button", { name: "Сохранить" })).toBeEnabled();
+});
+
+it.each([500, 412, 404, "offline"])(
+  "isolates an earlier save failure (%s) from a reopened editor's pending save",
+  async (failure) => {
+    const type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+    const requests: {
+      resolve: (response: Response) => void;
+      reject: (error: Error) => void;
+      version: string | null;
+    }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "PUT")
+          return new Promise<Response>((resolve, reject) => {
+            requests.push({
+              resolve,
+              reject,
+              version: new Headers(init.headers).get("if-match"),
+            });
+          });
+        return new Response(JSON.stringify([type]), { status: 200 });
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MantineProvider env="test">
+          <AdminTypesPage />
+        </MantineProvider>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByLabelText("Название типа"), { target: { value: "New draft" } });
+    const save = dialog.getByRole("button", { name: "Сохранить" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    await act(async () => {
+      if (failure === "offline") requests[0]!.reject(new Error("offline"));
+      else requests[0]!.resolve(new Response(null, { status: Number(failure) }));
+    });
+    expect(save).toBeDisabled();
+    expect(dialog.queryByRole("alert")).not.toBeInTheDocument();
+    expect(dialog.queryByRole("button", { name: "Обновить версию" })).not.toBeInTheDocument();
+    expect(dialog.getByLabelText("Название типа")).toHaveValue("New draft");
+    await act(async () => requests[1]!.resolve(new Response(null, { status: 500 })));
+    expect(await dialog.findByRole("alert")).toHaveTextContent("Не удалось сохранить изменения");
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests.map((request) => request.version)).toEqual(['"1"', '"1"', '"1"']);
+    await act(async () => requests[2]!.resolve(new Response(null, { status: 500 })));
+  },
+);
+
+it.each([200, 500, "offline"])(
+  "ignores a late version refresh (%s) after reopening the editor",
+  async (status) => {
+    const type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+    let resolveRefresh!: (response: Response) => void;
+    let rejectRefresh!: (error: Error) => void;
+    let lists = 0;
+    const versions: (string | null)[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "PUT") {
+          versions.push(new Headers(init.headers).get("if-match"));
+          return new Response(null, { status: versions.length === 1 ? 412 : 500 });
+        }
+        if (++lists === 2)
+          return new Promise<Response>((resolve, reject) => {
+            resolveRefresh = resolve;
+            rejectRefresh = reject;
+          });
+        return new Response(JSON.stringify([type]), { status: 200 });
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MantineProvider env="test">
+          <AdminTypesPage />
+        </MantineProvider>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Обновить версию" }));
+    await vi.waitFor(() => expect(resolveRefresh).toBeDefined());
+    fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByLabelText("Название типа"), { target: { value: "New draft" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Сохранить" }));
+    expect(await dialog.findByRole("alert")).toHaveTextContent("Не удалось сохранить изменения");
+    await act(async () => {
+      if (status === "offline") rejectRefresh(new Error("offline"));
+      else
+        resolveRefresh(
+          new Response(JSON.stringify([{ ...type, version: 7 }]), { status: Number(status) }),
+        );
+    });
+    expect(dialog.getByLabelText("Название типа")).toHaveValue("New draft");
+    expect(dialog.getByRole("alert")).toHaveTextContent("Не удалось сохранить изменения");
+    expect(dialog.queryByRole("button", { name: "Обновить версию" })).not.toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("button", { name: "Сохранить" }));
+    await vi.waitFor(() => expect(versions).toEqual(['"1"', '"1"', '"1"']));
+  },
+);
+
 it("does not close a reopened creation dialog when an earlier request succeeds", async () => {
   let resolveCreate!: (response: Response) => void;
   let lists = 0;
@@ -617,6 +777,51 @@ it("does not close a reopened creation dialog when an earlier request succeeds",
   await vi.waitFor(() => expect(screen.getByLabelText("Название")).toHaveValue("Second draft"));
   expect(screen.getByRole("dialog")).toBeInTheDocument();
 });
+
+it.each([500, "offline"])(
+  "keeps a reopened creation dialog independent of a late failure (%s)",
+  async (status) => {
+    let resolveCreate!: (response: Response) => void;
+    let rejectCreate!: (error: Error) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "POST")
+          return new Promise<Response>((resolve, reject) => {
+            resolveCreate = resolve;
+            rejectCreate = reject;
+          });
+        return new Response("[]", { status: 200 });
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MantineProvider env="test">
+          <AdminTypesPage />
+        </MantineProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Пока нет типов встреч");
+    fireEvent.click(screen.getByRole("button", { name: "Добавить тип встречи" }));
+    fireEvent.change(await screen.findByLabelText("Название"), { target: { value: "First" } });
+    fireEvent.change(screen.getByLabelText("Описание"), { target: { value: "Description" } });
+    fireEvent.change(screen.getByLabelText("Длительность в минутах"), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать тип" }));
+    await vi.waitFor(() => expect(resolveCreate).toBeDefined());
+    fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Добавить тип встречи" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByLabelText("Название"), { target: { value: "Second draft" } });
+    await act(async () => {
+      if (status === "offline") rejectCreate(new Error("offline"));
+      else resolveCreate(new Response(null, { status: Number(status) }));
+    });
+    expect(dialog.getByLabelText("Название")).toHaveValue("Second draft");
+    expect(dialog.queryByRole("alert")).not.toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Создать тип" })).toBeEnabled();
+  },
+);
 
 it("disables changing the meeting type while the booking request is in flight", async () => {
   vi.stubGlobal(
