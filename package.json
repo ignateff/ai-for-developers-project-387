@@ -15,6 +15,7 @@
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:vulnerabilities": "node scripts/check-vulnerabilities.mjs",
     "check:security": "pnpm run lint:workflows && pnpm run check:secrets && pnpm run check:vulnerabilities",
+    "worktree:verify": "node scripts/verify-worktree.mjs",
     "check:commits": "node scripts/check-commits.mjs",
     "lint:commit-message": "commitlint --strict --edit",
     "format:check": "oxfmt --check .",

@@ -112,6 +112,10 @@ run = "pnpm run check:vulnerabilities"
 description = "Run security scans and enforce dated risk exceptions"
 run = "pnpm run check:security"
 
+[tasks."worktree:verify"]
+description = "Verify the current task worktree location"
+run = "pnpm run worktree:verify"
+
 [tasks."check:commits"]
 run = "pnpm run check:commits"
 
