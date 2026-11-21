@@ -581,49 +581,67 @@ it("refreshes a conflicting version without losing the edit draft", async () => 
   await vi.waitFor(() => expect(versions).toEqual(['"1"', '"2"']));
 });
 
-it("refreshes the list without closing a reopened editor or losing its draft", async () => {
-  let type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
-  let resolveSave!: (response: Response) => void;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === "PUT")
-        return new Promise<Response>((resolve) => {
-          resolveSave = resolve;
-        });
-      return new Response(JSON.stringify([type]), { status: 200 });
-    }),
-  );
-  render(
-    <QueryClientProvider client={new QueryClient()}>
-      <MantineProvider env="test">
-        <AdminTypesPage />
-      </MantineProvider>
-    </QueryClientProvider>,
-  );
-  fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
-  const first = within(await screen.findByRole("dialog"));
-  fireEvent.change(first.getByLabelText("Название типа"), { target: { value: "Saved" } });
-  fireEvent.click(first.getByRole("button", { name: "Сохранить" }));
-  await vi.waitFor(() => expect(resolveSave).toBeDefined());
-  fireEvent.click(first.getByRole("button", { name: "Отмена" }));
-  await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
-  const second = within(await screen.findByRole("dialog"));
-  fireEvent.change(second.getByLabelText("Название типа"), { target: { value: "New draft" } });
-  fireEvent.change(second.getByLabelText("Описание типа"), { target: { value: "New intro" } });
-  fireEvent.change(second.getByLabelText("Длительность типа в минутах"), {
-    target: { value: "45" },
-  });
-  type = { ...type, name: "Saved", version: 2 };
-  resolveSave(new Response(JSON.stringify(type), { status: 200 }));
-  expect(await screen.findByRole("heading", { name: "Saved" })).toBeVisible();
-  expect(screen.getByRole("dialog")).toBeInTheDocument();
-  expect(second.getByLabelText("Название типа")).toHaveValue("New draft");
-  expect(second.getByLabelText("Описание типа")).toHaveValue("New intro");
-  expect(second.getByLabelText("Длительность типа в минутах")).toHaveValue(45);
-  expect(second.getByRole("button", { name: "Сохранить" })).toBeEnabled();
-});
+it.each([false, true])(
+  "keeps a reopened edit draft when the late success refresh fails: %s",
+  async (refreshFails) => {
+    let type = { id: "one", name: "Call", description: "Intro", durationMinutes: 30, version: 1 };
+    let resolveSave!: (response: Response) => void;
+    let lists = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "PUT")
+          return new Promise<Response>((resolve) => {
+            resolveSave = resolve;
+          });
+        if (++lists > 1 && refreshFails) return new Response(null, { status: 500 });
+        return new Response(JSON.stringify([type]), { status: 200 });
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MantineProvider
+          theme={{ components: { Modal: { defaultProps: { transitionProps: { duration: 0 } } } } }}
+        >
+          <AdminTypesPage />
+        </MantineProvider>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
+    const first = within(await screen.findByRole("dialog"));
+    fireEvent.change(first.getByLabelText("Название типа"), { target: { value: "Saved" } });
+    fireEvent.click(first.getByRole("button", { name: "Сохранить" }));
+    await vi.waitFor(() => expect(resolveSave).toBeDefined());
+    fireEvent.click(first.getByRole("button", { name: "Отмена" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
+    const second = within(await screen.findByRole("dialog"));
+    fireEvent.change(second.getByLabelText("Название типа"), { target: { value: "New draft" } });
+    fireEvent.change(second.getByLabelText("Описание типа"), { target: { value: "New intro" } });
+    fireEvent.change(second.getByLabelText("Длительность типа в минутах"), {
+      target: { value: "45" },
+    });
+    type = { ...type, name: "Saved", version: 2 };
+    resolveSave(new Response(JSON.stringify(type), { status: 200 }));
+    if (refreshFails) {
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Не удалось загрузить типы встреч",
+      );
+      expect(screen.queryByRole("heading", { name: "Call" })).not.toBeInTheDocument();
+    } else expect(await screen.findByRole("heading", { name: "Saved" })).toBeVisible();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(second.getByLabelText("Название типа")).toHaveValue("New draft");
+    expect(second.getByLabelText("Описание типа")).toHaveValue("New intro");
+    expect(second.getByLabelText("Длительность типа в минутах")).toHaveValue(45);
+    expect(second.getByRole("button", { name: "Сохранить" })).toBeEnabled();
+    if (refreshFails) {
+      // The stale card stays hidden; retrying must not remount the editor either.
+      fireEvent.click(screen.getByRole("button", { name: "Повторить" }));
+      await vi.waitFor(() => expect(lists).toBeGreaterThan(2));
+      expect(second.getByLabelText("Название типа")).toHaveValue("New draft");
+    }
+  },
+);
 
 it.each([500, 412, 404, "offline"])(
   "isolates an earlier save failure (%s) from a reopened editor's pending save",

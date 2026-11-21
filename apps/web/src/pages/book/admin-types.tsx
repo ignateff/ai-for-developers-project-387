@@ -114,25 +114,25 @@ export function AdminTypesPage() {
         </div>
       )}
       <div className="type-list">
-        {!list.isError &&
-          list.data?.map((item) => (
-            <article key={item.id} className="card">
-              <h2 id={`meeting-type-${item.id}`} className="type-card-name">
-                {item.name}
-              </h2>
-              <p className="type-card-description">{item.description}</p>
-              <p className="type-card-duration">{item.durationMinutes} мин.</p>
-              <div className="type-card-actions">
-                <ManageType
-                  type={item}
-                  refresh={() => {
-                    void list.refetch();
-                  }}
-                  onDeleteOutcome={handleDeleteOutcome}
-                />
-              </div>
-            </article>
-          ))}
+        {/* Hide stale cards without unmounting their portalled dialogs and drafts. */}
+        {list.data?.map((item) => (
+          <article key={item.id} className="card" hidden={list.isError}>
+            <h2 id={`meeting-type-${item.id}`} className="type-card-name">
+              {item.name}
+            </h2>
+            <p className="type-card-description">{item.description}</p>
+            <p className="type-card-duration">{item.durationMinutes} мин.</p>
+            <div className="type-card-actions">
+              <ManageType
+                type={item}
+                refresh={() => {
+                  void list.refetch();
+                }}
+                onDeleteOutcome={handleDeleteOutcome}
+              />
+            </div>
+          </article>
+        ))}
         <Modal opened={creating} onClose={closeCreator} title="Создать тип встречи">
           <form onSubmit={submit} noValidate>
             <div className="form-fields">
