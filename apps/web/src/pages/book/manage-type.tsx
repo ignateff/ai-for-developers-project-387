@@ -1,5 +1,6 @@
 import { Modal } from "@mantine/core";
 import { validateType } from "./validate-type";
+import { TypeFields } from "./type-fields";
 import { useRef, useState, type FormEvent } from "react";
 import {
   meetingTypeResourceRemove,
@@ -23,21 +24,31 @@ export function ManageType({
 }) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [name, setName] = useState(type.name);
-  const [description, setDescription] = useState(type.description);
-  const [duration, setDuration] = useState(String(type.durationMinutes));
+  const [draft, setDraft] = useState({
+    name: type.name,
+    description: type.description,
+    duration: String(type.durationMinutes),
+  });
   const [error, setError] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [deletePending, setDeletePending] = useState(false);
   const [deleteNotice, setDeleteNotice] = useState("");
   const removeButton = useRef<HTMLButtonElement>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const [version, setVersion] = useState(type.version);
   const [conflict, setConflict] = useState(false);
+  const dialogSession = useRef(0);
+  function closeEditor() {
+    dialogSession.current++;
+    setEditing(false);
+  }
   async function refreshVersion() {
+    const session = dialogSession.current;
     setPending(true);
     try {
       const response = await meetingTypesList();
+      if (session !== dialogSession.current) return;
       if (response.status !== 200) throw new Error("Could not load meeting types");
       const latest = response.data.find((item) => item.id === type.id);
       if (!latest) {
@@ -48,19 +59,21 @@ export function ManageType({
         setError("Версия обновлена. Проверьте данные перед сохранением.");
       }
     } catch {
-      setError("Не удалось обновить версию. Попробуйте ещё раз.");
+      if (session === dialogSession.current)
+        setError("Не удалось обновить версию. Попробуйте ещё раз.");
     } finally {
-      setPending(false);
+      if (session === dialogSession.current) setPending(false);
     }
   }
   async function save(event: FormEvent) {
     event.preventDefault();
+    const session = dialogSession.current;
     const {
       cleanName,
       cleanDescription,
       minutes,
       fields: next,
-    } = validateType(name, description, duration);
+    } = validateType(draft.name, draft.description, draft.duration);
     setFields(next);
     if (Object.keys(next).length) return;
     setPending(true);
@@ -72,16 +85,18 @@ export function ManageType({
         { headers: { "If-Match": `"${version}"` } },
       );
       if (response.status === 200) {
-        setEditing(false);
+        if (session === dialogSession.current) closeEditor();
         refresh();
-      } else if (response.status === 412 || response.status === 404) {
+      } else if (session !== dialogSession.current) return;
+      else if (response.status === 412 || response.status === 404) {
         setConflict(true);
         setError("Тип встречи изменился или удалён. Обновите версию, сохранив черновик.");
       } else setError("Не удалось сохранить изменения. Попробуйте ещё раз.");
     } catch {
-      setError("Не удалось сохранить изменения. Попробуйте ещё раз.");
+      if (session === dialogSession.current)
+        setError("Не удалось сохранить изменения. Попробуйте ещё раз.");
     } finally {
-      setPending(false);
+      if (session === dialogSession.current) setPending(false);
     }
   }
   function closeConfirm() {
@@ -89,7 +104,7 @@ export function ManageType({
     removeButton.current?.focus();
   }
   async function remove() {
-    setPending(true);
+    setDeletePending(true);
     setDeleteError("");
     try {
       const response = await meetingTypeResourceRemove(type.id, {
@@ -111,7 +126,7 @@ export function ManageType({
     } catch {
       setDeleteError("Не удалось удалить тип. Попробуйте ещё раз.");
     } finally {
-      setPending(false);
+      setDeletePending(false);
     }
   }
   return (
@@ -121,13 +136,17 @@ export function ManageType({
         className="btn btn-subtle"
         aria-describedby={`meeting-type-${type.id}`}
         onClick={() => {
+          dialogSession.current++;
+          setPending(false);
           setError("");
           setVersion(type.version);
           setConflict(false);
           setFields({});
-          setName(type.name);
-          setDescription(type.description);
-          setDuration(String(type.durationMinutes));
+          setDraft({
+            name: type.name,
+            description: type.description,
+            duration: String(type.durationMinutes),
+          });
           setEditing(true);
         }}
       >
@@ -148,56 +167,24 @@ export function ManageType({
       >
         Удалить
       </button>
-      <Modal opened={editing} onClose={() => setEditing(false)} title={`Изменить ${type.name}`}>
+      <Modal opened={editing} onClose={closeEditor} title={`Изменить ${type.name}`}>
         <form className="type-manage-form" onSubmit={(event) => void save(event)} noValidate>
-          <div className="field">
-            <label className="field-label" htmlFor={`edit-name-${type.id}`}>
-              Название типа
-            </label>
-            <input
-              id={`edit-name-${type.id}`}
-              className="field-input"
-              required
-              aria-invalid={fields.name ? "true" : undefined}
-              value={name}
-              onChange={(event) => setName(event.currentTarget.value)}
-            />
-            {fields.name && <p className="field-error">{fields.name}</p>}
-          </div>
-          <div className="field">
-            <label className="field-label" htmlFor={`edit-description-${type.id}`}>
-              Описание типа
-            </label>
-            <textarea
-              id={`edit-description-${type.id}`}
-              className="field-input"
-              required
-              aria-invalid={fields.description ? "true" : undefined}
-              value={description}
-              onChange={(event) => setDescription(event.currentTarget.value)}
-            />
-            {fields.description && <p className="field-error">{fields.description}</p>}
-          </div>
-          <div className="field">
-            <label className="field-label" htmlFor={`edit-duration-${type.id}`}>
-              Длительность типа в минутах
-            </label>
-            <input
-              id={`edit-duration-${type.id}`}
-              className="field-input"
-              type="number"
-              required
-              aria-invalid={fields.duration ? "true" : undefined}
-              value={duration}
-              onChange={(event) => setDuration(event.currentTarget.value)}
-            />
-            {fields.duration && <p className="field-error">{fields.duration}</p>}
-          </div>
+          <TypeFields
+            idPrefix={`edit-${type.id}`}
+            labels={{
+              name: "Название типа",
+              description: "Описание типа",
+              duration: "Длительность типа в минутах",
+            }}
+            draft={draft}
+            onChange={setDraft}
+            errors={fields}
+          />
           <div className="type-manage">
             <button type="submit" className="btn btn-accent" disabled={pending || conflict}>
               Сохранить
             </button>
-            <button type="button" className="btn btn-subtle" onClick={() => setEditing(false)}>
+            <button type="button" className="btn btn-subtle" onClick={closeEditor}>
               Отмена
             </button>
           </div>
@@ -221,7 +208,7 @@ export function ManageType({
       <Modal
         opened={confirm}
         onClose={() => {
-          if (!pending) closeConfirm();
+          if (!deletePending) closeConfirm();
         }}
         returnFocus={false}
         title="Удалить тип встречи"
@@ -238,7 +225,7 @@ export function ManageType({
           <button
             type="button"
             className="btn btn-danger"
-            disabled={pending}
+            disabled={deletePending}
             onClick={() => void remove()}
           >
             Подтвердить удаление
@@ -246,7 +233,7 @@ export function ManageType({
           <button
             type="button"
             className="btn btn-subtle"
-            disabled={pending}
+            disabled={deletePending}
             onClick={closeConfirm}
           >
             Отмена

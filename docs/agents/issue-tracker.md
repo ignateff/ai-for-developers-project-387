@@ -18,6 +18,8 @@ Infer the repo from `git remote -v`; `gh` does this automatically inside a clone
 
 ## Implementation branches
 
+Before planning or editing a ticket, follow the mandatory **New ticket → new branch → new worktree** setup in [AGENTS.md](../../AGENTS.md#worktrees). Generic skill instructions about the current branch apply to the task branch selected by that setup.
+
 For implementation intended for `main`, open a PR from the integration branch and include `Closes #<number>` for each completed issue and specification. Keep them open until the PR merges into the default branch; a passing branch or a published commit alone does not close them. If the user explicitly requests a different delivery or closure, follow that request and record the outcome in the issues. This rule applies to implementation work; decision-only `/wayfinder` issues follow their resolution procedure below.
 
 ## Pull requests as a triage surface
