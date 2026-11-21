@@ -9,6 +9,7 @@
     "check:push": "pnpm run check:quick && pnpm run lint:unused && pnpm run lint:workflows && pnpm run lint:shell && pnpm run lint:docker && pnpm run check:secrets && pnpm run check:commits",
     "lint": "oxlint --deny-warnings apps",
     "lint:unused": "knip",
+    "check:doc-links": "node scripts/check-doc-links.mjs",
     "lint:workflows": "node scripts/check-workflows.mjs",
     "lint:shell": "shellcheck scripts/*.sh",
     "lint:docker": "hadolint --failure-threshold style Dockerfile",

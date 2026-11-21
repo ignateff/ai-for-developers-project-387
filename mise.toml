@@ -237,6 +237,9 @@ run = "pnpm --filter @calendar/api start"
 description = "Regenerate OpenAPI spec and SDK from TypeSpec contract"
 run = "pnpm run generate"
 
+[tasks."check:doc-links"]
+run = "pnpm run check:doc-links"
+
 [tasks."check:contract-http"]
 run = "pnpm run check:contract-http"
 
@@ -257,6 +260,7 @@ run = [
   "pnpm run check:files",
   "pnpm run lint:unused",
   "pnpm run lint:workflows",
+  "pnpm run check:doc-links",
   "pnpm run lint:shell",
   "pnpm run lint:docker",
   "pnpm run check:secrets",
